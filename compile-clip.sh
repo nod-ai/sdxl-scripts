@@ -6,23 +6,21 @@ set -xeu
 
 iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_fp16_prompt_encoder.mlir \
     --iree-hal-target-backends=rocm \
+    --iree-input-type=torch \
     --iree-rocm-target-chip=gfx942 \
-    --iree-rocm-link-bc=true \
     --iree-rocm-bc-dir=$PWD/bitcode-2024-03-07 \
     --iree-global-opt-propagate-transposes=true \
     --iree-opt-outer-dim-concat=true \
+    --iree-opt-const-eval=false \
+    --iree-rocm-waves-per-eu=2 \
     --iree-llvmgpu-enable-prefetch \
-    --iree-codegen-log-swizzle-tile=4 \
-    --iree-codegen-llvmgpu-use-vector-distribution \
-    --iree-codegen-llvmgpu-reduce-skinny-matmuls \
-    --iree-global-opt-only-sink-transposes=true \
     --iree-execution-model=async-external \
     --iree-hal-dump-executable-configurations-to=configurations/clip \
     --iree-hal-dump-executable-sources-to=sources/clip \
     --iree-hal-dump-executable-binaries-to=binaries/clip \
     --iree-hal-dump-executable-benchmarks-to=benchmarks/clip \
-    --iree-opt-splat-parameter-file=tmp/splat_clip.irpa \
-    --iree-preprocessing-pass-pipeline="builtin.module(iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics)" \
+    --iree-opt-splat-parameter-archive-export-file=tmp/splat_clip.irpa \
+    --iree-preprocessing-pass-pipeline="builtin.module(iree-preprocessing-transpose-convolution-pipeline)" \
     --iree-codegen-transform-dialect-library=$PWD/specs/attention_and_matmul_spec.mlir \
     -o $PWD/tmp/sdxl_clip.vmfb "$@"
     #--iree-hal-benchmark-dispatch-repeat-count=20 \
