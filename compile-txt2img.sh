@@ -23,7 +23,7 @@ iree-compile $PWD/base_ir/sdxl_pipeline_bench_f16.mlir \
     --iree-rocm-waves-per-eu=2 \
     --iree-opt-outer-dim-concat=true \
     --iree-llvmgpu-enable-prefetch \
-    -o $PWD/tmp/sdxl_txt2img.vmfb "$@"
+    -o $PWD/tmp/sdxl_txt2img.vmfb
     #--iree-hal-benchmark-dispatch-repeat-count=20 \
     #--iree-hal-executable-debug-level=3 \
     #--iree-vulkan-target-triple=rdna3-unknown-linux \
