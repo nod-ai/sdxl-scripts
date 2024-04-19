@@ -31,10 +31,9 @@ fi
 # Now switch to the mirror user home directory
 USER ${DOCKER_USERNAME}
 WORKDIR /home/${DOCKER_USERNAME}
-run rm -rf ./iree
 
 # Checkout and build IREE
-RUN git clone --depth=1 https://github.com/openxla/iree.git -b sdxl && \
+RUN git clone --depth=1 https://github.com/openxla/iree.git && \
   cd iree && git submodule update --init --depth=1
 RUN cd iree && cmake -S . -B build-release \
   -G Ninja -DCMAKE_BUILD_TYPE=Release \
@@ -46,9 +45,9 @@ RUN cd iree && cmake -S . -B build-release \
 # Make IREE tools discoverable in PATH
 ENV PATH=/home/${DOCKER_USERNAME}/iree/build-release/tools:$PATH
 
+ARG ROCM_CHIP=gfx942
 # Check out SDXL scripts and build model
-RUN git clone --depth=1 https://github.com/monorimet/sdxl-scripts -b gfx942-iree-main
-RUN cd sdxl-scripts && ./compile-txt2img.sh
+RUN git clone --depth=1 https://github.com/monorimet/sdxl-scripts -b gfx942-iree-main && cd sdxl-scripts && ./compile-txt2img.sh ${ROCM_CHIP}
 
 WORKDIR /home/${DOCKER_USERNAME}/sdxl-scripts
 ENTRYPOINT /bin/bash

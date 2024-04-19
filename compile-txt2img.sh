@@ -4,13 +4,18 @@
 
 set -xeu
 
-$PWD/compile-clip.sh
-$PWD/compile-scheduled-unet.sh
-$PWD/compile-vae.sh
+if (( $# != 1 )); then
+  echo "usage: $0 <target-chip>"
+  exit 1
+fi
+
+$PWD/compile-clip.sh $1
+$PWD/compile-scheduled-unet.sh $1
+$PWD/compile-vae.sh $1
 
 iree-compile $PWD/base_ir/sdxl_pipeline_bench_f16.mlir \
     --iree-hal-target-backends=rocm \
-    --iree-rocm-target-chip=gfx942 \
+    --iree-rocm-target-chip=$1 \
     --iree-rocm-bc-dir=$PWD/bitcode-2024-03-07 \
     --iree-global-opt-propagate-transposes=true \
     --iree-codegen-llvmgpu-use-vector-distribution \

@@ -4,10 +4,15 @@
 
 set -xeu
 
+if (( $# != 1 )); then
+  echo "usage: $0 <target-chip>"
+  exit 1
+fi
+
 iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_fp16_prompt_encoder.mlir \
     --iree-hal-target-backends=rocm \
     --iree-input-type=torch \
-    --iree-rocm-target-chip=gfx942 \
+    --iree-rocm-target-chip=$1 \
     --iree-rocm-bc-dir=$PWD/bitcode-2024-03-07 \
     --iree-global-opt-propagate-transposes=true \
     --iree-opt-outer-dim-concat=true \
@@ -19,7 +24,7 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_fp16_prompt_encoder.ml
     --iree-hal-dump-executable-sources-to=sources/clip \
     --iree-hal-dump-executable-binaries-to=binaries/clip \
     --iree-hal-dump-executable-benchmarks-to=benchmarks/clip \
-    --iree-opt-splat-parameter-file=tmp/splat_clip.irpa \
+    --iree-opt-splat-parameter-archive-export-file=tmp/splat_clip.irpa \
     --iree-preprocessing-pass-pipeline="builtin.module(iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics)" \
     --iree-codegen-transform-dialect-library=$PWD/specs/attention_and_matmul_spec.mlir \
     -o $PWD/tmp/sdxl_clip.vmfb "$@"
