@@ -21,8 +21,8 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_1024x1024_fp16_unet.ml
     --iree-hal-dump-executable-sources-to=sources/unet \
     --iree-hal-dump-executable-binaries-to=binaries/unet \
     --iree-hal-dump-executable-benchmarks-to=benchmarks/unet \
-    --iree-opt-splat-parameter-archive-export-file=tmp/splat_unet.irpa \
-    --iree-preprocessing-pass-pipeline="builtin.module(iree-preprocessing-transpose-convolution-pipeline)" \
+    --iree-opt-splat-parameter-file=tmp/splat_unet.irpa \
+    --iree-preprocessing-pass-pipeline="builtin.module(iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics)" \
     --iree-codegen-transform-dialect-library=$PWD/specs/attention_and_matmul_spec.mlir \
     -o $PWD/tmp/sdxl_unet.vmfb "$@"
     #--iree-hal-benchmark-dispatch-repeat-count=20 \
