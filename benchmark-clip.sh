@@ -14,7 +14,7 @@ IRPA_PATH_PREFIX="${2:-/data/shark}"
 iree-benchmark-module \
   --device=rocm://$1 \
   --device_allocator=caching \
-  --module=$PWD/tmp/sdxl_clip.vmfb \
+  --module=$PWD/tmp/prompt_encoder.vmfb \
   --parameters=model=${IRPA_PATH_PREFIX}/prompt_encoder.irpa \
   --function=encode_prompts \
   --input=1x64xi64 \
