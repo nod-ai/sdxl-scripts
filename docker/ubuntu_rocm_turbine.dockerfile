@@ -46,7 +46,7 @@ ENV PATH=/home/${DOCKER_USERNAME}/iree/build-release/tools:$PATH
 
 ARG ROCM_CHIP=gfx942
 # Check out SDXL scripts and build model
-RUN git clone --depth=1 https://github.com/monorimet/sdxl-scripts && cd sdxl-scripts && ./compile-txt2img.sh ${ROCM_CHIP}
+RUN git clone --depth=1 https://github.com/nod-ai/sdxl-scripts && cd sdxl-scripts && ./compile-txt2img.sh ${ROCM_CHIP}
 
 WORKDIR /home/${DOCKER_USERNAME}/sdxl-scripts
 ENTRYPOINT /bin/bash
