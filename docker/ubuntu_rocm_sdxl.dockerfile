@@ -1,4 +1,4 @@
-# Build with `docker build . -t sdxl-repro --build-arg DOCKER_USERID=$(id -u) --build-arg DOCKER_GROUPID=$(id -g) --build-arg ROCM_CHIP=<gfx1100/gfx90a/gfx942> -f ./ubuntu_rocm_turbine.dockerfile`
+# Build with `docker build . -t sdxl-repro --build-arg DOCKER_USERID=$(id -u) --build-arg DOCKER_GROUPID=$(id -g) --build-arg ROCM_CHIP=<gfx1100/gfx90a/gfx942> -f ./ubuntu_rocm_sdxl.dockerfile`
 # Run with `docker run -it --rm --network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add $(getent group render | cut -d: -f3) --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v /path/to/weights:/weights sdxl-repro`
 # To benchmark inside docker: `./benchmark-txt2img.sh N /weights`
 
