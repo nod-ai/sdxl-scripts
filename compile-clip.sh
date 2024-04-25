@@ -19,6 +19,7 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_fp16_prompt_encoder.ml
     --iree-opt-const-eval=false \
     --iree-rocm-waves-per-eu=2 \
     --iree-llvmgpu-enable-prefetch \
+    --iree-flow-enable-aggressive-fusion \
     --iree-execution-model=async-external \
     --iree-hal-dump-executable-configurations-to=configurations/clip \
     --iree-hal-dump-executable-sources-to=sources/clip \

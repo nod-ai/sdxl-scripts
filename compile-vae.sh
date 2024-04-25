@@ -18,6 +18,7 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_1024x1024_fp16_vae_decode
     --iree-opt-const-eval=false \
     --iree-llvmgpu-enable-prefetch=true \
     --iree-rocm-waves-per-eu=2 \
+    --iree-flow-enable-aggressive-fusion \
     --iree-hal-dump-executable-configurations-to=configurations/vae \
     --iree-hal-dump-executable-sources-to=sources/vae \
     --iree-hal-dump-executable-binaries-to=binaries/vae \
