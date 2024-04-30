@@ -23,6 +23,8 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_PNDM_64_1024x1024_fp16_un
     --iree-llvmgpu-enable-prefetch \
     --iree-codegen-gpu-native-math-precision=true \
     --iree-flow-enable-aggressive-fusion \
+    --iree-global-opt-enable-fuse-horizontal-contractions=true \
+    --iree-opt-aggressively-propagate-transposes=true \
     --iree-execution-model=async-external \
     --iree-hal-dump-executable-configurations-to=configurations/scheduled_unet \
     --iree-hal-dump-executable-sources-to=sources/scheduled_unet \
