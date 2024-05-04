@@ -11,6 +11,7 @@ fi
 
 IRPA_PATH_PREFIX="${2:-/data/shark}"
 
+echo "Benchmarking SDXL pipeline..."
 iree-benchmark-module \
  --device=rocm://$1 \
  --device_allocator=caching \
@@ -30,6 +31,9 @@ iree-benchmark-module \
  --input=1x64xi64 \
  --benchmark_repetitions=3
 
-# $PWD/benchmark-clip.sh $1
-# $PWD/benchmark-vae.sh $1
-# $PWD/benchmark-unet.sh $1
+echo "Benchmarking CLIP..."
+$PWD/benchmark-clip.sh $1 $2
+echo "Benchmarking VAE..."
+$PWD/benchmark-vae.sh $1 $2
+echo "Benchmarking UNet..."
+$PWD/benchmark-scheduled-unet.sh $1 $2

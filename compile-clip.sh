@@ -20,15 +20,17 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_fp16_prompt_encoder.ml
     --iree-rocm-waves-per-eu=2 \
     --iree-llvmgpu-enable-prefetch \
     --iree-flow-enable-aggressive-fusion \
+    --iree-global-opt-enable-fuse-horizontal-contractions=true \
+    --iree-opt-aggressively-propagate-transposes=true \
+    --iree-codegen-llvmgpu-use-vector-distribution=true \
     --iree-execution-model=async-external \
     --iree-hal-dump-executable-configurations-to=configurations/clip \
     --iree-hal-dump-executable-sources-to=sources/clip \
     --iree-hal-dump-executable-binaries-to=binaries/clip \
     --iree-hal-dump-executable-benchmarks-to=benchmarks/clip \
-    --iree-opt-splat-parameter-archive-export-file=tmp/splat_clip.irpa \
     --iree-preprocessing-pass-pipeline="builtin.module(iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics))" \
-    --iree-codegen-transform-dialect-library=$PWD/specs/attention_and_matmul_spec.mlir \
     -o $PWD/tmp/prompt_encoder.vmfb
+    #--iree-codegen-transform-dialect-library=$PWD/specs/attention_and_matmul_spec.mlir \
     #--iree-hal-benchmark-dispatch-repeat-count=20 \
     #--iree-hal-executable-debug-level=3 \
     #--iree-vulkan-target-triple=rdna3-unknown-linux \

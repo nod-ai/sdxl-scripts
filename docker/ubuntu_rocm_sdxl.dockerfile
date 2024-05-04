@@ -12,7 +12,7 @@ ARG APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
 # Basic development environment
 RUN apt-get update && apt-get install -y \
   software-properties-common git \
-  build-essential cmake ninja-build clang lld && \
+  build-essential cmake ninja-build clang lld vim && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set up mirror user account
