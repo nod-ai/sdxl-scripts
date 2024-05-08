@@ -561,6 +561,23 @@ module attributes { transform.with_named_sequence } {
     transform.yield %matmul, %config : !transform.any_op, !transform.any_param
   }
 
+  transform.named_sequence @match_mmt_8192x5120x640(%matmul: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+    %mmt = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%matmul) : (!transform.any_op) -> !transform.any_op
+    %lhs = transform.get_operand %matmul[0] : (!transform.any_op) -> !transform.any_value
+    %rhs = transform.get_operand %matmul[1] : (!transform.any_op) -> !transform.any_value
+    transform.iree.match.cast_compatible_type %lhs = tensor<8192x640xf16> : !transform.any_value
+    transform.iree.match.cast_compatible_type %rhs = tensor<5120x640xf16> : !transform.any_value
+    %config = transform.param.constant #iree_codegen.compilation_info<
+      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[128, 128, 32]]>,
+      translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
+        workgroup_size = [128, 2, 1] subgroup_size = 64,
+        {mma_schedule = #iree_gpu.mma_schedule<
+          intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>,
+          subgroup_m_count = 2, subgroup_n_count = 2>}>
+      > -> !transform.any_param
+    transform.yield %matmul, %config : !transform.any_op, !transform.any_param
+  }
+
 //===----------------------------------------------------------------------===//
 // Entry point
 //===----------------------------------------------------------------------===//
@@ -575,6 +592,7 @@ module attributes { transform.with_named_sequence } {
         , @match_mmt_2048x10240x1280 -> @apply_op_config
         , @match_mmt_2048x1280x5120 -> @apply_op_config
         , @match_mmt_2048x1280x1280 -> @apply_op_config
+        , @match_mmt_8192x5120x640 -> @apply_op_config
       : (!transform.any_op) -> (!transform.any_op)
     transform.yield
   }
