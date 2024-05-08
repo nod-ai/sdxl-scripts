@@ -506,7 +506,7 @@ module attributes { transform.with_named_sequence } {
 
   transform.named_sequence @apply_op_config(%op: !transform.any_op {transform.readonly}, %config: !transform.any_param {transform.readonly}) {
     transform.annotate %op "compilation_info" = %config : !transform.any_op, !transform.any_param
-    transform.print %op {name = "Applied"} : !transform.any_op
+    // transform.print %op {name = "Applied"} : !transform.any_op
     transform.yield
   }
 
