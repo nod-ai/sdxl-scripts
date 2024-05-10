@@ -447,7 +447,7 @@ module attributes { transform.with_named_sequence } {
   //===------------------------------------------------------===
 
   transform.named_sequence @annotate_op(%target: !transform.any_op {transform.readonly}) {
-    transform.annotate %target "winograd_conv" : !transform.any_op
+    transform.annotate %target "__winograd_conv" : !transform.any_op
     transform.yield
   }
 
