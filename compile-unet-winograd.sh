@@ -40,7 +40,7 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_1024x1024_fp16_unet.ml
     --iree-codegen-transform-dialect-library=$PWD/specs/attention_and_matmul_spec.mlir \
     --iree-opt-const-expr-max-size-increase-threshold=1000000000000000 \
     --iree-preprocessing-pass-pipeline="$preprocessingPipeline" \
-    -o $PWD/tmp/scheduled_unet.vmfb
+    -o $PWD/tmp/unet.vmfb
     #--iree-hal-benchmark-dispatch-repeat-count=20 \
     #--iree-hal-executable-debug-level=3 \
     #--iree-vulkan-target-triple=rdna3-unknown-linux \
