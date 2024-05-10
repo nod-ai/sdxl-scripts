@@ -16,7 +16,7 @@ preprocessingPipeline="builtin.module("\
 "util.func(iree-preprocessing-pad-to-intrinsics{pad-target-type=conv})"\
 ")"
 
-iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_PNDM_64_1024x1024_fp16_unet_30.mlir \
+iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_1024x1024_fp16_unet.mlir \
     --iree-hal-target-backends=rocm \
     --iree-rocm-target-chip=$1 \
     --iree-rocm-bc-dir=$PWD/bitcode-2024-03-07 \
@@ -33,10 +33,10 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_PNDM_64_1024x1024_fp16_un
     --iree-global-opt-enable-fuse-horizontal-contractions=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-execution-model=async-external \
-    --iree-hal-dump-executable-configurations-to=configurations/scheduled_unet_winograd \
-    --iree-hal-dump-executable-sources-to=sources/scheduled_unet_winograd \
-    --iree-hal-dump-executable-binaries-to=binaries/scheduled_unet_winograd \
-    --iree-hal-dump-executable-benchmarks-to=benchmarks/scheduled_unet_winograd \
+    --iree-hal-dump-executable-configurations-to=configurations/unet_winograd \
+    --iree-hal-dump-executable-sources-to=sources/unet_winograd \
+    --iree-hal-dump-executable-binaries-to=binaries/unet_winograd \
+    --iree-hal-dump-executable-benchmarks-to=benchmarks/unet_winograd \
     --iree-codegen-transform-dialect-library=$PWD/specs/attention_and_matmul_spec.mlir \
     --iree-opt-const-expr-max-size-increase-threshold=1000000000000000 \
     --iree-preprocessing-pass-pipeline="$preprocessingPipeline" \
