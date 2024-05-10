@@ -9,6 +9,13 @@ if (( $# != 1 )); then
   exit 1
 fi
 
+preprocessingPipeline="builtin.module("\
+"iree-preprocessing-transform-interpreter{transform-spec-path=$PWD/specs/winograd_conv_spec.mlir},"\
+"util.func(iree-linalg-ext-convert-conv2d-to-winograd),"\
+"iree-preprocessing-transpose-convolution-pipeline,"\
+"util.func(iree-preprocessing-pad-to-intrinsics{pad-target-type=conv})"\
+")"
+
 iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_PNDM_64_1024x1024_fp16_unet_30.mlir \
     --iree-hal-target-backends=rocm \
     --iree-rocm-target-chip=$1 \
@@ -32,7 +39,7 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_PNDM_64_1024x1024_fp16_un
     --iree-hal-dump-executable-benchmarks-to=benchmarks/scheduled_unet \
     --iree-codegen-transform-dialect-library=$PWD/specs/attention_and_matmul_spec.mlir \
     --iree-opt-const-expr-max-size-increase-threshold=1000000000000000 \
-    --iree-preprocessing-pass-pipeline="builtin.module(util.func(iree-linalg-ext-convert-conv2d-to-winograd{td-library-path=$PWD/specs/winograd_conv_spec.mlir}), iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics{pad-target-type=conv}))" \
+    --iree-preprocessing-pass-pipeline="$preprocessingPipeline" \
     -o $PWD/tmp/scheduled_unet.vmfb
     #--iree-hal-benchmark-dispatch-repeat-count=20 \
     #--iree-hal-executable-debug-level=3 \
