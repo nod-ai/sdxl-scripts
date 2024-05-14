@@ -446,7 +446,7 @@ def generate_constraints(problem_size, tile_sizes, subgroup_size, intrinsic_size
     constraints += [k * m % (wg_x * wg_y * wg_z) == 0]
     constraints += [subgroup_m_count * subgroup_n_count == 4]
 
-    constraints += [z3.Or(waves_per_eu == 1, waves_per_eu == 2, waves_per_eu == 4, waves_per_eu == 6)]
+    constraints += [z3.Or(waves_per_eu == 1, waves_per_eu == 2, waves_per_eu == 4)]
     constraints += [no_workgroup_reorder >= 0, no_workgroup_reorder <= 1]
 
     return constraints
