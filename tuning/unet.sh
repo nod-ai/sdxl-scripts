@@ -22,7 +22,7 @@ tools/iree-compile \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-execution-model=async-external \
     --iree-preprocessing-pass-pipeline="builtin.module(iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics))" \
-    --iree-codegen-transform-dialect-library=config.mlir \
+    --iree-codegen-transform-dialect-library="$(realpath config.mlir)" \
     "$INPUT" "$@"
 
 # --iree-hal-dump-executable-files-to=dump-unet \

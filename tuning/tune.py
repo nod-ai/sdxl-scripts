@@ -21,6 +21,8 @@ class Configuration:
     tile_sizes : list[int]
     subgroup_m_count : int
     subgroup_n_count : int
+    waves_per_eu : int
+    no_workgroup_reorder : int
 
 def read_input_mlir(filename):
     template = f''
@@ -64,10 +66,20 @@ def get_batch_matmul_tile_sizes(configuration: Configuration):
     m, n, k = configuration.tile_sizes
     return 1, m, n, k
 
+def get_pipeline_config(configuration : Configuration) -> str:
+    extra_config = ''
+    if configuration.no_workgroup_reorder == 1:
+        extra_config += ', no_reorder_workgroups'
+    if configuration.waves_per_eu != 2:
+        extra_config += f', llvm_func_attrs = {{"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"}}'
+    return extra_config
+
 def get_transform_function_mmt(filename: str, configuration: Configuration):
     tile_sizes = ", ".join(map(str, get_mmt_tile_sizes(configuration)))
 
     wg_x, wg_y, wg_z = configuration.workgroup_size
+    extra_config = get_pipeline_config(configuration)
+
     return f'''
 transform.named_sequence @{filename}(%matmul: !transform.any_op {{transform.readonly}}) -> (!transform.any_op, !transform.any_param) {{
   %mmt = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%matmul) : (!transform.any_op) -> !transform.any_op
@@ -80,8 +92,9 @@ transform.named_sequence @{filename}(%matmul: !transform.any_op {{transform.read
     translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
       workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
       {{mma_schedule = #iree_gpu.mma_schedule<
-        intrinsic = {configuration.intrinsic},
-        subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>}}>
+         intrinsic = {configuration.intrinsic},
+         subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>
+       {extra_config}}}>
     > -> !transform.any_param
   transform.yield %matmul, %config : !transform.any_op, !transform.any_param
 }}
@@ -126,14 +139,17 @@ transform.named_sequence @match_conv_2d_nhwc_hwcf_{N}x{OH}x{OW}x{OC}x{FH}x{FW}x{
 }}
      '''
 
-def apply_params_mmt(M, N, K, template, configuration : Configuration):
+def apply_params_mmt(M, N, K, template, configuration: Configuration):
     print(configuration)
+    extra_config = get_pipeline_config(configuration)
     expr0 = re.compile(r'<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>')
     expr1 = re.compile(r'LLVMGPUVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),')
     expr2 = re.compile(r'tile_sizes = \[\[([0-9]+), ([0-9]+), ([0-9]+)\]\]')
-    repl0 = f'<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>'
+    expr3 = re.compile(r', waves_per_eu = ([0-9]) : i64')
+    repl0 = f'<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}'
     repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_mmt_tile_sizes(configuration)))}]]'
+    repl3 = f', waves_per_eu = {config.waves_per_eu} : i64'
 
     modified = indent(get_transform_function_mmt(f'match_mmt_{M}x{N}x{K}', configuration), '//   ')
     for line in template:
@@ -143,6 +159,8 @@ def apply_params_mmt(M, N, K, template, configuration : Configuration):
             line = re.sub(expr1, repl1, line)
         if 'tile_sizes' in line:
             line = re.sub(expr2, repl2, line)
+        if 'waves_per_eu' in line:
+            line = re.sub(expr3, repl3, line)
         modified += line
 
 
@@ -394,7 +412,8 @@ def is_not_pow2(x, min, max):
     return z3.And(list(x != 2 ** i for i in range(min, max + 1)))
 
 def generate_constraints(problem_size, tile_sizes, subgroup_size, intrinsic_size, workgroup_size,
-                         subgroup_m_count, subgroup_n_count):
+                         subgroup_m_count, subgroup_n_count,
+                         waves_per_eu, no_workgroup_reorder):
     M, N, K = problem_size
     m, n, k = tile_sizes
     intrinsic_mn, intrinsic_k = intrinsic_size
@@ -426,6 +445,10 @@ def generate_constraints(problem_size, tile_sizes, subgroup_size, intrinsic_size
     constraints += [k * n % (wg_x * wg_y * wg_z) == 0]
     constraints += [k * m % (wg_x * wg_y * wg_z) == 0]
     constraints += [subgroup_m_count * subgroup_n_count == 4]
+
+    constraints += [z3.Or(waves_per_eu == 1, waves_per_eu == 2, waves_per_eu == 4, waves_per_eu == 6)]
+    constraints += [no_workgroup_reorder >= 0, no_workgroup_reorder <= 1]
+
     return constraints
 
 def generate_solutions(M, N, K):
@@ -437,13 +460,15 @@ def generate_solutions(M, N, K):
     wg_x, wg_y, wg_z = z3.Int('wg_x'), z3.Int('wg_y'), z3.Int('wg_z')
     sg_m_cnt = z3.Int('sg_m_cnt')
     sg_n_cnt = z3.Int('sg_n_cnt')
+    waves_per_eu = z3.Int('waves_per_eu')
+    no_workgroup_reorder = z3.Int('no_workgroup_reorder')
     all_vars = [m, n, k, subgroup_size, intrinsic_mn, intrinsic_k, wg_x, wg_y, wg_z,
-                sg_m_cnt, sg_n_cnt]
+                sg_m_cnt, sg_n_cnt, waves_per_eu, no_workgroup_reorder]
 
     solver = z3.Solver()
     constraints = generate_constraints([M, N, K], [m, n, k], subgroup_size, [intrinsic_mn, intrinsic_k],
-                                       [wg_x, wg_y, wg_z],
-                                       sg_m_cnt, sg_n_cnt)
+                                       [wg_x, wg_y, wg_z], sg_m_cnt, sg_n_cnt,
+                                       waves_per_eu, no_workgroup_reorder)
     solver.add(z3.simplify(z3.And(constraints)))
     logging.debug(f'Initial constraints: {solver}')
     i = 0
@@ -453,7 +478,8 @@ def generate_solutions(M, N, K):
 
         config = Configuration(lookup(subgroup_size), [lookup(wg_x), lookup(wg_y), lookup(wg_z)],
                                f'#iree_gpu.mma_layout<MFMA_F16_{lookup(intrinsic_mn)}x{lookup(intrinsic_mn)}x{lookup(intrinsic_k)}_F32>',
-                               [lookup(m), lookup(n), lookup(k)], lookup(sg_m_cnt), lookup(sg_n_cnt))
+                               [lookup(m), lookup(n), lookup(k)], lookup(sg_m_cnt), lookup(sg_n_cnt),
+                               lookup(waves_per_eu), lookup(no_workgroup_reorder))
         solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
         i += 1
         yield config

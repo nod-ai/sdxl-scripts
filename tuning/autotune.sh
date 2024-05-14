@@ -12,7 +12,7 @@ readonly TEMPLATE="${BASE_DIR}/template.mlir"
 readonly CANDIDATES="${BASE_DIR}/candidates"
 
 cp "$INPUT" "$TEMPLATE"
-./tune.py "$TEMPLATE" -o "$CANDIDATES" -l 4096
+./tune.py "$TEMPLATE" -o "$CANDIDATES" -l 8192
 
 ls -1v "$CANDIDATES"/*.mlir | grep -v _config.mlir | parallel ./compile_candidate.sh {} || true
 

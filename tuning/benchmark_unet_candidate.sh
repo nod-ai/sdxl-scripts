@@ -8,7 +8,7 @@ shift 1
 echo "Benchmarking: ${INPUT}"
 
 tools/iree-benchmark-module \
-  --device=rocm://4 \
+  --device=rocm://0 \
   --device_allocator=caching \
   --module="${INPUT}" \
   --parameters=model=unet.irpa \
@@ -19,6 +19,6 @@ tools/iree-benchmark-module \
   --input=2x1280xf16 \
   --input=2x6xf16 \
   --input=1xf16 \
-  --benchmark_repetitions=5 2>&1 | grep real_time_median
+  --benchmark_repetitions=10 2>&1 | grep real_time_median
 
 echo
