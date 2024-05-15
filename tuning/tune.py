@@ -362,10 +362,6 @@ def get_shapes_contract(template):
         in1_dims = get_shape_dims(ins_shape.groups()[1])
         out_dims = get_shape_dims(outs_shape.groups()[0])
 
-        assert len(in0_dims) == 3
-        assert len(in1_dims) == 4
-        assert len(out_dims) == 5
-
         return in0_dims, in1_dims, out_dims
 
     assert False, "Shape not found"
