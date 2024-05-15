@@ -37,7 +37,7 @@ def is_conv(lines) -> bool:
     return any('func.func' in line and 'conv_2d_nhwc_hwcf' in line for line in lines)
 
 def is_contract(lines) -> bool:
-    return any('func.func' in line and 'contract' in line for line in lines)
+    return any('func.func' in line and 'matmul_like' in line for line in lines)
 
 def is_batch_matmul(lines) -> bool:
     return any('func.func' in line and 'batch_matmul' in line for line in lines)
@@ -58,9 +58,17 @@ def get_conv_tile_sizes(configuration: Configuration):
     ic = k
     return batch, oh, ow, oc, fh, fw, ic
 
-def get_contract_tile_sizes(configuration: Configuration):
+def get_contract_tile_sizes(configuration: Configuration, tile_dims):
     m, n, k = configuration.tile_sizes
-    return 1, 1, 1, m, n, k
+    tile_size = [1] * len(tile_dims)
+    for idx, dim in enumerate(tile_dims):
+        if dim == 'm':
+            tile_size[idx] = m
+        if dim == 'n':
+            tile_size[idx] = n
+        if dim == 'k':
+            tile_size[idx] = k
+    return tile_size
 
 def get_batch_matmul_tile_sizes(configuration: Configuration):
     m, n, k = configuration.tile_sizes
@@ -201,36 +209,28 @@ def apply_params_conv(N, OH, OW, OC, FH, FW, IC, template, configuration):
 
     return modified
 
-def apply_params_contract(LHS, RHS, RES, template, configuration):
-    params = asdict(configuration)
-    keys = list(params.keys())
-    expr = re.compile(r'intrinsic = #iree_gpu.mfma_layout<([0-9A-Za-z_]+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+), subgroup_m_tile_count = ([0-9]+), subgroup_n_tile_count = ([0-9]+), subgroup_k_tile_count = ([0-9]+)>}>, workgroup_size = \[([0-9]+) : index, ([0-9]+) : index, ([0-9]+) : index\]')
-    expr2 = re.compile(r'tile_sizes = \[\[[0-9,\s]+\]\]')
-    repl = ''
-    for i, key in enumerate(keys):
-        if 'workgroup_size' in key or 'tile_sizes' in key or 'subgroup_size' in key:
-            continue
-        if len(repl) != 0:
-            repl += ', '
-        repl += f'{key} = {params[key]}'
+def apply_params_contract(LHS, RHS, RES, tile_dims, template, configuration):
+    print(configuration)
+    extra_config = get_pipeline_config(configuration)
+    expr0 = re.compile(r'<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>')
+    expr1 = re.compile(r'LLVMGPUVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),')
+    expr2 = re.compile(r'tile_sizes = \[\[(([0-9]+), )+([0-9]+)\]\]')
+    expr3 = re.compile(r', waves_per_eu = ([0-9]) : i64')
+    repl0 = f'<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}'
+    repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
+    repl2 = f'tile_sizes = [[{", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))}]]'
+    repl3 = f', waves_per_eu = {config.waves_per_eu} : i64'
 
-    repl += '>}>, workgroup_size = ['
-    for i, val in enumerate(params['workgroup_size']):
-        repl += f'{val} : index'
-        if i != len(params['workgroup_size']) - 1:
-            repl += ', '
-    repl += ']'
-
-    repl2 = f'tile_sizes = [[{", ".join(map(str, get_contract_tile_sizes(configuration)))}]]'
-
-    #print("Repl: ", repl)
-    #print("Repl2: ", repl2)
-    modified = '' # indent(get_transform_function_conv(N, OH, OW, OC, FH, FW, IC, configuration), '//   ')
+    modified = ''  # indent(get_transform_function_mmt(f'match_mmt_{M}x{N}x{K}', configuration), '//   ')
     for line in template:
-        if 'intrinsic' in line:
-            line = re.sub(expr, repl, line)
+        if 'intrinsic =' in line:
+            line = re.sub(expr0, repl0, line)
+        if 'LLVMGPUVectorDistribute ' in line:
+            line = re.sub(expr1, repl1, line)
         if 'tile_sizes' in line:
             line = re.sub(expr2, repl2, line)
+        if 'waves_per_eu' in line:
+            line = re.sub(expr3, repl3, line)
         modified += line
 
     return modified
@@ -336,8 +336,11 @@ def get_shapes_contract(template):
     for line in template:
         if 'linalg.generic' not in line:
             continue
-        if r'iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel", "reduction"]' not in line:
+        if 'lowering_config =' not in line:
             continue
+        if '"reduction"' not in line:
+            continue
+
         # ins(%7, %8 : tensor<2x1024x1280xf16>, tensor<20x64x1280xf16>)
         tensor_re = r'tensor<([0-9xf]+)>'
         ins_re = rf'ins\(.+:\s*{tensor_re},\s*{tensor_re}\)'
@@ -484,6 +487,12 @@ def generate_solutions(M, N, K):
         i += 1
         yield config
 
+def product(vals):
+    res = 1
+    for val in vals:
+        res *= val
+    return res
+
 def get_default_output_dir():
     from datetime import datetime
     return 'tuning_' + datetime.now().strftime('%Y_%m_%d_%H_%M')
@@ -493,6 +502,9 @@ if __name__ == '__main__':
     parser.add_argument('input', help='Input mlir file', type=str)
     parser.add_argument('-o', '--output', help='Output dir', type=str, default=get_default_output_dir())
     parser.add_argument('-l', '--limit', help='Max number of candidates generated', type=int, default=4096)
+    parser.add_argument('--lhs-dims', help='Map of LHS matmul dims', type=str, default="mk")
+    parser.add_argument('--rhs-dims', help='Map of RHS matmul dims', type=str, default="nk")
+    parser.add_argument('--tile-dims', help='Map of tile size matmul dims', type=str, default="mnk")
 
     args = parser.parse_args()
 
@@ -510,7 +522,7 @@ if __name__ == '__main__':
 
     # Save the input file as the first candidate.
     with open(path.join(args.output, f'0.mlir') , 'w') as f:
-        f.write('\n'.join(mlir_template))
+        f.write(''.join(mlir_template))
 
     if detected_mmt:
         M, N, K = get_shapes_mmt(mlir_template)
@@ -529,12 +541,12 @@ if __name__ == '__main__':
     elif detected_conv:
         N, OH, OW, OC, FH, FW, IC = get_shapes_conv(mlir_template)
         logging.debug(f'Conv shape: [n{N}, oh{OH}, oc{OC}, fh{FH}, fw{FW}, ic{IC}]')
-        m = OH * OW
-        n = OC
-        k = FH * FW * IC
-        logging.debug(f'Equivalent matmul shape: [{m}, {n}, {k}]')
+        M = OH * OW
+        N = OC
+        K = FH * FW * IC
+        logging.debug(f'Equivalent matmul shape: [{M}, {N}, {K}]')
 
-        for i, config in enumerate(generate_solutions(m, n, k)):
+        for i, config in enumerate(generate_solutions(M, N, K)):
             if i >= args.limit:
                 break
             #print(f'Solution #{i+1}: {config}')
@@ -543,19 +555,24 @@ if __name__ == '__main__':
             with open(path.join(args.output, f'{i+1}.mlir') , 'w') as f:
                 f.write(new_mlir)
     elif detected_contract:
-        # TODO(kuhar): Add logic to parse the indexing maps to extract M, N, and K mapping to shapes.
         LHS, RHS, RES = get_shapes_contract(mlir_template)
         logging.debug(f'Contract shape: ({LHS}, {RHS}) -> {RES}')
-        m = LHS[0] * LHS[1]
-        n = RHS[0] * RHS[1] * RHS[2]
-        k = LHS[2]
-        logging.debug(f'Equivalent matmul shape: [{m}, {n}, {k}]')
-
-        for i, config in enumerate(generate_solutions(m, n, k)):
+        lhs_dims = args.lhs_dims
+        rhs_dims = args.rhs_dims
+        tile_dims = args.tile_dims
+        assert len(LHS) == len(lhs_dims)
+        assert len(RHS) == len(rhs_dims)
+        M = product(val if dim == 'm' else 1 for dim, val in zip(lhs_dims, LHS))
+        N = product(val if dim == 'n' else 1 for dim, val in zip(rhs_dims, RHS))
+        K0 = product(val if dim == 'k' else 1 for dim, val in zip(lhs_dims, LHS))
+        K1 = product(val if dim == 'k' else 1 for dim, val in zip(rhs_dims, RHS))
+        assert K0 == K1
+        logging.debug(f'Equivalent matmul shape: [{M}, {N}, {K0}]')
+        for i, config in enumerate(generate_solutions(M, N, K0)):
             if i >= args.limit:
                 break
             #print(f'Solution #{i+1}: {config}')
-            new_mlir = apply_params_contract(LHS, RHS, RES, mlir_template, config)
+            new_mlir = apply_params_contract(LHS, RHS, RES, tile_dims, mlir_template, config)
 
             with open(path.join(args.output, f'{i+1}.mlir') , 'w') as f:
                 f.write(new_mlir)

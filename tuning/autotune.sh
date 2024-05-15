@@ -3,6 +3,7 @@
 set -xeuo pipefail
 
 readonly INPUT="$(realpath "$1")"
+shift
 
 readonly BASE_DIR="tuning_$(date +%Y_%m_%d_%H_%M)"
 mkdir -p "$BASE_DIR"
@@ -12,7 +13,7 @@ readonly TEMPLATE="${BASE_DIR}/template.mlir"
 readonly CANDIDATES="${BASE_DIR}/candidates"
 
 cp "$INPUT" "$TEMPLATE"
-./tune.py "$TEMPLATE" -o "$CANDIDATES" -l 4096
+./tune.py "$TEMPLATE" -o "$CANDIDATES" -l 4096 "$@"
 
 ls -1v "$CANDIDATES"/*.mlir | grep -v _config.mlir | parallel ./compile_candidate.sh {} || true
 
