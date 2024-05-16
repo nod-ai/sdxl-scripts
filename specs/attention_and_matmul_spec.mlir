@@ -685,6 +685,37 @@ module attributes { transform.with_named_sequence } {
     transform.yield %contract, %config : !transform.any_op, !transform.any_param
   }
 
+  transform.named_sequence @match_contract_2x20x1024x64x1280(%contract: !transform.any_op {transform.readonly})
+    -> (!transform.any_op, !transform.any_param) {
+    %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %contract {
+    ^bb0(%lhs: tensor<2x1024x1280xf16>, %rhs: tensor<20x64x1280xf16>, %out: tensor<2x20x1024x64xf32>):
+      %20 = linalg.generic {
+        indexing_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d2, d4)>,
+                         affine_map<(d0, d1, d2, d3, d4) -> (d1, d3, d4)>,
+                         affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3)>],
+        iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]
+      } ins(%lhs, %rhs : tensor<2x1024x1280xf16>, tensor<20x64x1280xf16>)
+          outs(%out : tensor<2x20x1024x64xf32>) {
+      ^bb0(%in: f16, %in_0: f16, %acc: f32):
+        %22 = arith.extf %in : f16 to f32
+        %23 = arith.extf %in_0 : f16 to f32
+        %24 = arith.mulf %22, %23 : f32
+        %25 = arith.addf %acc, %24 : f32
+        linalg.yield %25 : f32
+      } -> tensor<2x20x1024x64xf32>
+    } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+    %config = transform.param.constant #iree_codegen.compilation_info<
+      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 64, 64, 64]]>,
+      translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
+        workgroup_size = [64, 4, 1] subgroup_size = 64,
+        {mma_schedule = #iree_gpu.mma_schedule<
+          intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>,
+          subgroup_m_count = 4, subgroup_n_count = 1>
+        }>
+      > -> !transform.any_param
+    transform.yield %contract, %config : !transform.any_op, !transform.any_param
+  }
+
 //===----------------------------------------------------------------------===//
 // Entry point
 //===----------------------------------------------------------------------===//
@@ -706,6 +737,7 @@ module attributes { transform.with_named_sequence } {
         // Contration.
         , @match_contract_3x2x20x1024x64x1280 -> @apply_op_config
         , @match_contract_2x20x64x64x2048 -> @apply_op_config
+        , @match_contract_2x20x1024x64x1280 -> @apply_op_config
       : (!transform.any_op) -> (!transform.any_op)
     transform.yield
   }
