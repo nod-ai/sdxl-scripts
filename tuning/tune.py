@@ -82,14 +82,14 @@ def get_pipeline_config(configuration : Configuration) -> str:
         extra_config += f', llvm_func_attrs = {{"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"}}'
     return extra_config
 
-def get_transform_function_mmt(filename: str, configuration: Configuration):
+def get_transform_function_mmt(functionName: str, configuration: Configuration):
     tile_sizes = ", ".join(map(str, get_mmt_tile_sizes(configuration)))
 
     wg_x, wg_y, wg_z = configuration.workgroup_size
     extra_config = get_pipeline_config(configuration)
 
     return f'''
-transform.named_sequence @{filename}(%matmul: !transform.any_op {{transform.readonly}}) -> (!transform.any_op, !transform.any_param) {{
+transform.named_sequence @{functionName}(%matmul: !transform.any_op {{transform.readonly}}) -> (!transform.any_op, !transform.any_param) {{
   %mmt = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%matmul) : (!transform.any_op) -> !transform.any_op
   %lhs = transform.get_operand %matmul[0] : (!transform.any_op) -> !transform.any_value
   %rhs = transform.get_operand %matmul[1] : (!transform.any_op) -> !transform.any_value
@@ -115,17 +115,18 @@ transform.named_sequence @{filename}(%matmul: !transform.any_op {{transform.read
 # int64_t fh = filterShape[0];
 # int64_t fw = filterShape[1];
 # int64_t ic = filterShape[2];
-def get_transform_function_conv(N, OH, OW, OC, FH, FW, IC, configuration: Configuration):
-    wg_x, wg_y, wg_z = configuration.workgroup_size
-
+def get_transform_function_conv(N, OH, OW, OC, FH, FW, IC, functionName: str, configuration: Configuration):
     input = f"tensor<{N}x?x?x{IC}xf16>"
     filter = f"tensor<{FH}x{FW}x{IC}x{OC}xf16>"
     output = f"tensor<{N}x{OH}x{OW}x{OC}xf32>"
 
     tile_sizes = ", ".join(map(str, get_conv_tile_sizes(configuration)))
 
+    wg_x, wg_y, wg_z = configuration.workgroup_size
+    extra_config = get_pipeline_config(configuration)
+
     return f'''
-transform.named_sequence @match_conv_2d_nhwc_hwcf_{N}x{OH}x{OW}x{OC}x{FH}x{FW}x{IC}(%conv: !transform.any_op {{transform.readonly}})
+transform.named_sequence @{functionName}(%conv: !transform.any_op {{transform.readonly}})
   -> (!transform.any_op, !transform.any_param) {{
   %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %conv {{
   ^bb0(%lhs: {input}, %rhs: {filter}, %out: {output}):
@@ -133,19 +134,18 @@ transform.named_sequence @match_conv_2d_nhwc_hwcf_{N}x{OH}x{OW}x{OC}x{FH}x{FW}x{
       ins(%lhs, %rhs : {input}, {filter})
       outs(%out : {output}) -> {output}
   }} : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
-  %config = transform.param.constant #iree_codegen.compilation_info<
-  lowering_config = #iree_codegen.lowering_config<tile_sizes = [[{tile_sizes}]]>,
-  translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute,
-    {{mma_schedule = #iree_gpu.mma_schedule<
-      intrinsic = {configuration.intrinsic},
-      subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count},
-      subgroup_m_tile_count = {configuration.subgroup_m_tile_count},
-      subgroup_n_tile_count = {configuration.subgroup_n_tile_count},
-      subgroup_k_tile_count = {configuration.subgroup_k_tile_count}>}}>,
-    workgroup_size = [{wg_x}, {wg_y}, {wg_z}], subgroup_size = {configuration.subgroup_size}> -> !transform.any_param
+    %config = transform.param.constant #iree_codegen.compilation_info<
+    lowering_config = #iree_codegen.lowering_config<tile_sizes = [[{tile_sizes}]]>,
+      translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
+       workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
+        {{mma_schedule = #iree_gpu.mma_schedule<
+            intrinsic = {configuration.intrinsic},
+            subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>
+        {extra_config}}}>
+    > -> !transform.any_param
   transform.yield %conv, %config : !transform.any_op, !transform.any_param
 }}
-     '''
+'''
 
 def apply_params_mmt(M, N, K, template, configuration: Configuration):
     print(configuration)
@@ -171,45 +171,39 @@ def apply_params_mmt(M, N, K, template, configuration: Configuration):
             line = re.sub(expr3, repl3, line)
         modified += line
 
-
-    embeddable = indent(get_transform_function_mmt(f'match_mmt', configuration), '  ')
+    embeddable = indent(get_transform_function_mmt(f'match_op', configuration), '  ')
     return modified, embeddable
 
-def apply_params_conv(N, OH, OW, OC, FH, FW, IC, template, configuration):
-    params = asdict(configuration)
-    keys = list(params.keys())
-    expr = re.compile(r'intrinsic = #iree_gpu.mfma_layout<([0-9A-Za-z_]+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+), subgroup_m_tile_count = ([0-9]+), subgroup_n_tile_count = ([0-9]+), subgroup_k_tile_count = ([0-9]+)>}>, workgroup_size = \[([0-9]+) : index, ([0-9]+) : index, ([0-9]+) : index\]')
-    expr2 = re.compile(r'tile_sizes = \[\[[0-9,\s]+\]\]')
-    repl = ''
-    for i, key in enumerate(keys):
-        if 'workgroup_size' in key or 'tile_sizes' in key or 'subgroup_size' in key:
-            continue
-        if len(repl) != 0:
-            repl += ', '
-        repl += f'{key} = {params[key]}'
+def apply_params_conv(N, OH, OW, OC, FH, FW, IC, template, configuration: Configuration):
+    print(configuration)
+    extra_config = get_pipeline_config(configuration)
+    expr0 = re.compile(r'<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>')
+    expr1 = re.compile(r'LLVMGPUVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),')
+    expr2 = re.compile(r'tile_sizes = \[\[([0-9]+), ([0-9]+), ([0-9]+)\]\]')
+    expr3 = re.compile(r', waves_per_eu = ([0-9]) : i64')
+    repl0 = f'<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}'
+    repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
+    repl2 = f'tile_sizes = [[{", ".join(map(str, get_mmt_tile_sizes(configuration)))}]]'
+    repl3 = f', waves_per_eu = {config.waves_per_eu} : i64'
 
-    repl += '>}>, workgroup_size = ['
-    for i, val in enumerate(params['workgroup_size']):
-        repl += f'{val} : index'
-        if i != len(params['workgroup_size']) - 1:
-            repl += ', '
-    repl += ']'
-
-    repl2 = f'tile_sizes = [[{", ".join(map(str, get_conv_tile_sizes(configuration)))}]]'
-
-    #print("Repl: ", repl)
-    #print("Repl2: ", repl2)
-    modified = indent(get_transform_function_conv(N, OH, OW, OC, FH, FW, IC, configuration), '//   ')
+    modified = indent(get_transform_function_conv(N, OH, OW, OC, FH, FW, IC,
+                                                  f'match_conv_2d_nhwc_hwcf_{N}x{OH}x{OW}x{OC}x{FH}x{FW}x{IC}',
+                                                  configuration), '//   ')
     for line in template:
-        if 'intrinsic' in line:
-            line = re.sub(expr, repl, line)
+        if 'intrinsic =' in line:
+            line = re.sub(expr0, repl0, line)
+        if 'LLVMGPUVectorDistribute ' in line:
+            line = re.sub(expr1, repl1, line)
         if 'tile_sizes' in line:
             line = re.sub(expr2, repl2, line)
+        if 'waves_per_eu' in line:
+            line = re.sub(expr3, repl3, line)
         modified += line
 
-    return modified
+    embeddable = indent(get_transform_function_conv(N, OH, OW, OC, FH, FW, IC, f'match_op', configuration), '  ')
+    return modified, embeddable
 
-def apply_params_contract(LHS, RHS, RES, tile_dims, template, configuration):
+def apply_params_contract(LHS, RHS, RES, tile_dims, template, configuration: Configuration):
     print(configuration)
     extra_config = get_pipeline_config(configuration)
     expr0 = re.compile(r'<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>')
@@ -545,11 +539,13 @@ if __name__ == '__main__':
         for i, config in enumerate(generate_solutions(M, N, K)):
             if i >= args.limit:
                 break
-            #print(f'Solution #{i+1}: {config}')
-            new_mlir = apply_params_conv(N, OH, OW, OC, FH, FW, IC, mlir_template, config)
+            print(f'Solution #{i+1}: {config}')
+            new_mlir, embeddable_tuning = apply_params_conv(N, OH, OW, OC, FH, FW, IC, mlir_template, config)
 
             with open(path.join(args.output, f'{i+1}.mlir') , 'w') as f:
                 f.write(new_mlir)
+            with open(path.join(args.output, f'{i+1}_config.mlir') , 'w') as f:
+                f.write(embeddable_tuning)
     elif detected_contract:
         LHS, RHS, RES = get_shapes_contract(mlir_template)
         logging.debug(f'Contract shape: ({LHS}, {RHS}) -> {RES}')

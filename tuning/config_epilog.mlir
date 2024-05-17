@@ -9,8 +9,7 @@
         @match_attention_len_512 -> @custom_attention_len_512,
         @match_attention -> @custom_attention
 
-        // Matmul.
-        , @match_mmt -> @apply_op_config
+        , @match_op -> @apply_op_config
       : (!transform.any_op) -> (!transform.any_op)
     transform.yield
   }

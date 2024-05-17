@@ -8,7 +8,7 @@ shift 1
 echo "Benchmarking: ${INPUT}"
 
 tools/iree-benchmark-module \
-  --device=rocm://0 \
+  --device=rocm://5 \
   --device_allocator=caching \
   --module="${INPUT}" \
   --parameters=model=unet.irpa \
