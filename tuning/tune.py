@@ -70,10 +70,6 @@ def get_contract_tile_sizes(configuration: Configuration, tile_dims):
             tile_size[idx] = k
     return tile_size
 
-def get_batch_matmul_tile_sizes(configuration: Configuration):
-    m, n, k = configuration.tile_sizes
-    return 1, m, n, k
-
 def get_pipeline_config(configuration : Configuration) -> str:
     extra_config = ''
     if configuration.no_workgroup_reorder == 1:
@@ -144,6 +140,38 @@ transform.named_sequence @{functionName}(%conv: !transform.any_op {{transform.re
         {extra_config}}}>
     > -> !transform.any_param
   transform.yield %conv, %config : !transform.any_op, !transform.any_param
+}}
+'''
+
+def get_transform_function_batch_matmul(LHS, RHS, RES, tile_dims, functionName: str, configuration: Configuration):
+    input0 = f"tensor<{'x'.join(map(str, LHS))}xf16>"
+    input1 = f"tensor<{'x'.join(map(str, RHS))}xf16>"
+    output = f"tensor<{'x'.join(map(str, RES))}xf32>"
+
+    tile_sizes = ", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))
+
+    wg_x, wg_y, wg_z = configuration.workgroup_size
+    extra_config = get_pipeline_config(configuration)
+
+    return f'''
+transform.named_sequence @{functionName}(%batch_matmul: !transform.any_op {{transform.readonly}})
+  -> (!transform.any_op, !transform.any_param) {{
+  %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %batch_matmul {{
+  ^bb0(%lhs: {input}, %rhs: {filter}, %out: {output}):
+    %13 = linalg.batch_matmul
+      ins(%lhs, %rhs : {input0}, {input1})
+      outs(%out : {output}) -> {output}
+  }} : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+    %config = transform.param.constant #iree_codegen.compilation_info<
+    lowering_config = #iree_codegen.lowering_config<tile_sizes = [[{tile_sizes}]]>,
+      translation_info = #iree_codegen.translation_info<LLVMPadAndGPUVectorDistribute
+       workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
+        {{mma_schedule = #iree_gpu.mma_schedule<
+            intrinsic = {configuration.intrinsic},
+            subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>
+        {extra_config}}}>
+    > -> !transform.any_param
+  transform.yield %batch_matmul, %config : !transform.any_op, !transform.any_param
 }}
 '''
 
@@ -229,40 +257,32 @@ def apply_params_contract(LHS, RHS, RES, tile_dims, template, configuration: Con
 
     return modified
 
-def apply_params_batch_matmul(B, M, N, K, template, configuration):
-    params = asdict(configuration)
-    keys = list(params.keys())
-    expr = re.compile(r'intrinsic = #iree_gpu.mfma_layout<([0-9A-Za-z_]+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+), subgroup_m_tile_count = ([0-9]+), subgroup_n_tile_count = ([0-9]+), subgroup_k_tile_count = ([0-9]+)>}>, workgroup_size = \[([0-9]+) : index, ([0-9]+) : index, ([0-9]+) : index\]')
-    expr2 = re.compile(r'tile_sizes = \[\[[0-9,\s]+\]\]')
-    repl = ''
-    for i, key in enumerate(keys):
-        if 'workgroup_size' in key or 'tile_sizes' in key or 'subgroup_size' in key:
-            continue
-        if len(repl) != 0:
-            repl += ', '
-        repl += f'{key} = {params[key]}'
+def apply_params_batch_matmul(LHS, RHS, RES, B, M, N, K, tile_dims, template, configuration: Configuration):
+    print(configuration)
+    extra_config = get_pipeline_config(configuration)
+    expr0 = re.compile(r'<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>')
+    expr1 = re.compile(r'LLVMGPUPandAndVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),')
+    expr2 = re.compile(r'tile_sizes = \[\[(([0-9]+), )+([0-9]+)\]\]')
+    expr3 = re.compile(r', waves_per_eu = ([0-9]) : i64')
+    repl0 = f'<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}'
+    repl1 = f'LLVMGPUPadAndVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
+    repl2 = f'tile_sizes = [[{", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))}]]'
+    repl3 = f', waves_per_eu = {config.waves_per_eu} : i64'
 
-    repl += '>}>, workgroup_size = ['
-    for i, val in enumerate(params['workgroup_size']):
-        repl += f'{val} : index'
-        if i != len(params['workgroup_size']) - 1:
-            repl += ', '
-    repl += ']'
-
-    repl2 = f'tile_sizes = [[{", ".join(map(str, get_batch_matmul_tile_sizes(configuration)))}]]'
-
-    #print("Repl: ", repl)
-    #print("Repl2: ", repl2)
-    #modified = indent(get_transform_function_mmt(M, N, K, configuration), '//   ')
-    modified = f'// Configuration: {configuration}\n'
+    modified = indent(get_transform_function_batch_matmul(LHS, RHS, RES, tile_dims, f'match_batch_matmul_{B}x{M}x{N}x{K}', configuration), '//   ')
     for line in template:
-        if 'intrinsic' in line:
-            line = re.sub(expr, repl, line)
+        if 'intrinsic =' in line:
+            line = re.sub(expr0, repl0, line)
+        if 'LLVMGPUPadAndVectorDistribute ' in line:
+            line = re.sub(expr1, repl1, line)
         if 'tile_sizes' in line:
             line = re.sub(expr2, repl2, line)
+        if 'waves_per_eu' in line:
+            line = re.sub(expr3, repl3, line)
         modified += line
 
-    return modified
+    embeddable = indent(get_transform_function_batch_matmul(LHS, RHS, RES, tile_dims, f'match_op', configuration), '  ')
+    return modified, embeddable
 
 def get_shape_dims(shape_str):
     return [int(x) for x in shape_str.split('x')[:-1]]
@@ -386,15 +406,9 @@ def get_shapes_batch_matmul(template):
         in1_dims = get_shape_dims(ins_shape.groups()[1])
         out_dims = get_shape_dims(outs_shape.groups()[0])
 
-        assert len(in0_dims) == 3
-        assert len(in1_dims) == 3
-        assert len(out_dims) == 3
-        assert in0_dims[0] == in1_dims[0] == out_dims[0]
-        assert in0_dims[1] ==  out_dims[1]
-        assert in1_dims[1] ==  out_dims[2]
-        assert in0_dims[2] ==  in1_dims[2]
-
-        return in0_dims[0], in0_dims[1], in1_dims[1], in0_dims[2]
+        assert len(in0_dims) == len(in1_dims)
+        assert len(in0_dims) == len(out_dims)
+        return in0_dims, in1_dims, out_dims
 
     assert False, "Shape not found"
 
@@ -504,6 +518,10 @@ if __name__ == '__main__':
     logging.debug(f'Processing {input_file}')
     mlir_template = read_input_mlir(input_file)
 
+    lhs_dims = args.lhs_dims
+    rhs_dims = args.rhs_dims
+    tile_dims = args.tile_dims
+
     detected_mmt = is_mmt(mlir_template)
     detected_conv = is_conv(mlir_template)
     detected_contract = is_contract(mlir_template)
@@ -549,9 +567,6 @@ if __name__ == '__main__':
     elif detected_contract:
         LHS, RHS, RES = get_shapes_contract(mlir_template)
         logging.debug(f'Contract shape: ({LHS}, {RHS}) -> {RES}')
-        lhs_dims = args.lhs_dims
-        rhs_dims = args.rhs_dims
-        tile_dims = args.tile_dims
         assert len(LHS) == len(lhs_dims)
         assert len(RHS) == len(rhs_dims)
         M = product(val if dim == 'm' else 1 for dim, val in zip(lhs_dims, LHS))
@@ -569,16 +584,28 @@ if __name__ == '__main__':
             with open(path.join(args.output, f'{i+1}.mlir') , 'w') as f:
                 f.write(new_mlir)
     elif detected_batch_matmul:
-        B, M, N, K = get_shapes_batch_matmul(mlir_template)
-        logging.debug(f'Batch Matmul shape: {B}x[{M}, {N}, {K}]')
-
-        for i, config in enumerate(generate_solutions(M, N, K)):
+        LHS, RHS, RES = get_shapes_batch_matmul(mlir_template)
+        assert len(LHS) == len(lhs_dims)
+        assert len(RHS) == len(rhs_dims)
+        B = product(val if dim == 'b' else 1 for dim, val in zip(lhs_dims, LHS))
+        B0 = product(val if dim == 'b' else 1 for dim, val in zip(lhs_dims, RHS))
+        B1 = product(val if dim == 'b' else 1 for dim, val in zip(lhs_dims, RES))
+        M = product(val if dim == 'm' else 1 for dim, val in zip(lhs_dims, LHS))
+        N = product(val if dim == 'n' else 1 for dim, val in zip(rhs_dims, RHS))
+        K0 = product(val if dim == 'k' else 1 for dim, val in zip(lhs_dims, LHS))
+        K1 = product(val if dim == 'k' else 1 for dim, val in zip(rhs_dims, RHS))
+        assert B == B0 and B == B1
+        assert K0 == K1
+        logging.debug(f'Batch matmul shape: {B}x[{M}, {N}, {K0}]')
+        for i, config in enumerate(generate_solutions(M, N, K0)):
             if i >= args.limit:
                 break
             #print(f'Solution #{i+1}: {config}')
-            new_mlir = apply_params_batch_matmul(B, M, N, K, mlir_template, config)
+            new_mlir, embeddable_tuning = apply_params_batch_matmul(LHS, RHS, RES, B, M, N, K0, tile_dims, mlir_template, config)
 
             with open(path.join(args.output, f'{i+1}.mlir') , 'w') as f:
                 f.write(new_mlir)
+            with open(path.join(args.output, f'{i+1}_config.mlir') , 'w') as f:
+                f.write(embeddable_tuning)
     else:
         assert False
