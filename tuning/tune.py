@@ -157,7 +157,7 @@ def get_transform_function_batch_matmul(LHS, RHS, RES, tile_dims, functionName: 
 transform.named_sequence @{functionName}(%batch_matmul: !transform.any_op {{transform.readonly}})
   -> (!transform.any_op, !transform.any_param) {{
   %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %batch_matmul {{
-  ^bb0(%lhs: {input}, %rhs: {filter}, %out: {output}):
+  ^bb0(%lhs: {input0}, %rhs: {input1}, %out: {output}):
     %13 = linalg.batch_matmul
       ins(%lhs, %rhs : {input0}, {input1})
       outs(%out : {output}) -> {output}
