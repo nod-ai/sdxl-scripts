@@ -14,7 +14,7 @@ fi
 iree-benchmark-module \
   --device=rocm://$1 \
   --device_allocator=caching \
-  --module=$PWD/tmp/unet.vmfb \
+  --module=$PWD/tmp/unet_misa.vmfb \
   --parameters=model=/home/nmeganat/sdxl-scripts/scheduled_unet_fp16.irpa \
   --function=main \
   --input=1x4x128x128xf16 \
