@@ -3,12 +3,13 @@
 set -euo pipefail
 
 readonly INPUT="$(realpath "$1")"
-shift 1
+readonly DEVICE="$2"
+shift 2
 
-echo "Benchmarking: ${INPUT}"
+echo "Benchmarking: ${INPUT} on device ${DEVICE}"
 
-tools/iree-benchmark-module \
-  --device=rocm://5 \
+timeout 20s tools/iree-benchmark-module \
+  --device="rocm://${DEVICE}" \
   --device_allocator=caching \
   --module="${INPUT}" \
   --parameters=model=unet.irpa \
