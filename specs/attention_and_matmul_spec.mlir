@@ -643,6 +643,26 @@ module attributes { transform.with_named_sequence } {
     transform.yield %conv, %config : !transform.any_op, !transform.any_param
   }
 
+  transform.named_sequence @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x2560(%conv: !transform.any_op {transform.readonly})
+    -> (!transform.any_op, !transform.any_param) {
+    %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %conv {
+    ^bb0(%lhs: tensor<2x?x?x2560xf16>, %rhs: tensor<3x3x2560x1280xf16>, %out: tensor<2x32x32x1280xf32>):
+      %13 = linalg.conv_2d_nhwc_hwcf { dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64> }
+        ins(%lhs, %rhs : tensor<2x?x?x2560xf16>, tensor<3x3x2560x1280xf16>)
+        outs(%out : tensor<2x32x32x1280xf32>) -> tensor<2x32x32x1280xf32>
+    } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+      %config = transform.param.constant #iree_codegen.compilation_info<
+      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 288, 128, 1, 1, 64]]>,
+        translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
+         workgroup_size = [128, 2, 1] subgroup_size = 64,
+          {mma_schedule = #iree_gpu.mma_schedule<
+              intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>,
+              subgroup_m_count = 2, subgroup_n_count = 2>
+          , llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}}>
+      > -> !transform.any_param
+    transform.yield %conv, %config : !transform.any_op, !transform.any_param
+  }
+
 //===----------------------------------------------------------------------===//
 // Contraction tuning
 //===----------------------------------------------------------------------===//
@@ -822,6 +842,7 @@ module attributes { transform.with_named_sequence } {
 
         // Convolution.
         , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x1280 -> @apply_op_config
+        , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x2560 -> @apply_op_config
 
         // Contration.
         , @match_contract_3x2x20x1024x64x1280 -> @apply_op_config
