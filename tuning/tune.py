@@ -207,11 +207,11 @@ def apply_params_conv(N, OH, OW, OC, FH, FW, IC, template, configuration: Config
     extra_config = get_pipeline_config(configuration)
     expr0 = re.compile(r'<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>')
     expr1 = re.compile(r'LLVMGPUVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),')
-    expr2 = re.compile(r'tile_sizes = \[\[([0-9]+), ([0-9]+), ([0-9]+)\]\]')
+    expr2 = re.compile(r'tile_sizes = \[\[([0-9]+)(, ([0-9]+))+\]\]')
     expr3 = re.compile(r', waves_per_eu = ([0-9]) : i64')
     repl0 = f'<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}'
     repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
-    repl2 = f'tile_sizes = [[{", ".join(map(str, get_mmt_tile_sizes(configuration)))}]]'
+    repl2 = f'tile_sizes = [[{", ".join(map(str, get_conv_tile_sizes(configuration)))}]]'
     repl3 = f', waves_per_eu = {config.waves_per_eu} : i64'
 
     modified = indent(get_transform_function_conv(N, OH, OW, OC, FH, FW, IC,
