@@ -332,7 +332,6 @@ def get_shapes_conv(template):
         assert len(in0_dims) == 4
         assert len(in1_dims) == 4
         assert len(out_dims) == 4
-
         # int64_t n = outputShape[0];
         # int64_t oh = outputShape[1];
         # int64_t ow = outputShape[2];
@@ -547,18 +546,18 @@ if __name__ == '__main__':
             with open(path.join(args.output, f'{i+1}_config.mlir') , 'w') as f:
                 f.write(embeddable_tuning)
     elif detected_conv:
-        N, OH, OW, OC, FH, FW, IC = get_shapes_conv(mlir_template)
-        logging.debug(f'Conv shape: [n{N}, oh{OH}, oc{OC}, fh{FH}, fw{FW}, ic{IC}]')
-        M = OH * OW
-        N = OC
-        K = FH * FW * IC
+        n, oh, ow, oc, fh, fw, ic = get_shapes_conv(mlir_template)
+        logging.debug(f'Conv shape: [n{n}, oh{oh}, oc{oc}, fh{fh}, fw{fw}, ic{ic}]')
+        M = oh * ow
+        N = oc
+        K = fh * fw * ic
         logging.debug(f'Equivalent matmul shape: [{M}, {N}, {K}]')
 
         for i, config in enumerate(generate_solutions(M, N, K)):
             if i >= args.limit:
                 break
             print(f'Solution #{i+1}: {config}')
-            new_mlir, embeddable_tuning = apply_params_conv(N, OH, OW, OC, FH, FW, IC, mlir_template, config)
+            new_mlir, embeddable_tuning = apply_params_conv(n, oh, ow, oc, fh, fw, ic, mlir_template, config)
 
             with open(path.join(args.output, f'{i+1}.mlir') , 'w') as f:
                 f.write(new_mlir)
