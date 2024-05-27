@@ -15,4 +15,4 @@ timeout 180s "${SCRIPT_DIR}/../compile-unet-base.sh" "${SCRIPT_DIR}/tools/iree-c
   "$INPUT" \
   "${SCRIPT_DIR}/unet.mlir" \
   --mlir-disable-threading \
-  -o "${BASE_DIR}/../../unet_candidate_${CANDIDATE}.vmfb" 2>err || echo "Input: ${INPUT} failed to compile"
+  -o "${BASE_DIR}/../../unet_candidate_${CANDIDATE}.vmfb" 2>/dev/null || echo "Input: ${INPUT} failed to compile"
