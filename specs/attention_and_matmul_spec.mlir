@@ -727,6 +727,26 @@ module attributes { transform.with_named_sequence } {
     transform.yield %batch_matmul, %config : !transform.any_op, !transform.any_param
   }
 
+  transform.named_sequence @match_batch_matmul_64x242x640x960(%batch_matmul: !transform.any_op {transform.readonly})
+    -> (!transform.any_op, !transform.any_param) {
+    %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %batch_matmul {
+    ^bb0(%lhs: tensor<64x242x960xf16>, %rhs: tensor<64x960x640xf16>, %out: tensor<64x242x640xf32>):
+      %13 = linalg.batch_matmul
+        ins(%lhs, %rhs : tensor<64x242x960xf16>, tensor<64x960x640xf16>)
+        outs(%out : tensor<64x242x640xf32>) -> tensor<64x242x640xf32>
+    } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+      %config = transform.param.constant #iree_codegen.compilation_info<
+      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 128, 128, 32]]>,
+        translation_info = #iree_codegen.translation_info<LLVMGPUPadAndVectorDistribute
+         workgroup_size = [128, 2, 1] subgroup_size = 64,
+          {mma_schedule = #iree_gpu.mma_schedule<
+              intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>,
+              subgroup_m_count = 2, subgroup_n_count = 2>
+          , llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}}>
+      > -> !transform.any_param
+    transform.yield %batch_matmul, %config : !transform.any_op, !transform.any_param
+  }
+
   transform.named_sequence @match_batch_matmul_64x242x1280x1280(%batch_matmul: !transform.any_op {transform.readonly})
     -> (!transform.any_op, !transform.any_param) {
     %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %batch_matmul {
@@ -746,26 +766,6 @@ module attributes { transform.with_named_sequence } {
       > -> !transform.any_param
     transform.yield %batch_matmul, %config : !transform.any_op, !transform.any_param
   }
-
-//   transform.named_sequence @match_batch_matmul_64x242x640x1280(%batch_matmul: !transform.any_op {transform.readonly})
-//     -> (!transform.any_op, !transform.any_param) {
-//     %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %batch_matmul {
-//     ^bb0(%lhs: tensor<64x242x1280xf16>, %rhs: tensor<64x1280x640xf16>, %out: tensor<64x242x640xf32>):
-//       %13 = linalg.batch_matmul
-//         ins(%lhs, %rhs : tensor<64x242x1280xf16>, tensor<64x1280x640xf16>)
-//         outs(%out : tensor<64x242x640xf32>) -> tensor<64x242x640xf32>
-//     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
-//       %config = transform.param.constant #iree_codegen.compilation_info<
-//       lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 128, 128, 32]]>,
-//         translation_info = #iree_codegen.translation_info<LLVMGPUPadAndVectorDistribute
-//          workgroup_size = [128, 2, 1] subgroup_size = 64,
-//           {mma_schedule = #iree_gpu.mma_schedule<
-//               intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>,
-//               subgroup_m_count = 2, subgroup_n_count = 2>
-//           , llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}}>
-//       > -> !transform.any_param
-//     transform.yield %batch_matmul, %config : !transform.any_op, !transform.any_param
-//   }
 
   transform.named_sequence @match_batch_matmul_64x242x640x1280(%batch_matmul: !transform.any_op {transform.readonly})
     -> (!transform.any_op, !transform.any_param) {
@@ -993,6 +993,7 @@ module attributes { transform.with_named_sequence } {
         , @match_batch_matmul_64x968x640x640 -> @apply_op_config
         , @match_batch_matmul_64x968x320x960 -> @apply_op_config
         , @match_batch_matmul_64x242x1280x1280 -> @apply_op_config
+        , @match_batch_matmul_64x242x640x960 -> @apply_op_config
         , @match_batch_matmul_64x242x640x1280 -> @apply_op_config
         , @match_batch_matmul_64x242x640x1920 -> @apply_op_config
 
