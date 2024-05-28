@@ -21,6 +21,7 @@ declare -a AVAILABLE_GPUS=(
   "GPU-64393336-6231-3033-6630-653365353764" # Jakub
   "GPU-64656437-3233-6431-3763-303765373765" # Jakub
 )
+readonly NUM_GPUS=${#AVAILABLE_GPUS[@]}
 
 if [ $NUM_GPUS -eq 0 ]; then
   echo "No available GPUs found"
