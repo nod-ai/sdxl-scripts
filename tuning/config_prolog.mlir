@@ -432,7 +432,7 @@ module attributes { transform.with_named_sequence } {
   // Send it down a custom transform dialect pipeline.
   transform.named_sequence @custom_attention_len_512(%attention: !transform.any_op {transform.readonly}) {
     %func = transform.get_parent_op %attention {op_name = "func.func"} : (!transform.any_op) -> !transform.any_op
-    %attn = transform.param.constant #iree_codegen.translation_info<TransformDialectCodegen codegen_spec = @__attention_main_len_512, {"amdgpu-waves-per-eu" = 1}> -> !transform.any_param
+    %attn = transform.param.constant #iree_codegen.translation_info<TransformDialectCodegen codegen_spec = @__attention_main_len_512, { llvm_func_attrs = { "amdgpu-waves-per-eu" = "1" } }> -> !transform.any_param
     transform.annotate %func "translation_info" = %attn : !transform.any_op, !transform.any_param
     transform.yield
   }
@@ -447,7 +447,7 @@ module attributes { transform.with_named_sequence } {
   // Send it down a custom transform dialect pipeline.
   transform.named_sequence @custom_attention(%attention: !transform.any_op {transform.readonly}) {
     %func = transform.get_parent_op %attention {op_name = "func.func"} : (!transform.any_op) -> !transform.any_op
-    %attn = transform.param.constant #iree_codegen.translation_info<TransformDialectCodegen codegen_spec = @__attention_main, {"amdgpu-waves-per-eu" = 2}> -> !transform.any_param
+    %attn = transform.param.constant #iree_codegen.translation_info<TransformDialectCodegen codegen_spec = @__attention_main, { llvm_func_attrs = { "amdgpu-waves-per-eu" = "2", "denormal-fp-math-f32" = "preserve-sign" } }> -> !transform.any_param
     transform.annotate %func "translation_info" = %attn : !transform.any_op, !transform.any_param
     transform.yield
   }
