@@ -10,22 +10,17 @@ readonly MODE="$1"
 readonly INPUT="$(realpath "$2")"
 shift 2
 
-declare -a RESERVED_GPUS=(
+# Query with: ./tools/iree-run-module --dump_devices=rocm | grep '\--device=rocm' | grep -v "$RESERVED" | cut -f3 -d'/'
+declare -a AVAILABLE_GPUS=(
   # "GPU-32623464-6662-6132-6439-393336303539" # Erman
   # "GPU-32666166-3865-3732-3734-623364356137" # Erman
-  "GPU-37353231-3735-3232-6131-393633373830" # Harsh
+  # "GPU-37353231-3735-3232-6131-393633373830" # Harsh
   # "GPU-39303930-3934-6363-3438-613361623536" # Erman
-  # "GPU-39346632-3463-6335-3731-383262343263" # Jakub
-  # "GPU-62343033-3431-6134-6536-343736623437" # Jakub
-  # "GPU-64393336-6231-3033-6630-653365353764" # Jakub
-  # "GPU-64656437-3233-6431-3763-303765373765" # Jakub
+  "GPU-39346632-3463-6335-3731-383262343263" # Jakub
+  "GPU-62343033-3431-6134-6536-343736623437" # Jakub
+  "GPU-64393336-6231-3033-6630-653365353764" # Jakub
+  "GPU-64656437-3233-6431-3763-303765373765" # Jakub
 )
-
-readonly RESERVED="$(IFS='|' ; echo "${RESERVED_GPUS[*]}")"
-declare -a AVAILABLE_GPUS=(
-  $(./tools/iree-run-module --dump_devices=rocm | grep '\--device=rocm' | grep -v "$RESERVED" | cut -f3 -d'/')
-)
-readonly NUM_GPUS=${#AVAILABLE_GPUS[@]}
 
 if [ $NUM_GPUS -eq 0 ]; then
   echo "No available GPUs found"

@@ -164,7 +164,7 @@ transform.named_sequence @{functionName}(%batch_matmul: !transform.any_op {{tran
   }} : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
     %config = transform.param.constant #iree_codegen.compilation_info<
     lowering_config = #iree_codegen.lowering_config<tile_sizes = [[{tile_sizes}]]>,
-      translation_info = #iree_codegen.translation_info<LLVMPadAndGPUVectorDistribute
+      translation_info = #iree_codegen.translation_info<LLVMGPUPadAndVectorDistribute
        workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
         {{mma_schedule = #iree_gpu.mma_schedule<
             intrinsic = {configuration.intrinsic},
