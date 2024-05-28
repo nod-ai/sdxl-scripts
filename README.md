@@ -1,5 +1,11 @@
 # SDXL IRs and Scripts
 
+## SDXL end-to-end benchmarking
+
+1. Checkout and compile IREE with release build and `export PATH=/path/to/iree/build/release/tools:$PATH`
+2. Compile the full SDXL model: `./compile-txt2img.sh gfx942` (where `gfx942` is the target for MI300X)
+3. Run the benchmark: `./benchmark-txt2img.sh N /path/to/weights/irpa` (where `N` is the GPU index)
+
 
 ## Model IRs and weights
 
