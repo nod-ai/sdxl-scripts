@@ -19,7 +19,7 @@ set -x
   --iree-hal-dump-executable-sources-to=sources/scheduled_unet \
   --iree-hal-dump-executable-binaries-to=binaries/scheduled_unet \
   --iree-hal-dump-executable-benchmarks-to=benchmarks/scheduled_unet \
-  -o "${PWD}/tmp/unet.vmfb" \
+  -o "${PWD}/tmp/scheduled_unet.vmfb" \
   "$@"
 
   #--iree-hal-benchmark-dispatch-repeat-count=20 \
