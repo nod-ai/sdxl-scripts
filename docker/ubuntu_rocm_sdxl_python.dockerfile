@@ -38,13 +38,13 @@ ENV PYTHONPATH=/iree/build-release/runtime/bindings/python:/iree/build-release/c
 
 ARG ROCM_CHIP=gfx942
 # Check out SDXL scripts and build model
-RUN git clone --depth=1 https://github.com/monorimet/sdxl-scripts && cd sdxl-scripts && ./compile-txt2img.sh ${ROCM_CHIP}
+RUN git clone --depth=1 https://github.com/nod-ai/sdxl-scripts && cd sdxl-scripts && ./compile-txt2img.sh ${ROCM_CHIP}
 
 RUN git clone https://github.com/iree-org/iree-turbine && \
   cd iree-turbine && \
   pip install -r requirements.txt .
   
-RUN git clone https://github.com/nod-ai/SHARK-Turbine -b ean-sdxl-fixes && \
+RUN git clone https://github.com/nod-ai/SHARK-Turbine -b ean-unify-sd && \
   cd SHARK-Turbine && \
   pip install --pre --upgrade -e models -r models/requirements.txt && \
   pip uninstall iree-compiler iree-runtime -y
