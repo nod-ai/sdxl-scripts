@@ -32,7 +32,7 @@ USER ${DOCKER_USERNAME}
 WORKDIR /home/${DOCKER_USERNAME}
 
 # Checkout and build IREE
-RUN git clone --depth=1 https://github.com/openxla/iree.git && \
+RUN git clone --depth=1 https://github.com/iree-org/iree.git && \
   cd iree && git submodule update --init --depth=1
 RUN cd iree && cmake -S . -B build-release \
   -G Ninja -DCMAKE_BUILD_TYPE=Release \
