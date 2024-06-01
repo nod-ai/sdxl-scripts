@@ -519,11 +519,11 @@ module attributes { transform.with_named_sequence } {
     %config = transform.param.constant #iree_codegen.compilation_info<
       lowering_config = #iree_codegen.lowering_config<tile_sizes = [[128, 320, 32]]>,
       translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
-        workgroup_size = [128, 2, 1] subgroup_size = 64,
+        workgroup_size = [128, 1, 1] subgroup_size = 64,
         {mma_schedule = #iree_gpu.mma_schedule<
-           intrinsic = #iree_gpu.mma_layout<MFMA_F16_32x32x8_F32>,
-           subgroup_m_count = 2, subgroup_n_count = 2>
-         , no_reorder_workgroups}>
+           intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>,
+           subgroup_m_count = 1, subgroup_n_count = 2>
+         , no_reorder_workgroups, llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}}>
       > -> !transform.any_param
     transform.yield %matmul, %config : !transform.any_op, !transform.any_param
   }
