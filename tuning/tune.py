@@ -502,9 +502,13 @@ def get_default_output_dir():
     from datetime import datetime
     return 'tuning_' + datetime.now().strftime('%Y_%m_%d_%H_%M')
 
-def tune_function(input, output, limit, lhs_dims, rhs_dims, tile_dims):
+def tune(input: str, output: str = None, limit: int = 4096, lhs_dims: str = 'mk', rhs_dims: str = 'nk', tile_dims: str = 'mnk'):
     input_file = str(input)
+
+    if output is None:
+        output = get_default_output_dir()
     mkdir(str(output))
+
     tune_logger.debug(f'Output directory {output}')
     tune_logger.debug(f'Processing {input_file}')
     mlir_template = read_input_mlir(input_file)
@@ -608,7 +612,7 @@ def main():
 
     args = parser.parse_args()
 
-    tune_function(args.input, args.output, args.limit, args.lhs_dims, args.rhs_dims, args.tile_dims)
+    tune(args.input, args.output, args.limit, args.lhs_dims, args.rhs_dims, args.tile_dims)
 
 
 if __name__ == '__main__':
