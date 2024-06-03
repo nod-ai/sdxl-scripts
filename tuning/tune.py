@@ -80,7 +80,7 @@ def get_pipeline_config(configuration : Configuration) -> str:
         extra_config += f', llvm_func_attrs = {{"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"}}'
     return extra_config
 
-def get_transform_function_mmt(functionName: str, configuration: Configuration, M, N, K):
+def get_transform_function_mmt(M, N, K, functionName: str, configuration: Configuration):
     tile_sizes = ", ".join(map(str, get_mmt_tile_sizes(configuration)))
 
     wg_x, wg_y, wg_z = configuration.workgroup_size
@@ -189,7 +189,7 @@ def apply_params_mmt(M, N, K, template, configuration: Configuration):
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_mmt_tile_sizes(configuration)))}]]'
     repl3 = f', waves_per_eu = {configuration.waves_per_eu} : i64'
 
-    modified = indent(get_transform_function_mmt(f'match_mmt_{M}x{N}x{K}', configuration), '//   ', M, N, K)
+    modified = indent(get_transform_function_mmt(M, N, K, f'match_mmt_{M}x{N}x{K}', configuration), '//   ')
     for line in template:
         if 'intrinsic =' in line:
             line = re.sub(expr0, repl0, line)
@@ -201,7 +201,7 @@ def apply_params_mmt(M, N, K, template, configuration: Configuration):
             line = re.sub(expr3, repl3, line)
         modified += line
 
-    embeddable = indent(get_transform_function_mmt(f'match_op', configuration), '  ', M, N, K)
+    embeddable = indent(get_transform_function_mmt(M, N, K, f'match_op', configuration), '  ')
     return modified, embeddable
 
 def apply_params_conv(N, OH, OW, OC, FH, FW, IC, template, configuration: Configuration):
