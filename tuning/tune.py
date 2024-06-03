@@ -11,7 +11,9 @@ from dataclasses import asdict, dataclass
 from os import mkdir, path
 from textwrap import indent
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
+tune_logger = logging.getLogger("tune")
+
 
 @dataclass
 class Configuration:
@@ -78,7 +80,7 @@ def get_pipeline_config(configuration : Configuration) -> str:
         extra_config += f', llvm_func_attrs = {{"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"}}'
     return extra_config
 
-def get_transform_function_mmt(functionName: str, configuration: Configuration):
+def get_transform_function_mmt(functionName: str, configuration: Configuration, M, N, K):
     tile_sizes = ", ".join(map(str, get_mmt_tile_sizes(configuration)))
 
     wg_x, wg_y, wg_z = configuration.workgroup_size
@@ -185,9 +187,9 @@ def apply_params_mmt(M, N, K, template, configuration: Configuration):
     repl0 = f'<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}'
     repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_mmt_tile_sizes(configuration)))}]]'
-    repl3 = f', waves_per_eu = {config.waves_per_eu} : i64'
+    repl3 = f', waves_per_eu = {configuration.waves_per_eu} : i64'
 
-    modified = indent(get_transform_function_mmt(f'match_mmt_{M}x{N}x{K}', configuration), '//   ')
+    modified = indent(get_transform_function_mmt(f'match_mmt_{M}x{N}x{K}', configuration), '//   ', M, N, K)
     for line in template:
         if 'intrinsic =' in line:
             line = re.sub(expr0, repl0, line)
@@ -199,7 +201,7 @@ def apply_params_mmt(M, N, K, template, configuration: Configuration):
             line = re.sub(expr3, repl3, line)
         modified += line
 
-    embeddable = indent(get_transform_function_mmt(f'match_op', configuration), '  ')
+    embeddable = indent(get_transform_function_mmt(f'match_op', configuration), '  ', M, N, K)
     return modified, embeddable
 
 def apply_params_conv(N, OH, OW, OC, FH, FW, IC, template, configuration: Configuration):
@@ -212,7 +214,7 @@ def apply_params_conv(N, OH, OW, OC, FH, FW, IC, template, configuration: Config
     repl0 = f'<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}'
     repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_conv_tile_sizes(configuration)))}]]'
-    repl3 = f', waves_per_eu = {config.waves_per_eu} : i64'
+    repl3 = f', waves_per_eu = {configuration.waves_per_eu} : i64'
 
     modified = indent(get_transform_function_conv(N, OH, OW, OC, FH, FW, IC,
                                                   f'match_conv_2d_nhwc_hwcf_{N}x{OH}x{OW}x{OC}x{FH}x{FW}x{IC}',
@@ -241,9 +243,9 @@ def apply_params_contract(LHS, RHS, RES, tile_dims, template, configuration: Con
     repl0 = f'<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}'
     repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))}]]'
-    repl3 = f', waves_per_eu = {config.waves_per_eu} : i64'
+    repl3 = f', waves_per_eu = {configuration.waves_per_eu} : i64'
 
-    modified = ''  # indent(get_transform_function_mmt(f'match_mmt_{M}x{N}x{K}', configuration), '//   ')
+    modified = ''  # indent(get_transform_function_mmt(f'match_mmt_{M}x{N}x{K}', configuration), '//   ', M, N, K)
     for line in template:
         if 'intrinsic =' in line:
             line = re.sub(expr0, repl0, line)
@@ -267,7 +269,7 @@ def apply_params_batch_matmul(LHS, RHS, RES, B, M, N, K, tile_dims, template, co
     repl0 = f'<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}'
     repl1 = f'LLVMGPUPadAndVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))}]]'
-    repl3 = f', waves_per_eu = {config.waves_per_eu} : i64'
+    repl3 = f', waves_per_eu = {configuration.waves_per_eu} : i64'
 
     modified = indent(get_transform_function_batch_matmul(LHS, RHS, RES, tile_dims, f'match_batch_matmul_{B}x{M}x{N}x{K}', configuration), '//   ')
     for line in template:
@@ -315,12 +317,12 @@ def get_shapes_conv(template):
         ins_shape = re.search(ins_re, line)
         if ins_shape is None:
             continue
-        logging.debug(f'ins: {ins_shape.groups()}')
+        tune_logger.debug(f'ins: {ins_shape.groups()}')
 
         outs_re = r'outs\(.+:\s*tensor<([0-9xf]+)>\)'
         outs_shape = re.search(outs_re, line)
         assert outs_shape is not None
-        logging.debug(f'outs: {outs_shape.groups()}')
+        tune_logger.debug(f'outs: {outs_shape.groups()}')
 
         assert len(ins_shape.groups()) == 2
         assert len(outs_shape.groups()) == 1
@@ -360,13 +362,13 @@ def get_shapes_contract(template):
         ins_shape = re.search(ins_re, line)
         if ins_shape is None:
             continue
-        logging.debug(f'ins: {ins_shape.groups()}')
+        tune_logger.debug(f'ins: {ins_shape.groups()}')
 
         # outs(%11 : tensor<2x20x1024x64xf32>)
         outs_re = rf'outs\(.+:\s*{tensor_re}\)'
         outs_shape = re.search(outs_re, line)
         assert outs_shape is not None
-        logging.debug(f'outs: {outs_shape.groups()}')
+        tune_logger.debug(f'outs: {outs_shape.groups()}')
 
         assert len(ins_shape.groups()) == 2
         assert len(outs_shape.groups()) == 1
@@ -390,13 +392,13 @@ def get_shapes_batch_matmul(template):
         ins_shape = re.search(ins_re, line)
         if ins_shape is None:
             continue
-        logging.debug(f'ins: {ins_shape.groups()}')
+        tune_logger.debug(f'ins: {ins_shape.groups()}')
 
         # outs(%11 : tensor<2x20x1024x64xf32>)
         outs_re = rf'outs\(.+:\s*{tensor_re}\)'
         outs_shape = re.search(outs_re, line)
         assert outs_shape is not None
-        logging.debug(f'outs: {outs_shape.groups()}')
+        tune_logger.debug(f'outs: {outs_shape.groups()}')
 
         assert len(ins_shape.groups()) == 2
         assert len(outs_shape.groups()) == 1
@@ -476,7 +478,7 @@ def generate_solutions(M, N, K):
                                        [wg_x, wg_y, wg_z], sg_m_cnt, sg_n_cnt,
                                        waves_per_eu, no_workgroup_reorder)
     solver.add(z3.simplify(z3.And(constraints)))
-    logging.debug(f'Initial constraints: {solver}')
+    tune_logger.debug(f'Initial constraints: {solver}')
     i = 0
     while solver.check() == z3.sat:
         model = solver.model()
@@ -500,26 +502,16 @@ def get_default_output_dir():
     from datetime import datetime
     return 'tuning_' + datetime.now().strftime('%Y_%m_%d_%H_%M')
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('input', help='Input mlir file', type=str)
-    parser.add_argument('-o', '--output', help='Output dir', type=str, default=get_default_output_dir())
-    parser.add_argument('-l', '--limit', help='Max number of candidates generated', type=int, default=4096)
-    parser.add_argument('--lhs-dims', help='Map of LHS matmul dims', type=str, default="mk")
-    parser.add_argument('--rhs-dims', help='Map of RHS matmul dims', type=str, default="nk")
-    parser.add_argument('--tile-dims', help='Map of tile size matmul dims', type=str, default="mnk")
+def tune(input: str, output: str = None, limit: int = 4096, lhs_dims: str = 'mk', rhs_dims: str = 'nk', tile_dims: str = 'mnk'):
+    input_file = str(input)
 
-    args = parser.parse_args()
+    if output is None:
+        output = get_default_output_dir()
+    mkdir(str(output))
 
-    input_file = str(args.input)
-    mkdir(str(args.output))
-    logging.debug(f'Output directory {args.output}')
-    logging.debug(f'Processing {input_file}')
+    tune_logger.debug(f'Output directory {output}')
+    tune_logger.debug(f'Processing {input_file}')
     mlir_template = read_input_mlir(input_file)
-
-    lhs_dims = args.lhs_dims
-    rhs_dims = args.rhs_dims
-    tile_dims = args.tile_dims
 
     detected_mmt = is_mmt(mlir_template)
     detected_conv = is_conv(mlir_template)
@@ -528,44 +520,44 @@ if __name__ == '__main__':
     assert [detected_mmt, detected_conv, detected_contract, detected_batch_matmul].count(True) == 1
 
     # Save the input file as the first candidate.
-    with open(path.join(args.output, f'0.mlir') , 'w') as f:
+    with open(path.join(output, f'0.mlir') , 'w') as f:
         f.write(''.join(mlir_template))
 
     if detected_mmt:
         M, N, K = get_shapes_mmt(mlir_template)
-        logging.debug(f'Matmul shape: [{M}, {N}, {K}]')
+        tune_logger.debug(f'Matmul shape: [{M}, {N}, {K}]')
 
         for i, config in enumerate(generate_solutions(M, N, K)):
-            if i >= args.limit:
+            if i >= limit:
                 break
             print(f'Solution #{i+1}: {config}')
             new_mlir, embeddable_tuning = apply_params_mmt(M, N, K, mlir_template, config)
 
-            with open(path.join(args.output, f'{i+1}.mlir') , 'w') as f:
+            with open(path.join(output, f'{i+1}.mlir') , 'w') as f:
                 f.write(new_mlir)
-            with open(path.join(args.output, f'{i+1}_config.mlir') , 'w') as f:
+            with open(path.join(output, f'{i+1}_config.mlir') , 'w') as f:
                 f.write(embeddable_tuning)
     elif detected_conv:
         n, oh, ow, oc, fh, fw, ic = get_shapes_conv(mlir_template)
-        logging.debug(f'Conv shape: [n{n}, oh{oh}, oc{oc}, fh{fh}, fw{fw}, ic{ic}]')
+        tune_logger.debug(f'Conv shape: [n{n}, oh{oh}, oc{oc}, fh{fh}, fw{fw}, ic{ic}]')
         M = oh * ow
         N = oc
         K = fh * fw * ic
-        logging.debug(f'Equivalent matmul shape: [{M}, {N}, {K}]')
+        tune_logger.debug(f'Equivalent matmul shape: [{M}, {N}, {K}]')
 
         for i, config in enumerate(generate_solutions(M, N, K)):
-            if i >= args.limit:
+            if i >= limit:
                 break
             print(f'Solution #{i+1}: {config}')
             new_mlir, embeddable_tuning = apply_params_conv(n, oh, ow, oc, fh, fw, ic, mlir_template, config)
 
-            with open(path.join(args.output, f'{i+1}.mlir') , 'w') as f:
+            with open(path.join(output, f'{i+1}.mlir') , 'w') as f:
                 f.write(new_mlir)
-            with open(path.join(args.output, f'{i+1}_config.mlir') , 'w') as f:
+            with open(path.join(output, f'{i+1}_config.mlir') , 'w') as f:
                 f.write(embeddable_tuning)
     elif detected_contract:
         LHS, RHS, RES = get_shapes_contract(mlir_template)
-        logging.debug(f'Contract shape: ({LHS}, {RHS}) -> {RES}')
+        tune_logger.debug(f'Contract shape: ({LHS}, {RHS}) -> {RES}')
         assert len(LHS) == len(lhs_dims)
         assert len(RHS) == len(rhs_dims)
         M = product(val if dim == 'm' else 1 for dim, val in zip(lhs_dims, LHS))
@@ -573,14 +565,14 @@ if __name__ == '__main__':
         K0 = product(val if dim == 'k' else 1 for dim, val in zip(lhs_dims, LHS))
         K1 = product(val if dim == 'k' else 1 for dim, val in zip(rhs_dims, RHS))
         assert K0 == K1
-        logging.debug(f'Equivalent matmul shape: [{M}, {N}, {K0}]')
+        tune_logger.debug(f'Equivalent matmul shape: [{M}, {N}, {K0}]')
         for i, config in enumerate(generate_solutions(M, N, K0)):
-            if i >= args.limit:
+            if i >= limit:
                 break
             #print(f'Solution #{i+1}: {config}')
             new_mlir = apply_params_contract(LHS, RHS, RES, tile_dims, mlir_template, config)
 
-            with open(path.join(args.output, f'{i+1}.mlir') , 'w') as f:
+            with open(path.join(output, f'{i+1}.mlir') , 'w') as f:
                 f.write(new_mlir)
     elif detected_batch_matmul:
         LHS, RHS, RES = get_shapes_batch_matmul(mlir_template)
@@ -595,16 +587,33 @@ if __name__ == '__main__':
         K1 = product(val if dim == 'k' else 1 for dim, val in zip(rhs_dims, RHS))
         assert B == B0 and B == B1
         assert K0 == K1
-        logging.debug(f'Batch matmul shape: {B}x[{M}, {N}, {K0}]')
+        tune_logger.debug(f'Batch matmul shape: {B}x[{M}, {N}, {K0}]')
         for i, config in enumerate(generate_solutions(M, N, K0)):
-            if i >= args.limit:
+            if i >= limit:
                 break
             #print(f'Solution #{i+1}: {config}')
             new_mlir, embeddable_tuning = apply_params_batch_matmul(LHS, RHS, RES, B, M, N, K0, tile_dims, mlir_template, config)
 
-            with open(path.join(args.output, f'{i+1}.mlir') , 'w') as f:
+            with open(path.join(output, f'{i+1}.mlir') , 'w') as f:
                 f.write(new_mlir)
-            with open(path.join(args.output, f'{i+1}_config.mlir') , 'w') as f:
+            with open(path.join(output, f'{i+1}_config.mlir') , 'w') as f:
                 f.write(embeddable_tuning)
     else:
         assert False
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('input', help='Input mlir file', type=str)
+    parser.add_argument('-o', '--output', help='Output dir', type=str, default=get_default_output_dir())
+    parser.add_argument('-l', '--limit', help='Max number of candidates generated', type=int, default=4096)
+    parser.add_argument('--lhs-dims', help='Map of LHS matmul dims', type=str, default="mk")
+    parser.add_argument('--rhs-dims', help='Map of RHS matmul dims', type=str, default="nk")
+    parser.add_argument('--tile-dims', help='Map of tile size matmul dims', type=str, default="mnk")
+
+    args = parser.parse_args()
+
+    tune(args.input, args.output, args.limit, args.lhs_dims, args.rhs_dims, args.tile_dims)
+
+
+if __name__ == '__main__':
+    args = main()
