@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 import time
 import multiprocessing
+import tune
 
 """
 Sample Usage:
@@ -99,6 +100,10 @@ def setup_logging(args: argparse.Namespace, log_dir: Path) -> Path:
         handlers=handlers,
     )
 
+    # config logger in tune.py
+    tune_logger = logging.getLogger("tune")
+    tune_logger.setLevel(logging.DEBUG)
+
     logging.info(f"Input file: {args.input_file}")
     logging.info(f"Mode: {args.mode}")
     logging.info(f"Number of candidates: {args.num_candidates}")
@@ -172,6 +177,23 @@ def run_command(
             raise
 
 
+def parse_xtune(Xtune: list[str]) -> dict[str, str]:
+    """Parse Xtune array to dict
+    e.g. ['--lhs-dims=bmk', '--rhs-dims=bkn', '--tile-dims=*mnk'] -> {'lhs-dims': 'bmk', 'rhs-dims': 'bkn', 'tile-dims': '*mnk'}
+    """
+    args_dict = {}
+
+    for arg in Xtune:
+        parts = arg.split("=")
+        if len(parts) == 2:
+            key, value = parts
+            args_dict[key.strip("-")] = value
+        elif len(parts) == 1:
+            args_dict[parts[0].strip("-")] = None
+
+    return args_dict
+
+
 def generate_candidates(
     args: argparse.Namespace, base_dir: Path
 ) -> tuple[list[Path], Path]:
@@ -188,17 +210,25 @@ def generate_candidates(
 
     shutil.copy(args.input_file, template_mlir)
 
-    # TODO: change to invoke python function instead of calling shell command
-    command = [
-        "./tune.py",
-        f"{template_mlir}",
-        "-o",
-        f"{candidates_dir}",
-        "-l",
-        f"{args.num_candidates}",
-    ]
-    command.extend(args.Xtune)
-    run_command(args, command)
+    try:
+        tune_dict = parse_xtune(args.Xtune)
+        tune.tune(
+            input=template_mlir,
+            output=candidates_dir,
+            limit=args.num_candidates,
+            lhs_dims=tune_dict.get("lhs-dims"),
+            rhs_dims=tune_dict.get("rhs-dims"),
+            tile_dims=tune_dict.get("tile-dims"),
+        )
+        candidates = sorted(candidates_dir.glob("*.mlir"))
+    except Exception as e:
+        logging.error("An error occurred during candidates generation: %s", str(e))
+        # Capture and log debug messages from tune.py
+        tune_logger = logging.getLogger("tune")
+        for handler in logging.getLogger().handlers:
+            if isinstance(handler, logging.FileHandler):
+                tune_logger.handlers.append(handler)
+        tune_logger.exception("Error in tune.py:")
 
     candidates = sorted(candidates_dir.glob("*.mlir"))
 

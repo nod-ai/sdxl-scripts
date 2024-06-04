@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass
 from os import mkdir, path
 from textwrap import indent
 
-# logging.basicConfig(level=logging.DEBUG)
+
 tune_logger = logging.getLogger("tune")
 
 
@@ -197,7 +197,8 @@ transform.named_sequence @{functionName}(%batch_matmul: !transform.any_op {{tran
 
 
 def apply_params_mmt(M, N, K, template, configuration: Configuration):
-    print(configuration)
+    # print(configuration)
+    tune_logger.info(f"{configuration}")
     extra_config = get_pipeline_config(configuration)
     expr0 = re.compile(
         r"<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>"
@@ -784,6 +785,30 @@ def main():
     )
 
     args = parser.parse_args()
+
+    tune(
+        args.input,
+        args.output,
+        args.limit,
+        args.lhs_dims,
+        args.rhs_dims,
+        args.tile_dims,
+    )
+
+    tune_logger.setLevel(logging.INFO)
+
+    # Create printing formatter for logging info
+    formatter = logging.Formatter("%(message)s")
+
+    # Create a handler to print to console
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    tune_logger.addHandler(console_handler)
+
+    # # Optionally, add a file handler to log to a file
+    # file_handler = logging.FileHandler("tune.log")
+    # file_handler.setFormatter(formatter)
+    # tune_logger.addHandler(file_handler)
 
     tune(
         args.input,
