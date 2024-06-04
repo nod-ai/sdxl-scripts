@@ -1,4 +1,4 @@
-#translation = #iree_codegen.translation_info<None workgroup_size = [128, 2, 1] subgroup_size = 64>
+#translation = #iree_codegen.translation_info<None workgroup_size = [128, 2, 1] subgroup_size = 64, {llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}}>
 module {
   flow.executable private @tk_gemm_fused_2048x10240x1280 {
     flow.executable.export public @tk_gemm_fused_2048x10240x1280 workgroups() -> (index, index, index) {
