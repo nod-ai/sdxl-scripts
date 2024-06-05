@@ -8,13 +8,13 @@ if [ $# -ne 3 ]; then
 fi
 
 batch_count="--batch_count=$1"
-device="rocm://$2"
+device="hip://$2"
 weights_path="--external_weights_dir=$3"
 
 python3 ../SHARK-Turbine/models/turbine_models/custom_models/sdxl_inference/sdxl_compiled_pipeline.py \
   --precision=fp16 \
   --external_weights=irpa \
-  --device=rocm \
+  --device=hip \
   --rt_device=$device \
   --iree_target_triple=gfx942 \
   --scheduler_id=PNDM \
