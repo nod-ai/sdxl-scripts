@@ -3,6 +3,7 @@
 # Copyright (c) 2022 Advanced Micro Devices, Inc.
 ###########################################################
 
+import sqlite3
 import json
 import sys
 import itertools
@@ -78,46 +79,79 @@ def find_interval(ts: int, btree: Node):
     else:
         return find_interval(ts, btree.earlier)
 
-def add_arguments(parser: argparse.ArgumentParser):
-    parser.add_argument('plot', help="The plot name that counts events")
-    parser.add_argument('input', help="A perfetto trace file")
-    parser.add_argument('--skew', default=0, type=int, help="A time offset applied to events")
-    parser.add_argument('-n', default=10, type=int, help="Show the top N results")
-
-def main(argv):
-    parser = argparse.ArgumentParser()
-    add_arguments(parser)
-    args = parser.parse_args(argv[1:])
-
-    print("Loading file", args.input)
-    with open(args.input, 'r') as fp:
+def load_json(path, plot, skew):
+    print("Loading file", path)
+    with open(path, 'r') as fp:
         data = json.load(fp)
 
     reg_values = {}
-    reg_total = 0
-
-    kernel_intervals = {}
-    kernel_data = {}
-    kernel_time = {}
-
-    interval_btree = Node(None)
     interval_list = []
 
     print('Finding data points')
 
     for row in data['traceEvents']:
         if 'args' in row:
-            if args.plot in row['args']:
-                v = row['args'][args.plot]
-                reg_values[row['ts'] + args.skew] = v
-                reg_total += v
+            if plot in row['args']:
+                v = row['args'][plot]
+                reg_values[row['ts'] * 1000 + skew] = v
             elif 'desc' in row['args'] and row['args']['desc'] == "KernelExecution":
                 name = row['name']
-                start = int(row['ts'])
-                dur = int(row['dur'])
+                start = int(row['ts']) * 1000
+                dur = int(row['dur']) * 1000
                 interval_list.append(Interval(name, start, start + dur))
-                kernel_data[name] = []
-                kernel_time[name] = kernel_time.get(name, 0.0) + dur
+    
+    return reg_values, interval_list
+
+
+def load_rpd(path, plot, skew):
+    print("Loading file", path)
+    con = sqlite3.connect(path)
+    cur = con.cursor()
+
+    reg_values = {}
+    interval_list = []
+
+    print('Finding data points')
+    kerns = cur.execute("SELECT start, end, kernelName FROM kernel").fetchall()
+    for start, end, name in kerns:
+        interval_list.append(Interval(name, start, end))
+
+    plots = cur.execute(f"SELECT start, value FROM rocpd_monitor WHERE monitorType = '{plot}'").fetchall()
+    for time, value in plots:
+        value = int(value)
+        reg_values[time + skew] = value
+    
+    return reg_values, interval_list
+
+def add_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument('plot', help="The plot name that counts events")
+    parser.add_argument('input', help="A perfetto trace file")
+    parser.add_argument('--skew', default=0, type=int, help="A time offset applied to events (ns)")
+    parser.add_argument('-n', default=10, type=int, help="Show the top N results")
+
+def main(argv):
+    parser = argparse.ArgumentParser()
+    add_arguments(parser)
+    args = parser.parse_args(argv[1:])
+    if args.input.endswith('json'):
+        loader = load_json
+    elif args.input.endswith('rpd'):
+        loader = load_rpd
+    else:
+        print("Unknown input format")
+        return 1
+    reg_values, interval_list = loader(args.input, args.plot, args.skew)
+    
+    reg_total = sum(reg_values.values())
+
+    kernel_data = {}
+    kernel_time = {}
+
+    for interval in interval_list:
+        name = interval.kernel
+        if not name in kernel_data:
+            kernel_data[name] = []
+        kernel_time[name] = kernel_time.get(name, 0.0) + (interval.end - interval.start)
 
     print('Num data points:', len(reg_values))
     print('Num kernels:', len(kernel_data))
@@ -128,6 +162,7 @@ def main(argv):
         print('There is a problem with the trace, it is missing critical data.')
         return 1
 
+    interval_btree = Node(None)
     insert_intervals(interval_list, interval_btree, True)
 
     print('Btree assembled')
@@ -147,24 +182,21 @@ def main(argv):
 
     kernel_sums = {}
     for kern in kernel_data:
-        sum = 0
-        for val in kernel_data[kern]:
-            sum += val
-        kernel_sums[kern] = sum
+        kernel_sums[kern] = sum(kernel_data[kern])
 
     sorted_sums = sorted(kernel_sums.items(), key=lambda x: x[1], reverse=True)
 
     top_n = min(args.n, len(sorted_sums))
     print('Top', top_n, 'offenders (total events)')
-    for kernel, sum in sorted_sums[:top_n]:
-        print(kernel, sum, '{:.3f}%'.format(sum/reg_total*100.0))
+    for kernel, ksum in sorted_sums[:top_n]:
+        print(kernel, ksum, '{:.3f}%'.format(ksum/reg_total*100.0))
 
     sorted_rate = sorted([(x[0], x[1] / kernel_time[x[0]] if kernel_time[x[0]] > 0 else 0.0)
                          for x in kernel_sums.items()], key=lambda x: x[1], reverse=True)
 
     print('Top', top_n, 'offenders (events/us)')
     for kernel, rate in sorted_rate[:top_n]:
-        print(kernel, '{:.3f}'.format(rate))
+        print(kernel, '{:.3f}'.format(rate * 1000.0))
 
     return 0
 
