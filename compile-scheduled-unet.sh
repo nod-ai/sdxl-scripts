@@ -10,10 +10,16 @@ readonly IREE_COMPILE="$(which iree-compile)"
 readonly CHIP="$1"
 shift
 
+TRANSFORM_PREFIX=""
+if [[ "${1:-}" =~ ^(splat|SPLAT)$ ]] ; then
+  TRANSFORM_PREFIX="splat_"
+  shift
+fi
+
 set -x
 
 "${SCRIPT_DIR}/compile-unet-base.sh" "$IREE_COMPILE" "$CHIP" default \
-  "${SCRIPT_DIR}/specs/attention_and_matmul_spec.mlir" \
+  "${SCRIPT_DIR}/specs/${TRANSFORM_PREFIX}attention_and_matmul_spec.mlir" \
   "${SCRIPT_DIR}/base_ir/stable_diffusion_xl_base_1_0_PNDM_64_1024x1024_fp16_unet_30.mlir" \
   --iree-hal-dump-executable-configurations-to=configurations/scheduled_unet \
   --iree-hal-dump-executable-sources-to=sources/scheduled_unet \

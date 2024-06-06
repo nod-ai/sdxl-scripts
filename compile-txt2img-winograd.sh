@@ -4,26 +4,25 @@
 
 set -xeu
 
-if (( $# != 1 )); then
-  echo "usage: $0 <target-chip>"
-  exit 1
-fi
+readonly TARGET="$1"
+readonly TRANSFORM_PREFIX="${2:-}"
+shift 2
 
-$PWD/compile-clip.sh $1
-$PWD/compile-scheduled-unet-winograd.sh $1
-$PWD/compile-vae.sh $1
+"$PWD"/compile-clip.sh "$TARGET"
+"$PWD"/compile-scheduled-unet-winograd.sh "$TARGET" "$TRANSFORM_PREFIX"
+"$PWD"/compile-vae.sh "$TARGET"
 
-iree-compile $PWD/base_ir/sdxl_pipeline_bench_f16.mlir \
+iree-compile "$PWD"/base_ir/sdxl_pipeline_bench_f16.mlir \
     --iree-hal-target-backends=rocm \
-    --iree-rocm-target-chip=$1 \
-    --iree-rocm-bc-dir=$PWD/bitcode-2024-03-07 \
+    --iree-rocm-target-chip="$TARGET" \
+    --iree-rocm-bc-dir="$PWD"/bitcode-2024-03-07 \
     --iree-global-opt-propagate-transposes=true \
     --iree-codegen-llvmgpu-use-vector-distribution \
     --iree-codegen-gpu-native-math-precision=true \
     --iree-rocm-waves-per-eu=2 \
     --iree-opt-outer-dim-concat=true \
     --iree-llvmgpu-enable-prefetch \
-    -o $PWD/tmp/full_pipeline.vmfb
+    -o "$PWD"/tmp/full_pipeline.vmfb
     #--iree-hal-benchmark-dispatch-repeat-count=20 \
     #--iree-hal-executable-debug-level=3 \
     #--iree-vulkan-target-triple=rdna3-unknown-linux \
