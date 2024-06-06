@@ -535,12 +535,12 @@ module attributes { transform.with_named_sequence } {
     transform.iree.match.cast_compatible_type %lhs = tensor<2048x5120xf16> : !transform.any_value
     transform.iree.match.cast_compatible_type %rhs = tensor<1280x5120xf16> : !transform.any_value
     %config = transform.param.constant #iree_codegen.compilation_info<
-      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[64, 80, 64]]>,
+      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[128, 80, 128]]>,
       translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
-        workgroup_size = [64, 2, 1] subgroup_size = 64,
+        workgroup_size = [64, 4, 1] subgroup_size = 64,
         {mma_schedule = #iree_gpu.mma_schedule<
            intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>,
-           subgroup_m_count = 2, subgroup_n_count = 1>
+           subgroup_m_count = 4, subgroup_n_count = 1>
          , no_reorder_workgroups, llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}}>
       > -> !transform.any_param
     transform.yield %matmul, %config : !transform.any_op, !transform.any_param
