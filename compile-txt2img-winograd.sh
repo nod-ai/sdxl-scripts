@@ -6,10 +6,15 @@ set -xeu
 
 readonly TARGET="$1"
 readonly TRANSFORM_PREFIX="${2:-}"
-shift 2
 
 "$PWD"/compile-clip.sh "$TARGET"
-"$PWD"/compile-scheduled-unet-winograd.sh "$TARGET" "$TRANSFORM_PREFIX"
+
+if [ "$TRANSFORM_PREFIX" == "" ] ; then
+  "$PWD"/compile-scheduled-unet-winograd.sh "$TARGET"
+else
+  "$PWD"/compile-scheduled-unet-winograd.sh "$TARGET" "$TRANSFORM_PREFIX"
+fi
+
 "$PWD"/compile-vae.sh "$TARGET"
 
 iree-compile "$PWD"/base_ir/sdxl_pipeline_bench_f16.mlir \
