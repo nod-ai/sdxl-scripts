@@ -31,9 +31,9 @@ iree-benchmark-module \
  --input=1x64xi64 \
  --benchmark_repetitions=3
 
-echo "Benchmarking CLIP..."
-$PWD/benchmark-clip.sh $1 $2
-echo "Benchmarking VAE..."
-$PWD/benchmark-vae.sh $1 $2
-echo "Benchmarking UNet..."
-$PWD/benchmark-scheduled-unet.sh $1 $2
+# echo "Benchmarking CLIP..."
+# $PWD/benchmark-clip.sh $1 $2
+# echo "Benchmarking VAE..."
+# $PWD/benchmark-vae.sh $1 $2
+# echo "Benchmarking UNet..."
+# $PWD/benchmark-scheduled-unet.sh $1 $2
