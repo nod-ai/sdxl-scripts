@@ -21,11 +21,13 @@ python autotune.py winograd 1286.mlir --lhs-dims=bmk --rhs-dims=bkn --tile-dims=
 
 # Default values for num_candidates and devices, change it as needed
 DEFAULT_NUM_CANDIDATES = 2048
-DEFAULT_DEVICE_LIST = [1, 3]
+DEFAULT_DEVICE_LIST = [0]
+
 # Default values for max number of workers
 DEFAULT_MAX_CPU_WORKERS = (
-    multiprocessing.cpu_count()
-)  # the actual amount of worker that will be generated = max(min(max_cpu_workers, len(task_list)), 1)
+    multiprocessing.cpu_count()//2 
+)  # the actual amount of worker that will be generated = max(min(max_cpu_workers//2, len(task_list)), 1)
+"""note: Do not use all CPU cores"""
 
 
 def parse_devices(devices_str: str) -> list[int]:
@@ -111,7 +113,7 @@ def setup_logging(args: argparse.Namespace, log_dir: Path) -> Path:
     logging.info(f"Devices: {args.devices}")
     logging.info(f"Number of candidates: {args.num_candidates}")
     logging.info(
-        f"Extra options for tune.py: lhs-dims={args.lhs_dims}, rhs-dims{args.rhs_dims}, tile-dims={args.tile_dims}"
+        f"Extra options for tune.py: lhs-dims={args.lhs_dims}, rhs-dims={args.rhs_dims}, tile-dims={args.tile_dims}"
     )
     logging.info(
         f"Device for Unet candidates: {args.devices[0]}"
