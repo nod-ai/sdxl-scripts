@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Usage: PATH=/path/to/iree/build/tools:$PATH ./compile-scheduled-unet.sh <target-chip> [extra flags]
+# Usage: PATH=/path/to/iree/build/tools:$PATH ./compile-scheduled-unet.sh <target-chip> <default|winograd> [extra flags]
 
 set -euo pipefail
 
@@ -8,8 +8,8 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null &
 
 readonly IREE_COMPILE="$(which iree-compile)"
 readonly CHIP="$1"
-readonly MODE="winograd"
-shift
+readonly MODE="$2"
+shift 2
 
 TRANSFORM_PREFIX=""
 if [[ "${1:-}" =~ ^(splat|SPLAT)$ ]] ; then
