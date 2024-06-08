@@ -14,7 +14,7 @@ set -xeu
 iree-benchmark-module \
   --device=rocm://$1 \
   --device_allocator=caching \
-  --module=$PWD/tmp/scheduled_unet.vmfb \
+  --module=$PWD/tmp/scheduled_unet_misa.vmfb \
   --parameters=model=/data/shark/scheduled_unet.irpa \
   --function=run_forward \
   --input=1x4x128x128xf16 \
