@@ -197,7 +197,6 @@ transform.named_sequence @{functionName}(%batch_matmul: !transform.any_op {{tran
 
 
 def apply_params_mmt(M, N, K, template, configuration: Configuration):
-    # print(configuration)
     tune_logger.info(f"{configuration}")
     extra_config = get_pipeline_config(configuration)
     expr0 = re.compile(
@@ -237,7 +236,7 @@ def apply_params_mmt(M, N, K, template, configuration: Configuration):
 def apply_params_conv(
     N, OH, OW, OC, FH, FW, IC, template, configuration: Configuration
 ):
-    print(configuration)
+    tune_logger.info(f"{configuration}")
     extra_config = get_pipeline_config(configuration)
     expr0 = re.compile(
         r"<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>"
@@ -291,7 +290,7 @@ def apply_params_conv(
 def apply_params_contract(
     LHS, RHS, RES, tile_dims, template, configuration: Configuration
 ):
-    print(configuration)
+    tune_logger.info(f"{configuration}")
     extra_config = get_pipeline_config(configuration)
     expr0 = re.compile(
         r"<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>"
@@ -324,7 +323,7 @@ def apply_params_contract(
 def apply_params_batch_matmul(
     LHS, RHS, RES, B, M, N, K, tile_dims, template, configuration: Configuration
 ):
-    print(configuration)
+    tune_logger.info(f"{configuration}")
     extra_config = get_pipeline_config(configuration)
     expr0 = re.compile(
         r"<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>"
@@ -568,7 +567,7 @@ def generate_constraints(
 
 
 def generate_solutions(M, N, K):
-    print(M, N, K)
+    tune_logger.info(f"{M},{N},{K}")
     m, n, k = z3.Int("m"), z3.Int("n"), z3.Int("k")
     subgroup_size = z3.Int("subgroup_size")
     intrinsic_mn = z3.Int("intrinsic_mn")
@@ -681,7 +680,7 @@ def tune(
         for i, config in enumerate(generate_solutions(M, N, K)):
             if i >= limit:
                 break
-            print(f"Solution #{i+1}: {config}")
+            tune_logger.info(f"Solution #{i+1}: {config}")
             new_mlir, embeddable_tuning = apply_params_mmt(
                 M, N, K, mlir_template, config
             )
@@ -701,7 +700,7 @@ def tune(
         for i, config in enumerate(generate_solutions(M, N, K)):
             if i >= limit:
                 break
-            print(f"Solution #{i+1}: {config}")
+            tune_logger.info(f"Solution #{i+1}: {config}")
             new_mlir, embeddable_tuning = apply_params_conv(
                 n, oh, ow, oc, fh, fw, ic, mlir_template, config
             )
@@ -724,7 +723,6 @@ def tune(
         for i, config in enumerate(generate_solutions(M, N, K0)):
             if i >= limit:
                 break
-            # print(f'Solution #{i+1}: {config}')
             new_mlir = apply_params_contract(
                 LHS, RHS, RES, tile_dims, mlir_template, config
             )
@@ -748,7 +746,6 @@ def tune(
         for i, config in enumerate(generate_solutions(M, N, K0)):
             if i >= limit:
                 break
-            # print(f'Solution #{i+1}: {config}')
             new_mlir, embeddable_tuning = apply_params_batch_matmul(
                 LHS, RHS, RES, B, M, N, K0, tile_dims, mlir_template, config
             )

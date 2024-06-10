@@ -20,12 +20,14 @@ python autotune.py winograd 1286.mlir --lhs-dims=bmk --rhs-dims=bkn --tile-dims=
 
 
 # Default values for num_candidates and devices, change it as needed
-DEFAULT_NUM_CANDIDATES = 1024
+DEFAULT_NUM_CANDIDATES = 2048
 DEFAULT_DEVICE_LIST = [0]
+
 # Default values for max number of workers
 DEFAULT_MAX_CPU_WORKERS = (
-    multiprocessing.cpu_count()
-)  # the actual amount of worker that will be generated = max(min(max_cpu_workers, len(task_list)), 1)
+    multiprocessing.cpu_count()//2 
+)  # the actual amount of worker that will be generated = max(min(max_cpu_workers//2, len(task_list)), 1)
+"""note: Do not use all CPU cores"""
 
 
 def parse_devices(devices_str: str) -> list[int]:
@@ -57,7 +59,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--devices",
         type=parse_devices,
-        default=[0],
+        default=DEFAULT_DEVICE_LIST,
         help="Comma-separated list of device IDs (e.g., --devices=0,1). Default: [0]",
     )
     parser.add_argument(
@@ -111,7 +113,7 @@ def setup_logging(args: argparse.Namespace, log_dir: Path) -> Path:
     logging.info(f"Devices: {args.devices}")
     logging.info(f"Number of candidates: {args.num_candidates}")
     logging.info(
-        f"Extra options for tune.py: lhs-dims={args.lhs_dims}, rhs-dims{args.rhs_dims}, tile-dims={args.tile_dims}"
+        f"Extra options for tune.py: lhs-dims={args.lhs_dims}, rhs-dims={args.rhs_dims}, tile-dims={args.tile_dims}"
     )
     logging.info(
         f"Device for Unet candidates: {args.devices[0]}"
@@ -185,6 +187,8 @@ def generate_candidates(
     args: argparse.Namespace, base_dir: Path
 ) -> tuple[list[Path], Path]:
     """Generate candidate files for tuning. Returns the list of candidate files and the candidates directory."""
+    logging.debug("generate_candidates()")
+
     try:
         shutil.copy("config_prolog.mlir", base_dir / "config_prolog.mlir")
         shutil.copy("config_epilog.mlir", base_dir / "config_epilog.mlir")
@@ -228,6 +232,8 @@ def compile_candidates(
     candidate_dir: Path,
 ) -> tuple[list[Path], Path]:
     """Compile candidate files for tuning and record in candidate_vmfbs.txt. Returns the list of compiled files and the compiled files directory."""
+    logging.debug("compile_candidates()")
+
     task_list = []
     for candidate in candidates:
         if "_config.mlir" not in candidate.name:
@@ -258,6 +264,8 @@ def benchmark_top_candidates(
     compiled_files: list[Path],
 ) -> Path:
     """Benchmark the candidate files and store the top20 results in file (best.log). Return the log file"""
+    logging.debug("benchmark_top_candidates()")
+
     task_list = []
     for compiled_file in compiled_files:
         command = ["./benchmark_dispatch.sh", f"{compiled_file}"]
@@ -302,15 +310,18 @@ def compile_unet_candidates(
     args: argparse.Namespace, base_dir: Path, best_log: Path
 ) -> list[str]:
     """Compile U-Net candidates stored in best.log. Return the list of U-Net candidate files."""
+    logging.debug("compile_unet_candidates()")
+
     task_list = []
     with best_log.open("r") as log_file:
         for line in log_file:
             if "/0.mlir" not in line:
+                input_file = line.strip().split()[2]
                 command = [
                     "./compile_unet_candidate.sh",
                     f"{args.mode}",
-                    f"{args.devices[0]}",
-                ]  # Default use the first gpu from the user input --device list
+                    f"{input_file}",
+                ]
                 task_list.append((args, command))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
@@ -328,6 +339,8 @@ def benchmark_unet(
     args: argparse.Namespace, base_dir: Path, unet_candidates: list[str]
 ) -> None:
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
+    logging.debug("benchmark_unet()")
+
     unet_result_log = base_dir / "unet_results.log"
 
     with unet_result_log.open("w") as log_file:
