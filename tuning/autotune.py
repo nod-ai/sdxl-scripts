@@ -10,6 +10,7 @@ from pathlib import Path
 import time
 import multiprocessing
 import tune
+from tqdm import tqdm
 
 """
 Sample Usage:
@@ -138,10 +139,9 @@ def create_worker_context_queue(device_ids: list[int]) -> multiprocessing.Queue:
     return worker_contexts_queue
 
 
-def worker_run_command_with_device_id(
-    args: argparse.Namespace, command: list[str], check: bool = True
-) -> subprocess.CompletedProcess:
+def worker_run_command_with_device_id(task_tuple: tuple[argparse.Namespace, str, bool]) -> subprocess.CompletedProcess:
     """worker add its device_id to the command for ./compile_unet_candidate.sh, return the run_command() result"""
+    args, command, check = task_tuple
     command.append(str(device_id))
     return run_command(args, command, check)
 
@@ -181,6 +181,28 @@ def run_command(
         logging.error(f"Command '{command_str}' failed with error: {e.stderr}")
         if check:
             raise
+
+
+def run_command_wrapper(task_tuple: tuple[argparse.Namespace, str, bool]) -> subprocess.CompletedProcess:
+    '''pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments'''
+    args, command, check = task_tuple
+    return run_command(args, command, check)
+
+
+def multiprocess_progress_wrapper(num_worker: int, task_list: list, function, initializer: callable = None, initializer_inputs = None) -> list[subprocess.CompletedProcess]:
+    '''Wrapper of multiprocessing pool and progress bar'''
+    results = []
+    # Create a multiprocessing pool
+    with multiprocessing.Pool(
+        num_worker, initializer, initializer_inputs
+    ) as worker_pool:
+        # Use tqdm to create a progress bar
+        with tqdm(total=len(task_list)) as pbar:
+            # Use imap_unordered to asynchronously execute the worker function on each task
+            for result in worker_pool.imap_unordered(function, task_list):
+                pbar.update(1)  # Update progress bar
+                results.append(result)
+    return results
 
 
 def generate_candidates(
@@ -242,8 +264,7 @@ def compile_candidates(
             task_list.append((args, command, check))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
-    with multiprocessing.Pool(num_worker) as worker_pool:
-        worker_pool.starmap(run_command, task_list)
+    multiprocess_progress_wrapper(num_worker=num_worker, task_list=task_list, function=run_command_wrapper)
 
     compiled_dir = candidate_dir / "compiled"
     compiled_files = sorted(compiled_dir.glob("*.vmfb"))
@@ -273,10 +294,7 @@ def benchmark_top_candidates(
         task_list.append((args, command, check))
 
     worker_context_queue = create_worker_context_queue(args.devices)
-    with multiprocessing.Pool(
-        len(args.devices), init_worker_context, (worker_context_queue,)
-    ) as worker_pool:
-        results = worker_pool.starmap(worker_run_command_with_device_id, task_list)
+    results = multiprocess_progress_wrapper(num_worker=len(args.devices), task_list=task_list, function=worker_run_command_with_device_id, initializer=init_worker_context, initializer_inputs=(worker_context_queue,))
 
     benchmark_results = [result.stdout for result in results]
 
@@ -322,11 +340,11 @@ def compile_unet_candidates(
                     f"{args.mode}",
                     f"{input_file}",
                 ]
-                task_list.append((args, command))
+                check = True
+                task_list.append((args, command, check))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
-    with multiprocessing.Pool(num_worker) as worker_pool:
-        worker_pool.starmap(run_command, task_list)
+    multiprocess_progress_wrapper(num_worker=num_worker, task_list=task_list, function=run_command_wrapper)
 
     unet_candidates = (
         ["unet_baseline.vmfb"] + list(base_dir.glob("*.vmfb")) + ["unet_baseline.vmfb"]
@@ -344,18 +362,20 @@ def benchmark_unet(
     unet_result_log = base_dir / "unet_results.log"
 
     with unet_result_log.open("w") as log_file:
-        for unet_candidate in unet_candidates:
-            command = [
-                "./benchmark_unet_candidate.sh",
-                f"{unet_candidate}",
-                f"{args.devices[0]}",
-            ]  # Default use the first gpu from the user input --device list
-            result = run_command(args, command)
-            log_file.write(result.stdout)
-            log_file.write(result.stderr)
-            if result.returncode != 0:
-                print("Failed")
-            time.sleep(10)
+        with tqdm(total=len(unet_candidates)) as pbar:
+            for unet_candidate in unet_candidates:
+                command = [
+                    "./benchmark_unet_candidate.sh",
+                    f"{unet_candidate}",
+                    f"{args.devices[0]}",
+                ]  # Default use the first gpu from the user input --device list
+                result = run_command(args, command)
+                log_file.write(result.stdout)
+                log_file.write(result.stderr)
+                if result.returncode != 0:
+                    logging.error(f"Failed: {command}")
+                time.sleep(10)
+                pbar.update(1)
 
     return unet_result_log
 
@@ -365,11 +385,11 @@ def main():
 
     base_dir = Path(f"tuning_{datetime.now().strftime('%Y_%m_%d_%H_%M')}")
     base_dir.mkdir(parents=True, exist_ok=True)
-
+    
     print("Setup logging\n")
     log_file_path = setup_logging(args, log_dir=base_dir)
 
-    print("Gnerating candidates...")
+    print("Generating candidates...")
     candidates, candidates_dir = generate_candidates(args, base_dir)
     print(f"Generated [{args.num_candidates}] candidates in {candidates_dir}\n")
 
@@ -383,15 +403,15 @@ def main():
     best_log = benchmark_top_candidates(args, base_dir, candidates_dir, compiled_files)
     print(f"Top20 candidates selected and stored in {best_log}\n")
 
-    print("Compiling unet candidtes...")
+    print("Compiling unet candidates...")
     unet_candidates = compile_unet_candidates(args, base_dir, best_log)
-    print("Unet candidtes compiled\n")
+    print("Unet candidates compiled\n")
 
-    print("Bnechmarking unet candidtes...")
+    print("Bnechmarking unet candidates...")
     unet_result_log = benchmark_unet(args, base_dir, unet_candidates)
     print(f"Done, stored unet result in {unet_result_log}\n")
 
-    print("Check result in log file:")
+    print("Check the detailed log in:")
     print(log_file_path, end="\n")
 
 
