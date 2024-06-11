@@ -13,6 +13,7 @@ import tune
 from tqdm import tqdm
 import re
 import hashlib
+from dataclasses import dataclass
 
 """
 Sample Usage:
@@ -31,6 +32,22 @@ DEFAULT_MAX_CPU_WORKERS = (
     multiprocessing.cpu_count() // 2
 )  # the actual amount of worker that will be generated = max(min(max_cpu_workers//2, len(task_list)), 1)
 """note: Do not use all CPU cores"""
+
+@dataclass
+class TuningCandidate:
+    candidate_id: int
+    mlir_path: str = None
+    mlir_config_path: str = None
+    configuration: tune.Configuration = None
+    compilation_successful: bool = None
+    compiled_vmfb_path: str = None
+    first_benchmark_time: float = None
+    unet_candidate_path: str = None
+    unet_vmfb_hash: str = None
+    unet_benchmark_time: float = None
+
+
+Candidate_Tracker: list[TuningCandidate] = []
 
 
 def parse_devices(devices_str: str) -> list[int]:
@@ -217,10 +234,28 @@ def multiprocess_progress_wrapper(
     return results
 
 
-# Define a sort key function that extracts numbers from the filename
 def numerical_sort_key(path):
-    match = re.search(r'\d+', path.stem)
-    return int(match.group()) if match else float('inf')
+    """Define a sort key function that splits the filename into a numeric and a string part"""
+    """Order: 0 | 0_a | 0_b | 1 | 1_a | 2"""
+    # Extract the numeric part at the start of the filename
+    match = re.match(r'(\d+)', path.stem)
+    if match:
+        numeric_part = int(match.group(1))
+        # The rest of the filename after the numeric part
+        remaining_part = path.stem[len(match.group(0)):]
+    else:
+        numeric_part = float('inf')
+        remaining_part = path.stem
+    return (numeric_part, remaining_part)
+
+
+def calculate_md5(file_path):
+    """calculate the MD5 hash"""
+    md5 = hashlib.md5()
+    with open(file_path, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b''):
+            md5.update(chunk)
+    return md5.hexdigest()
 
 
 def generate_candidates(
@@ -241,7 +276,7 @@ def generate_candidates(
 
     shutil.copy(args.input_file, template_mlir)
 
-    candidates = []
+    mlirs = []
     try:
         tune.tune(
             input=template_mlir,
@@ -251,7 +286,7 @@ def generate_candidates(
             rhs_dims=args.rhs_dims,
             tile_dims=args.tile_dims,
         )
-        candidates = sorted(candidates_dir.glob("*.mlir"), key=numerical_sort_key)
+        mlirs = sorted(candidates_dir.glob("*.mlir"), key=numerical_sort_key)
     except Exception as e:
         logging.error("An error occurred during candidates generation: %s", str(e))
         # Capture and log debug messages from tune.py
@@ -260,6 +295,16 @@ def generate_candidates(
             if isinstance(handler, logging.FileHandler):
                 tune_logger.handlers.append(handler)
         tune_logger.exception("Error in tune.py:")
+
+    # Create candidate trackers
+    candidates = []
+    for mlir in mlirs:
+        if "_config.mlir" not in mlir.name:
+            candidates.append(mlir)
+            candidate_tracker = TuningCandidate(candidate_id=mlir.stem, mlir_path=mlir)
+            Candidate_Tracker.append(candidate_tracker)
+        else:
+            Candidate_Tracker[int(mlir.stem.split("_config")[0])].mlir_config_path = mlir
 
     return candidates, candidates_dir
 
@@ -275,10 +320,9 @@ def compile_candidates(
 
     task_list = []
     for candidate in candidates:
-        if "_config.mlir" not in candidate.name:
-            command = ["./compile_candidate.sh", f"{args.mode}", f"{candidate}"]
-            check = False
-            task_list.append((args, command, check))
+        command = ["./compile_candidate.sh", f"{args.mode}", f"{candidate}"]
+        check = False
+        task_list.append((args, command, check))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
     multiprocess_progress_wrapper(
@@ -288,7 +332,7 @@ def compile_candidates(
     compiled_dir = candidate_dir / "compiled"
     compiled_files = sorted(compiled_dir.glob("*.vmfb"), key=numerical_sort_key)
     failed_dir = candidate_dir / "failed"
-    failed_files = sorted(failed_dir.glob("*.vmfb"), key=numerical_sort_key)
+    failed_files = sorted(failed_dir.glob("*.mlir"), key=numerical_sort_key)
 
     logging.info(f"Compiled: {len(compiled_files)} | Failed: {len(failed_files)}")
     print(f"Total: {len(task_list)} | Compiled: {len(compiled_files)} | Failed: {len(failed_files)}")
@@ -298,6 +342,15 @@ def compile_candidates(
     with candidate_vmfbs_file.open("w") as f:
         for compiled_file in compiled_files:
             f.write(f"{compiled_file}\n")
+
+    # Update candidate tracker
+    for failed_file in failed_files:
+        index = int(failed_file.stem)
+        Candidate_Tracker[index].compilation_successful = False
+    for compiled_file in compiled_files:
+        index = int(compiled_file.stem)
+        Candidate_Tracker[index].compilation_successful = True
+        Candidate_Tracker[index].compiled_vmfb_path = compiled_file
 
     return compiled_files, compiled_dir
 
@@ -337,6 +390,10 @@ def benchmark_top_candidates(
         for line in log_file:
             if "failed" not in line:
                 parts = line.split()
+
+                # Update candidate tracker
+                Candidate_Tracker[int(parts[0])].first_benchmark_time = float(parts[-1])
+
                 best_results.append(
                     (
                         parts[-1],
@@ -378,9 +435,13 @@ def compile_unet_candidates(
         num_worker=num_worker, task_list=task_list, function=run_command_wrapper
     )
 
-    unet_candidates = (
-        ["unet_baseline.vmfb"] + list(base_dir.glob("*.vmfb")) + ["unet_baseline.vmfb"]
-    )
+    unet_candidates = list(base_dir.glob("*.vmfb"))
+
+    # Update candidate tracker
+    for unet_candidate in unet_candidates:
+        index = int(unet_candidate.stem.split("_")[-1])
+        Candidate_Tracker[index].unet_candidate_path = unet_candidate
+        Candidate_Tracker[index].unet_vmfb_hash = calculate_md5(Candidate_Tracker[index].unet_candidate_path)
 
     return unet_candidates
 
@@ -391,6 +452,12 @@ def benchmark_unet(
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
     logging.debug("benchmark_unet()")
 
+    unet_candidates = (
+        ["unet_baseline.vmfb"] + unet_candidates + ["unet_baseline.vmfb"]
+    )
+    # Update candidate tracker
+    Candidate_Tracker[0].unet_candidate_path = "unet_baseline.vmfb"
+    
     unet_result_log = base_dir / "unet_results.log"
 
     with unet_result_log.open("w") as log_file:
@@ -406,6 +473,13 @@ def benchmark_unet(
                 log_file.write(result.stderr)
                 if result.returncode != 0:
                     logging.error(f"Failed: {command}")
+                else:
+                    # Update candidate tracker
+                    parts = result.stdout.split() # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
+                    if 'unet_baseline.vmfb' in parts[1]:
+                        Candidate_Tracker[0].unet_benchmark_time = float(parts[6]) if Candidate_Tracker[0].unet_benchmark_time is None or float(parts[6]) < Candidate_Tracker[0].unet_benchmark_time else Candidate_Tracker[0].unet_benchmark_time
+                    else:
+                        Candidate_Tracker[int(parts[1].split("_")[-1].split(".")[0])].unet_benchmark_time = float(parts[6])
                 time.sleep(10)
                 pbar.update(1)
 
@@ -415,7 +489,7 @@ def benchmark_unet(
 def main():
     args = parse_arguments()
 
-    base_dir = Path(f"tZRYuning_{datetime.now().strftime('%Y_%m_%d_%H_%M')}")
+    base_dir = Path(f"tuning_{datetime.now().strftime('%Y_%m_%d_%H_%M')}")
     base_dir.mkdir(parents=True, exist_ok=True)
 
     print("Setup logging\n")
@@ -445,6 +519,9 @@ def main():
 
     print("Check the detailed log in:")
     print(log_file_path, end="\n")
+
+    for candidate_tracker in Candidate_Tracker:
+        print(candidate_tracker)
 
 
 if __name__ == "__main__":
