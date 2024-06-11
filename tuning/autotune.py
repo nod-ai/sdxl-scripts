@@ -11,6 +11,8 @@ import time
 import multiprocessing
 import tune
 from tqdm import tqdm
+import re
+import hashlib
 
 """
 Sample Usage:
@@ -201,8 +203,6 @@ def multiprocess_progress_wrapper(
     initializer_inputs=None,
 ) -> list[subprocess.CompletedProcess]:
     """Wrapper of multiprocessing pool and progress bar"""
-    print(task_list)
-    breakpoint()
     results = []
     # Create a multiprocessing pool
     with multiprocessing.Pool(
@@ -215,6 +215,12 @@ def multiprocess_progress_wrapper(
                 pbar.update(1)  # Update progress bar
                 results.append(result)
     return results
+
+
+# Define a sort key function that extracts numbers from the filename
+def numerical_sort_key(path):
+    match = re.search(r'\d+', path.stem)
+    return int(match.group()) if match else float('inf')
 
 
 def generate_candidates(
@@ -235,6 +241,7 @@ def generate_candidates(
 
     shutil.copy(args.input_file, template_mlir)
 
+    candidates = []
     try:
         tune.tune(
             input=template_mlir,
@@ -244,7 +251,7 @@ def generate_candidates(
             rhs_dims=args.rhs_dims,
             tile_dims=args.tile_dims,
         )
-        candidates = sorted(candidates_dir.glob("*.mlir"))
+        candidates = sorted(candidates_dir.glob("*.mlir"), key=numerical_sort_key)
     except Exception as e:
         logging.error("An error occurred during candidates generation: %s", str(e))
         # Capture and log debug messages from tune.py
@@ -253,8 +260,6 @@ def generate_candidates(
             if isinstance(handler, logging.FileHandler):
                 tune_logger.handlers.append(handler)
         tune_logger.exception("Error in tune.py:")
-
-    candidates = sorted(candidates_dir.glob("*.mlir"))
 
     return candidates, candidates_dir
 
@@ -281,7 +286,12 @@ def compile_candidates(
     )
 
     compiled_dir = candidate_dir / "compiled"
-    compiled_files = sorted(compiled_dir.glob("*.vmfb"))
+    compiled_files = sorted(compiled_dir.glob("*.vmfb"), key=numerical_sort_key)
+    failed_dir = candidate_dir / "failed"
+    failed_files = sorted(failed_dir.glob("*.vmfb"), key=numerical_sort_key)
+
+    logging.info(f"Compiled: {len(compiled_files)} | Failed: {len(failed_files)}")
+    print(f"Total: {len(task_list)} | Compiled: {len(compiled_files)} | Failed: {len(failed_files)}")
 
     # Write compiled files to candidate_vmfbs.txt
     candidate_vmfbs_file = base_dir / "candidate_vmfbs.txt"
