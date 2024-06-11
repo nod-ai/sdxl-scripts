@@ -25,5 +25,5 @@ set -x
   --iree-hal-dump-executable-sources-to=sources/scheduled_unet_misa \
   --iree-hal-dump-executable-binaries-to=binaries/scheduled_unet_misa \
   --iree-hal-dump-executable-benchmarks-to=benchmarks/scheduled_unet_misa \
-  -o "${PWD}/tmp/scheduled_unet_misa.vmfb" \
+  -o "${PWD}/tmp/scheduled_unet.vmfb" \
   "$@"

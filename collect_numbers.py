@@ -9,23 +9,24 @@ def handle_exception(error):
     print ("[AggregatorError] Output : ", error.stdout)
     print ("[AggregatorError] Error : ", error.stderr)
 
+def run_command(my_env, args, verbose=False):
+    if verbose:
+        print(f"[Aggregator] Running : {' '.join(args)}")
+    return sp.run(args, capture_output=True, text=True, env=my_env, check=True)
 
 def invoke_iree_compile(my_env, compile_script, compile_args = [],
                         verbose = False):
     args = [compile_script, 'gfx942'] + compile_args
-    if verbose:
-        print(f"[Aggregator] Running : {' '.join(args)} ")
-
-    sp.run(args, capture_output=True, text=True, env=my_env, check=True)
+    run_command(my_env, args, verbose)
 
 def run_compiled_artifact(my_env, run_script, device,
                           data_path, run_args = [], verbose = False):
     args = [run_script, device, data_path] + run_args
-    if verbose:
-        print(f"[Aggregator] Running : {' '.join(args)} ")
+    return run_command(my_env, args, verbose)
 
-    return sp.run(args, capture_output=True, text=True, env=my_env,
-                  check=True)
+def delete_tmp_dir(my_env, verbose = False):
+    args = ["rm", "-f", "tmp/*.mlir", "tmp/*.vmfb"]
+    run_command(my_env, args, verbose)
 
 def process_benchmark_log(log):
     lines= log.splitlines()
@@ -45,50 +46,66 @@ def compile_and_run(my_env, compile_script, compile_args,
                             compile_args, verbose)
         output = run_compiled_artifact(my_env, run_script, device,
                                        data_path, run_args, verbose)
-        return process_benchmark_log(output.stdout)
+        timings = process_benchmark_log(output.stdout)
+        delete_tmp_dir(my_env, verbose)
+        return timings
     except sp.CalledProcessError as error:
-        handle_exceptions(error)
+        handle_exception(error)
 
 def run_all_modes(my_env, default_compile_script, tk_compile_script,
-                  winograd_compile_script, compile_args, run_script,
-                  device, data_path, run_args, verbose=False):
+                  winograd_compile_script, misa_compile_script, compile_args,
+                  run_script, device, data_path, run_args, verbose=False):
     default_times = \
         compile_and_run(my_env, default_compile_script, compile_args,
                         run_script, device, data_path, run_args, verbose)
     print(f"Default: {default_times}")
 
-    # TK::RealWeights
+    # TK
     tk_compile_args = ["default"] + compile_args
     tk_times = \
         compile_and_run(my_env, tk_compile_script, tk_compile_args, run_script,
                         device, data_path, run_args, verbose)
     print(f"Tk: {tk_times}")
 
-    # Winograd::RealWeights
+    # Winograd
     winograd_times = \
         compile_and_run(my_env, winograd_compile_script, compile_args,
                         run_script, device, data_path, run_args, verbose)
     print(f"Winograd: {winograd_times}")
 
-    # Winograd::Tk::RealWeights
+    # Winograd::Tk
     tk_winograd_compile_args = ["winograd"] + compile_args
     winograd_tk_times = \
         compile_and_run(my_env, tk_compile_script, tk_winograd_compile_args,
                         run_script, device, data_path, run_args, verbose)
     print(f"Winograd-TK: {winograd_tk_times}")
 
+    # Misa
+    misa_times = \
+        compile_and_run(my_env, misa_compile_script, compile_args,
+                        run_script, device, data_path, run_args, verbose)
+    print(f"Misa: {misa_times}")
+
+    # Misa::Tk
+    tk_misa_compile_args = ["misa"] + compile_args
+    misa_tk_times = \
+        compile_and_run(my_env, tk_compile_script, tk_misa_compile_args,
+                        run_script, device, data_path, run_args, verbose)
+    print(f"Misa-TK: {misa_tk_times}")
 
 def run_splat_and_real(my_env, default_compile_script, tk_compile_script,
-                       winograd_compile_script, run_script, args):
+                       winograd_compile_script, misa_compile_script, run_script,
+                       args):
     print(f"## Real weights ##")
     run_all_modes(my_env, default_compile_script, tk_compile_script,
-                  winograd_compile_script, [], run_script, args.device,
-                  args.real_weights_path, [], args.verbose)
+                  winograd_compile_script, misa_compile_script, [], run_script,
+                  args.device, args.real_weights_path, [], args.verbose)
 
     print(f"## Splat weights ##")
     run_all_modes(my_env, default_compile_script, tk_compile_script,
-                  winograd_compile_script, ["splat"], run_script, args.device
-                  args.splat_weights_path, [], args.verbose)
+                  winograd_compile_script, misa_compile_script, ["splat"],
+                  run_script, args.device, args.splat_weights_path, [],
+                  args.verbose)
 
 def run_all_unet(my_env, script_dir, args):
     default_compile_script = \
@@ -96,11 +113,14 @@ def run_all_unet(my_env, script_dir, args):
     tk_compile_script = os.path.join(script_dir, "compile-scheduled-unet-tk.sh")
     winograd_compile_script = \
         os.path.join(script_dir, "compile-scheduled-unet-winograd.sh")
+    misa_compile_script = \
+        os.path.join(script_dir, "compile-scheduled-unet-misa.sh")
     run_script = os.path.join(script_dir, "benchmark-scheduled-unet.sh")
 
     print(f"# Unet #")
     run_splat_and_real(my_env, default_compile_script, tk_compile_script,
-                       winograd_compile_script, run_script, args)
+                       winograd_compile_script, misa_compile_script, run_script,
+                       args)
 
 def run_all_e2e(my_env, script_dir, args):
     default_compile_script = os.path.join(script_dir, "compile-txt2img.sh")
