@@ -74,7 +74,7 @@ module attributes {transform.with_named_sequence} {
       objects({
         #rocm_target ordinal(0) = [
           #hal.executable.object<{
-            path = "/data/home/perf/nithin/sdxl-scripts/specs/igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
+            path = "igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
           }>
         ]
       })
@@ -106,7 +106,7 @@ module attributes {transform.with_named_sequence} {
     transform.yield %ins, %outs : !transform.any_value, !transform.any_value
   }
 
-  util.func private @conv_entry_point_real_k2(%arg0: tensor<2x34x34x2560xf16>, %arg1: tensor<3x3x2560x1280xf16>)
+  util.func private @conv_entry_point_k7(%arg0: tensor<2x34x34x2560xf16>, %arg1: tensor<3x3x2560x1280xf16>)
                                           -> tensor<2x32x32x1280xf32> {
     %c_0 = arith.constant 0.000000e+00 : f16
     %weight_empty = tensor.empty() : tensor<1280x3x3x2560xf16>
@@ -167,7 +167,7 @@ module attributes {transform.with_named_sequence} {
       objects({
         #rocm_target ordinal(0) = [
           #hal.executable.object<{
-            path = "/data/home/perf/nithin/sdxl-scripts/specs/igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
+            path = "igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
           }>
         ]
       })
@@ -176,18 +176,18 @@ module attributes {transform.with_named_sequence} {
     util.return %6 : tensor<2x32x32x1280xf32>
   }
 
-  transform.named_sequence @cast_and_call_dag_real_k2(%ins: !transform.any_value {transform.readonly},
+  transform.named_sequence @cast_and_call_dag_k7(%ins: !transform.any_value {transform.readonly},
                                               %out: !transform.any_value {transform.readonly}) {
     %root = transform.get_defining_op %out : (!transform.any_value) -> !transform.any_op
     %module = transform.util.get_nearest_symbol_table %root : (!transform.any_op) -> !transform.any_op
-    %func = transform.util.import_symbol @conv_entry_point_real_k2 into %module if undefined : (!transform.any_op) -> !transform.any_op
+    %func = transform.util.import_symbol @conv_entry_point_k7 into %module if undefined : (!transform.any_op) -> !transform.any_op
     transform.util.cast_and_call %func(%ins) -> %out after %root {
       //  transform.type_conversion.tensor.cast_shape_dynamic_dims
       } : (!transform.any_op, !transform.any_value, !transform.any_value, !transform.any_op) -> !transform.any_op
     transform.yield
   }
 
-  transform.named_sequence @match_conv_real_k2(
+  transform.named_sequence @match_conv_k7(
     %root: !transform.any_op {transform.readonly}) -> (!transform.any_value, !transform.any_value) {
     %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %root {
       ^bb0(%lhs: tensor<2x34x34x2560xf16>, %rhs: tensor<3x3x2560x1280xf16>):
@@ -199,7 +199,7 @@ module attributes {transform.with_named_sequence} {
     transform.yield %ins, %outs : !transform.any_value, !transform.any_value
   }
 
-  util.func private @conv_entry_point_real_k3(%arg0: tensor<2x130x130x640xf16>, %arg1: tensor<3x3x640x320xf16>)
+  util.func private @conv_entry_point_k8(%arg0: tensor<2x130x130x640xf16>, %arg1: tensor<3x3x640x320xf16>)
                                           -> tensor<2x128x128x320xf32> {
     %c_0 = arith.constant 0.000000e+00 : f16
     %weight_empty = tensor.empty() : tensor<320x3x3x640xf16>
@@ -260,7 +260,7 @@ module attributes {transform.with_named_sequence} {
       objects({
         #rocm_target ordinal(0) = [
           #hal.executable.object<{
-            path = "/data/home/perf/nithin/sdxl-scripts/specs/igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
+            path = "igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
           }>
         ]
       })
@@ -269,18 +269,18 @@ module attributes {transform.with_named_sequence} {
     util.return %6 : tensor<2x128x128x320xf32>
   }
 
-  transform.named_sequence @cast_and_call_dag_real_k3(%ins: !transform.any_value {transform.readonly},
+  transform.named_sequence @cast_and_call_dag_k8(%ins: !transform.any_value {transform.readonly},
                                               %out: !transform.any_value {transform.readonly}) {
     %root = transform.get_defining_op %out : (!transform.any_value) -> !transform.any_op
     %module = transform.util.get_nearest_symbol_table %root : (!transform.any_op) -> !transform.any_op
-    %func = transform.util.import_symbol @conv_entry_point_real_k3 into %module if undefined : (!transform.any_op) -> !transform.any_op
+    %func = transform.util.import_symbol @conv_entry_point_k8 into %module if undefined : (!transform.any_op) -> !transform.any_op
     transform.util.cast_and_call %func(%ins) -> %out after %root {
       //  transform.type_conversion.tensor.cast_shape_dynamic_dims
       } : (!transform.any_op, !transform.any_value, !transform.any_value, !transform.any_op) -> !transform.any_op
     transform.yield
   }
 
-  transform.named_sequence @match_conv_real_k3(
+  transform.named_sequence @match_conv_k8(
     %root: !transform.any_op {transform.readonly}) -> (!transform.any_value, !transform.any_value) {
     %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %root {
       ^bb0(%lhs: tensor<2x130x130x640xf16>, %rhs: tensor<3x3x640x320xf16>):
@@ -292,7 +292,7 @@ module attributes {transform.with_named_sequence} {
     transform.yield %ins, %outs : !transform.any_value, !transform.any_value
   }
 
-  util.func private @conv_entry_point_real_k6(%arg0: tensor<2x130x130x960xf16>, %arg1: tensor<3x3x960x320xf16>)
+  util.func private @conv_entry_point_k9(%arg0: tensor<2x130x130x960xf16>, %arg1: tensor<3x3x960x320xf16>)
                                           -> tensor<2x128x128x320xf32> {
     %c_0 = arith.constant 0.000000e+00 : f16
     %weight_empty = tensor.empty() : tensor<320x3x3x960xf16>
@@ -353,7 +353,7 @@ module attributes {transform.with_named_sequence} {
       objects({
         #rocm_target ordinal(0) = [
           #hal.executable.object<{
-            path = "/data/home/perf/nithin/sdxl-scripts/specs/igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
+            path = "igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
           }>
         ]
       })
@@ -362,18 +362,18 @@ module attributes {transform.with_named_sequence} {
     util.return %6 : tensor<2x128x128x320xf32>
   }
 
-  transform.named_sequence @cast_and_call_dag_real_k6(%ins: !transform.any_value {transform.readonly},
+  transform.named_sequence @cast_and_call_dag_k9(%ins: !transform.any_value {transform.readonly},
                                               %out: !transform.any_value {transform.readonly}) {
     %root = transform.get_defining_op %out : (!transform.any_value) -> !transform.any_op
     %module = transform.util.get_nearest_symbol_table %root : (!transform.any_op) -> !transform.any_op
-    %func = transform.util.import_symbol @conv_entry_point_real_k6 into %module if undefined : (!transform.any_op) -> !transform.any_op
+    %func = transform.util.import_symbol @conv_entry_point_k9 into %module if undefined : (!transform.any_op) -> !transform.any_op
     transform.util.cast_and_call %func(%ins) -> %out after %root {
       //  transform.type_conversion.tensor.cast_shape_dynamic_dims
       } : (!transform.any_op, !transform.any_value, !transform.any_value, !transform.any_op) -> !transform.any_op
     transform.yield
   }
 
-  transform.named_sequence @match_conv_real_k6(
+  transform.named_sequence @match_conv_k9(
     %root: !transform.any_op {transform.readonly}) -> (!transform.any_value, !transform.any_value) {
     %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %root {
       ^bb0(%lhs: tensor<2x130x130x960xf16>, %rhs: tensor<3x3x960x320xf16>):
@@ -446,7 +446,7 @@ module attributes {transform.with_named_sequence} {
       objects({
         #rocm_target ordinal(0) = [
           #hal.executable.object<{
-            path = "/data/home/perf/nithin/sdxl-scripts/specs/igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
+            path = "igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
           }>
         ]
       })
@@ -539,7 +539,7 @@ module attributes {transform.with_named_sequence} {
       objects({
         #rocm_target ordinal(0) = [
           #hal.executable.object<{
-            path = "/data/home/perf/nithin/sdxl-scripts/specs/igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
+            path = "igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
           }>
         ]
       })
@@ -632,7 +632,7 @@ module attributes {transform.with_named_sequence} {
       objects({
         #rocm_target ordinal(0) = [
           #hal.executable.object<{
-            path = "/data/home/perf/nithin/sdxl-scripts/specs/igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
+            path = "igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
           }>
         ]
       })
@@ -725,7 +725,7 @@ module attributes {transform.with_named_sequence} {
       objects({
         #rocm_target ordinal(0) = [
           #hal.executable.object<{
-            path = "/data/home/perf/nithin/sdxl-scripts/specs/igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
+            path = "igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
           }>
         ]
       })
@@ -818,7 +818,7 @@ module attributes {transform.with_named_sequence} {
       objects({
         #rocm_target ordinal(0) = [
           #hal.executable.object<{
-            path = "/data/home/perf/nithin/sdxl-scripts/specs/igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
+            path = "igemm_fwd_gtc_gfx942_nhwc_fp16.hsaco"
           }>
         ]
       })
@@ -863,9 +863,9 @@ module attributes {transform.with_named_sequence} {
             @match_conv_k4 -> @cast_and_call_dag_k4,
             @match_conv_k5 -> @cast_and_call_dag_k5,
             @match_conv_k6 -> @cast_and_call_dag_k6,
-            @match_conv_real_k2 -> @cast_and_call_dag_real_k2,
-            @match_conv_real_k3 -> @cast_and_call_dag_real_k3,
-            @match_conv_real_k6 -> @cast_and_call_dag_real_k6
+            @match_conv_k7 -> @cast_and_call_dag_k7,
+            @match_conv_k8 -> @cast_and_call_dag_k8,
+            @match_conv_k9 -> @cast_and_call_dag_k9
           : (!transform.any_op) -> (!transform.any_op)
     }
     transform.apply_dce to %module : !transform.any_op
