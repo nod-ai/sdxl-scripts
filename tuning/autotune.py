@@ -26,7 +26,7 @@ DEFAULT_DEVICE_LIST = [0]
 
 # Default values for max number of workers
 DEFAULT_MAX_CPU_WORKERS = (
-    multiprocessing.cpu_count()//2 
+    multiprocessing.cpu_count() // 2
 )  # the actual amount of worker that will be generated = max(min(max_cpu_workers//2, len(task_list)), 1)
 """note: Do not use all CPU cores"""
 
@@ -139,7 +139,9 @@ def create_worker_context_queue(device_ids: list[int]) -> multiprocessing.Queue:
     return worker_contexts_queue
 
 
-def worker_run_command_with_device_id(task_tuple: tuple[argparse.Namespace, str, bool]) -> subprocess.CompletedProcess:
+def worker_run_command_with_device_id(
+    task_tuple: tuple[argparse.Namespace, str, bool]
+) -> subprocess.CompletedProcess:
     """worker add its device_id to the command for ./compile_unet_candidate.sh, return the run_command() result"""
     args, command, check = task_tuple
     command.append(str(device_id))
@@ -183,14 +185,24 @@ def run_command(
             raise
 
 
-def run_command_wrapper(task_tuple: tuple[argparse.Namespace, str, bool]) -> subprocess.CompletedProcess:
-    '''pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments'''
+def run_command_wrapper(
+    task_tuple: tuple[argparse.Namespace, str, bool]
+) -> subprocess.CompletedProcess:
+    """pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments"""
     args, command, check = task_tuple
     return run_command(args, command, check)
 
 
-def multiprocess_progress_wrapper(num_worker: int, task_list: list, function, initializer: callable = None, initializer_inputs = None) -> list[subprocess.CompletedProcess]:
-    '''Wrapper of multiprocessing pool and progress bar'''
+def multiprocess_progress_wrapper(
+    num_worker: int,
+    task_list: list,
+    function,
+    initializer: callable = None,
+    initializer_inputs=None,
+) -> list[subprocess.CompletedProcess]:
+    """Wrapper of multiprocessing pool and progress bar"""
+    print(task_list)
+    breakpoint()
     results = []
     # Create a multiprocessing pool
     with multiprocessing.Pool(
@@ -264,7 +276,9 @@ def compile_candidates(
             task_list.append((args, command, check))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
-    multiprocess_progress_wrapper(num_worker=num_worker, task_list=task_list, function=run_command_wrapper)
+    multiprocess_progress_wrapper(
+        num_worker=num_worker, task_list=task_list, function=run_command_wrapper
+    )
 
     compiled_dir = candidate_dir / "compiled"
     compiled_files = sorted(compiled_dir.glob("*.vmfb"))
@@ -294,7 +308,13 @@ def benchmark_top_candidates(
         task_list.append((args, command, check))
 
     worker_context_queue = create_worker_context_queue(args.devices)
-    results = multiprocess_progress_wrapper(num_worker=len(args.devices), task_list=task_list, function=worker_run_command_with_device_id, initializer=init_worker_context, initializer_inputs=(worker_context_queue,))
+    results = multiprocess_progress_wrapper(
+        num_worker=len(args.devices),
+        task_list=task_list,
+        function=worker_run_command_with_device_id,
+        initializer=init_worker_context,
+        initializer_inputs=(worker_context_queue,),
+    )
 
     benchmark_results = [result.stdout for result in results]
 
@@ -344,7 +364,9 @@ def compile_unet_candidates(
                 task_list.append((args, command, check))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
-    multiprocess_progress_wrapper(num_worker=num_worker, task_list=task_list, function=run_command_wrapper)
+    multiprocess_progress_wrapper(
+        num_worker=num_worker, task_list=task_list, function=run_command_wrapper
+    )
 
     unet_candidates = (
         ["unet_baseline.vmfb"] + list(base_dir.glob("*.vmfb")) + ["unet_baseline.vmfb"]
@@ -383,9 +405,9 @@ def benchmark_unet(
 def main():
     args = parse_arguments()
 
-    base_dir = Path(f"tuning_{datetime.now().strftime('%Y_%m_%d_%H_%M')}")
+    base_dir = Path(f"tZRYuning_{datetime.now().strftime('%Y_%m_%d_%H_%M')}")
     base_dir.mkdir(parents=True, exist_ok=True)
-    
+
     print("Setup logging\n")
     log_file_path = setup_logging(args, log_dir=base_dir)
 
