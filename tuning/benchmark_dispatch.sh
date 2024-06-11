@@ -7,7 +7,7 @@ readonly DIR="$(dirname "$INPUT")"
 readonly DEVICE="$2"
 shift 2
 
-mkdir -p "${DIR}/failed"
+mkdir -p "${DIR}/benchmark_failed"
 readonly NAME="$(basename "$INPUT" .mlir)"
 
 # printf "Benchmarking $(basename ${INPUT}) on ${DEVICE}\n"
