@@ -1,0 +1,60 @@
+k1:
+./conv_driver.exe convfp16 -n 2 --in_h 34 --in_w 34 --in_channels 1280   --fil_h 3 --fil_w 3 --out_channels 1280   --in_layout NHWC --fil_layout NHWC --out_layout NHWC   --dilation_h 1 --dilation_w 1 --pad_h 0 --pad_w 0 --conv_stride_h 1 --conv_stride_w 1   --mode conv --group_count 1 --forw 1 --time 1 
+
+[fwd: 2] igemm_fwd_gtcx3_nhwc_fp16_bx0_ex1_bt256x128x32_wt32x32x8_ws2x1_wr2x2_ta1x8x4x1_1x4x1x64_tb1x8x2x1_1x4x1x64_gkgs, p_in:0x7f925d200000,p_wei:0x7f925b200000,p_out:0x7f925aa00000,hi:34,wi:34,n:2,k:1280,c:1280,ho:32,wo:32,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:0,magic_5:0,shift_pack_0:117770756,shift_pack_1:0,ks:0,pack_0:0, block:256, grid:80, driver mode: normal
+prolog
+ launching kernel
+p_in:0x7f925d200000,p_wei:0x7f925b200000,p_out:0x7f925aa00000,hi:34,wi:34,n:2,k:1280,c:1280,ho:32,wo:32,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:0,magic_5:0,shift_pack_0:117770756,shift_pack_1:0,ks:1,pack_0:0, grid: 40960, 1, 1, block: 256, 1, 1, ms: 0.235678, gks: 1, duration: 0.235678prolog
+ launching kernel
+p_in:0x7f925d200000,p_wei:0x7f925b200000,p_out:0x7f925aa00000,hi:34,wi:34,n:2,k:1280,c:1280,ho:32,wo:32,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:0,magic_5:0,shift_pack_0:117770756,shift_pack_1:0,ks:2,pack_0:0, grid: 81920, 1, 1, block: 256, 1, 1, ms: 0.224048, gks: 2, duration: 0.224048prolog
+ launching kernel
+p_in:0x7f925d200000,p_wei:0x7f925b200000,p_out:0x7f925aa00000,hi:34,wi:34,n:2,k:1280,c:1280,ho:32,wo:32,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:0,magic_5:0,shift_pack_0:117770756,shift_pack_1:0,ks:3,pack_0:0, grid: 163840, 1, 1, block: 256, 1, 1, ms: 0.204658, gks: 3, duration: 0.204658[3], cost:0.205ms, tflops:295.117(36.95%), valid:y
+
+k2:
+./conv_driver.exe convfp16 -n 2 --in_h 34 --in_w 34 --in_channels 1280   --fil_h 3 --fil_w 3 --out_channels 2560   --in_layout NHWC --fil_layout NHWC --out_layout NHWC   --dilation_h 1 --dilation_w 1 --pad_h 0 --pad_w 0 --conv_stride_h 1 --conv_stride_w 1   --mode conv --group_count 1 --forw 1 --time 1
+
+[fwd: 2] igemm_fwd_gtcx3_nhwc_fp16_bx0_ex1_bt256x128x32_wt32x32x8_ws2x1_wr2x2_ta1x8x4x1_1x4x1x64_tb1x8x2x1_1x4x1x64_gkgs, p_in:0x7f624f200000,p_wei:0x7f624b600000,p_out:0x7f624aa00000,hi:34,wi:34,n:2,k:2560,c:1280,ho:32,wo:32,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:0,magic_5:0,shift_pack_0:134547973,shift_pack_1:113711,ks:0,pack_0:0, block:256, grid:160, driver mode: normal
+prolog
+ launching kernel
+p_in:0x7f624f200000,p_wei:0x7f624b600000,p_out:0x7f624aa00000,hi:34,wi:34,n:2,k:2560,c:1280,ho:32,wo:32,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:0,magic_5:0,shift_pack_0:134547973,shift_pack_1:113711,ks:1,pack_0:0, grid: 81920, 1, 1, block: 256, 1, 1, ms: 0.434658, gks: 1, duration: 0.434658prolog
+ launching kernel
+p_in:0x7f624f200000,p_wei:0x7f624b600000,p_out:0x7f624aa00000,hi:34,wi:34,n:2,k:2560,c:1280,ho:32,wo:32,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:0,magic_5:0,shift_pack_0:134547973,shift_pack_1:113711,ks:2,pack_0:0, grid: 163840, 1, 1, block: 256, 1, 1, ms: 0.387448, gks: 2, duration: 0.387448prolog
+ launching kernel
+p_in:0x7f624f200000,p_wei:0x7f624b600000,p_out:0x7f624aa00000,hi:34,wi:34,n:2,k:2560,c:1280,ho:32,wo:32,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:0,magic_5:0,shift_pack_0:134547973,shift_pack_1:113711,ks:3,pack_0:0, grid: 327680, 1, 1, block: 256, 1, 1, ms: 0.369238, gks: 3, duration: 0.369238[3], cost:0.369ms, tflops:327.149(40.96%), valid:y
+
+k5: 
+./conv_driver.exe convfp16 -n 2 --in_h 66 --in_w 66 --in_channels 1280   --fil_h 3 --fil_w 3 --out_channels 1280   --in_layout NHWC --fil_layout NHWC --out_layout NHWC   --dilation_h 1 --dilation_w 1 --pad_h 0 --pad_w 0 --conv_stride_h 1 --conv_stride_w 1   --mode conv --group_count 1 --forw 1 --time 1 > results.txt
+
+[fwd:40] igemm_fwd_gtcx3_nhwc_fp16_bx0_ex1_bt128x128x32_wt32x32x8_ws1x1_wr2x2_ta1x8x2x1_1x4x1x64_tb1x8x2x1_1x4x1x64_gkgsp_in:0x7f6d1d400000,p_wei:0x7f6d1b400000,p_out:0x7f6d19e00000,hi:66,wi:66,n:2,k:1280,c:1280,ho:64,wo:64,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:286331154,magic_5:2576980378,shift_pack_0:168168452,shift_pack_1:2828,ks:0,pack_0:0, block:256, grid:640, driver mode: normal
+prolog
+ launching kernel
+p_in:0x7f6d1d400000,p_wei:0x7f6d1b400000,p_out:0x7f6d19e00000,hi:66,wi:66,n:2,k:1280,c:1280,ho:64,wo:64,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:286331154,magic_5:2576980378,shift_pack_0:168168452,shift_pack_1:2828,ks:1,pack_0:0, grid: 327680, 1, 1, block: 256, 1, 1, ms: 0.811389, gks: 1, duration: 0.811389prolog
+ launching kernel
+p_in:0x7f6d1d400000,p_wei:0x7f6d1b400000,p_out:0x7f6d19e00000,hi:66,wi:66,n:2,k:1280,c:1280,ho:64,wo:64,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:286331154,magic_5:2576980378,shift_pack_0:168168452,shift_pack_1:2828,ks:2,pack_0:0, grid: 655360, 1, 1, block: 256, 1, 1, ms: 0.752710, gks: 2, duration: 0.752710prolog
+ launching kernel
+p_in:0x7f6d1d400000,p_wei:0x7f6d1b400000,p_out:0x7f6d19e00000,hi:66,wi:66,n:2,k:1280,c:1280,ho:64,wo:64,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:2576980378,magic_1:1,magic_2:1,magic_3:2576980378,magic_4:286331154,magic_5:2576980378,shift_pack_0:168168452,shift_pack_1:2828,ks:3,pack_0:0, grid: 1310720, 1, 1, block: 256, 1, 1, ms: 0.553870, gks: 3, duration: 0.553870[3], cost:0.554ms, tflops:436.189(54.61%), valid:y
+
+k3:
+./conv_driver.exe convfp16 -n 2 --in_h 66 --in_w 66 --in_channels 640   --fil_h 3 --fil_w 3 --out_channels 640   --in_layout NHWC --fil_layout NHWC --out_layout NHWC   --dilation_h 1 --dilation_w 1 --pad_h 0 --pad_w 0 --conv_stride_h 1 --conv_stride_w 1   --mode conv --group_count 1 --forw 1 --time 1 
+
+[fwd:32] igemm_fwd_gtcx3_nhwc_fp16_bx0_ex1_bt128x256x32_wt32x32x8_ws1x2_wr2x2_ta1x8x2x1_1x4x1x64_tb1x8x4x1_1x4x1x64, p_in:0x7f18a9c00000,p_wei:0x7f18a9200000,p_out:0x7f18a8600000,hi:66,wi:66,n:2,k:640,c:640,ho:64,wo:64,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:1431655766,magic_1:1,magic_2:1,magic_3:1431655766,magic_4:286331154,magic_5:2576980378,shift_pack_0:134614018,shift_pack_1:2571,ks:0,pack_0:0, block:256, grid:192, driver mode: normal
+ launching kernel
+p_in:0x7f18a9c00000,p_wei:0x7f18a9200000,p_out:0x7f18a8600000,hi:66,wi:66,n:2,k:640,c:640,ho:64,wo:64,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:1431655766,magic_1:1,magic_2:1,magic_3:1431655766,magic_4:286331154,magic_5:2576980378,shift_pack_0:134614018,shift_pack_1:2571,ks:0,pack_0:0, grid: 49152, 1, 1, block: 256, 1, 1, ms: 0.187839, gks: 0, duration: 0.187839, cost:0.188ms, tflops:321.541(40.25%), valid:y
+
+k4:
+./conv_driver.exe convfp16 -n 2 --in_h 34 --in_w 34 --in_channels 640   --fil_h 3 --fil_w 3 --out_channels 640   --in_layout NHWC --fil_layout NHWC --out_layout NHWC   --dilation_h 1 --dilation_w 1 --pad_h 0 --pad_w 0 --conv_stride_h 1 --conv_stride_w 1   --mode conv --group_count 1 --forw 1 --time 1  > results.txt
+
+[fwd:34] igemm_fwd_gtcx3_nhwc_fp16_bx0_ex1_bt128x256x32_wt32x32x8_ws1x2_wr2x2_ta1x8x2x1_1x4x1x64_tb1x8x4x1_1x4x1x64_gkgs, p_in:0x7f841fa00000,p_wei:0x7f841f000000,p_out:0x7f841ea00000,hi:34,wi:34,n:2,k:640,c:640,ho:32,wo:32,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:1431655766,magic_1:1,magic_2:1,magic_3:1431655766,magic_4:286331154,magic_5:2576980378,shift_pack_0:100993538,shift_pack_1:2571,ks:0,pack_0:0, block:256, grid:48, driver mode: normal
+prolog
+ launching kernel
+p_in:0x7f841fa00000,p_wei:0x7f841f000000,p_out:0x7f841ea00000,hi:34,wi:34,n:2,k:640,c:640,ho:32,wo:32,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:1431655766,magic_1:1,magic_2:1,magic_3:1431655766,magic_4:286331154,magic_5:2576980378,shift_pack_0:100993538,shift_pack_1:2571,ks:1,pack_0:0, grid: 24576, 1, 1, block: 256, 1, 1, ms: 0.097839, gks: 1, duration: 0.097839prolog
+ launching kernel
+p_in:0x7f841fa00000,p_wei:0x7f841f000000,p_out:0x7f841ea00000,hi:34,wi:34,n:2,k:640,c:640,ho:32,wo:32,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:1431655766,magic_1:1,magic_2:1,magic_3:1431655766,magic_4:286331154,magic_5:2576980378,shift_pack_0:100993538,shift_pack_1:2571,ks:2,pack_0:0, grid: 49152, 1, 1, block: 256, 1, 1, ms: 0.052640, gks: 2, duration: 0.052640[2], cost:0.053ms, tflops:286.845(35.91%), valid:y
+
+k6:
+./conv_driver.exe convfp16 -n 2 --in_h 130 --in_w 130 --in_channels 320   --fil_h 3 --fil_w 3 --out_channels 320   --in_layout NHWC --fil_layout NHWC --out_layout NHWC   --dilation_h 1 --dilation_w 1 --pad_h 0 --pad_w 0 --conv_stride_h 1 --conv_stride_w 1   --mode conv --group_count 1 --forw 1 --time 1 > results.txt
+
+[fwd: 2] igemm_fwd_gtcx3_nhwc_fp16_bx0_ex1_bt256x128x32_wt32x32x8_ws2x1_wr2x2_ta1x8x4x1_1x4x1x64_tb1x8x2x1_1x4x1x64_gkgs, p_in:0x7f588e800000,p_wei:0x7f58ac600000,p_out:0x7f588d200000,hi:130,wi:130,n:2,k:320,c:320,ho:128,wo:128,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:1431655766,magic_1:1,magic_2:1,magic_3:1431655766,magic_4:0,magic_5:0,shift_pack_0:151457282,shift_pack_1:113711,ks:0,pack_0:0, block:256, grid:384, driver mode: normal
+prolog
+ launching kernel
+p_in:0x7f588e800000,p_wei:0x7f58ac600000,p_out:0x7f588d200000,hi:130,wi:130,n:2,k:320,c:320,ho:128,wo:128,stride_h:1,stride_w:1,dilation_h:1,dilation_w:1,pad_h:0,pad_w:0,y:3,x:3,group:1,magic_0:1431655766,magic_1:1,magic_2:1,magic_3:1431655766,magic_4:0,magic_5:0,shift_pack_0:151457282,shift_pack_1:113711,ks:1,pack_0:0, grid: 196608, 1, 1, block: 256, 1, 1, ms: 0.216560, gks: 1, duration: 0.216560[1], cost:0.217ms, tflops:278.897(34.92%), valid:y
