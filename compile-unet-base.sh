@@ -2,7 +2,7 @@
 
 # Base unet compilation script. This is intended to be invoked by other scripts.
 # Usage:
-# ./compile-unet-base.sh <iree-compile-path> <gfxip> <default|winograd> <attention_matmul_spec_file> <input mlir> -o <output vmfb> [extra flags]
+# ./compile-unet-base.sh <iree-compile-path> <gfxip> <default|winograd|misa> <attention_matmul_spec_file> <input mlir> -o <output vmfb> [extra flags]
 
 set -euo pipefail
 
@@ -18,8 +18,11 @@ readonly CHIP="$2"
 
 readonly MODE="$3"
 USE_WINOGRAD=0
+USE_MISA=0
 if [[ $MODE =~ "winograd" ]] ; then
   USE_WINOGRAD=1
+elif [[ $MODE =~ "misa" ]] ; then
+  USE_MISA=1
 fi
 
 readonly ATTENTION_SPEC="$(realpath "$4")"
@@ -58,9 +61,17 @@ readonly WINOGRAD_FLAGS=(
   "--iree-preprocessing-pass-pipeline=${WINOGRAD_PIPELINE[*]}"
 )
 
+readonly MISA_FLAGS=(
+  "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics))"
+  "--iree-hal-executable-object-search-path=${SPEC_DIR}"
+  "--iree-preprocessing-transform-spec-filename=${SPEC_DIR}/misa_unet_spec.mlir"
+)
+
 declare -a FLAGS=("${DEFAULT_FLAGS[*]}")
 if [ "$USE_WINOGRAD" = 1 ] ; then
   FLAGS=("${WINOGRAD_FLAGS[@]}")
+elif [ "$USE_MISA" = 1 ] ; then
+  FLAGS=("${MISA_FLAGS[@]}")
 fi
 
 set -x
