@@ -5,6 +5,8 @@ import shlex
 import subprocess as sp
 import sys
 
+SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
+
 def handle_exception(error):
     print ("[AggregatorError] Output : ", error.stdout)
     print ("[AggregatorError] Error : ", error.stderr)
@@ -12,7 +14,7 @@ def handle_exception(error):
 def run_command(my_env, args, verbose=False):
     if verbose:
         print(f"[Aggregator] Running : {' '.join(args)}")
-    return sp.run(args, capture_output=True, text=True, env=my_env, check=True)
+    return sp.run(args, cwd=SCRIPT_PATH, capture_output=True, text=True, env=my_env, check=True)
 
 def invoke_iree_compile(my_env, compile_script, compile_args = [],
                         verbose = False):
@@ -42,12 +44,12 @@ def compile_and_run(my_env, compile_script, compile_args,
                     run_script, device, data_path, run_args,
                     verbose=False):
     try:
+        delete_tmp_dir(my_env, verbose)
         invoke_iree_compile(my_env, compile_script,
                             compile_args, verbose)
         output = run_compiled_artifact(my_env, run_script, device,
                                        data_path, run_args, verbose)
         timings = process_benchmark_log(output.stdout)
-        delete_tmp_dir(my_env, verbose)
         return timings
     except sp.CalledProcessError as error:
         handle_exception(error)
