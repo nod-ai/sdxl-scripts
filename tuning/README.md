@@ -18,7 +18,7 @@ cp ../specs/attention_and_matmul_spec.mlir config.mlir
 
 3. Temporarily comment out all the existing configs in `config.mlir`.
    - Example:
-     ```sh
+     ```mlir
      // , @match_mmt_2048x10240x1280 -> @apply_op_config
      // , @match_mmt_2048x1280x5120 -> @apply_op_config
      // , @match_mmt_2048x1280x1280 -> @apply_op_config
