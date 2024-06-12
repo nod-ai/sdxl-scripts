@@ -43,7 +43,11 @@ python autotune.py winograd 141.mlir --devices=1,3,5 --num-candidates=1024
 
 8. Copy the transform spec at the top of `<id>.mlir` file from the corresponding candidate into the `config.mlir` and uncomment them.
 
-9. Copy the transforms script from the correspondig .mlir file into the TD spec.
+9. Add the match function to the entry point in `config.mlir`
+   - Example:
+     ```mlir
+     @match_something -> @apply_op_config
+     ```    
 
 ## Correctness validation
 
