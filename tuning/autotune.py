@@ -14,6 +14,7 @@ from tqdm import tqdm
 import re
 import hashlib
 from dataclasses import dataclass
+
 # from typing import Callable
 
 """
@@ -34,6 +35,7 @@ DEFAULT_MAX_CPU_WORKERS = (
 )  # the actual amount of worker that will be generated = max(min(max_cpu_workers//2, len(task_list)), 1)
 """note: Do not use all CPU cores"""
 
+
 @dataclass
 class CandidateTracker:
     candidate_id: int
@@ -46,9 +48,6 @@ class CandidateTracker:
     unet_candidate_path: str = None
     unet_vmfb_hash: str = None
     unet_benchmark_time: float = None
-
-
-
 
 
 def parse_devices(devices_str: str) -> list[int]:
@@ -241,21 +240,21 @@ def numerical_sort_key(path: Path) -> tuple[int, str]:
     Order: 0 | 0_a | 0_b | 1 | 1_a | 2
     """
     # Extract the numeric part at the start of the filename
-    match = re.match(r'(\d+)', path.stem)
+    match = re.match(r"(\d+)", path.stem)
     if match:
         numeric_part = int(match.group(1))
         # The rest of the filename after the numeric part
-        remaining_part = path.stem[len(match.group(0)):]
+        remaining_part = path.stem[len(match.group(0)) :]
     else:
-        numeric_part = float('inf')
+        numeric_part = float("inf")
         remaining_part = path.stem
     return (numeric_part, remaining_part)
 
 
 def calculate_md5(file_path: str) -> str:
     md5 = hashlib.md5()
-    with open(file_path, 'rb') as f:
-        for chunk in iter(lambda: f.read(4096), b''):
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
             md5.update(chunk)
     return md5.hexdigest()
 
@@ -303,10 +302,12 @@ def generate_candidates(
     for mlir in mlirs:
         if "_config.mlir" not in mlir.name:
             candidates.append(mlir)
-            new_candidate  = CandidateTracker(candidate_id=mlir.stem, mlir_path=mlir)
+            new_candidate = CandidateTracker(candidate_id=mlir.stem, mlir_path=mlir)
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = mlir
+            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
+                mlir
+            )
 
     return candidates, candidates_dir
 
@@ -316,7 +317,7 @@ def compile_candidates(
     base_dir: Path,
     candidates: list[Path],
     candidate_dir: Path,
-    candidate_trackers: CandidateTracker
+    candidate_trackers: CandidateTracker,
 ) -> tuple[list[Path], Path]:
     """Compile candidate files for tuning and record in candidate_vmfbs.txt. Returns the list of compiled files and the compiled files directory."""
     logging.debug("compile_candidates()")
@@ -338,7 +339,9 @@ def compile_candidates(
     failed_files = sorted(failed_dir.glob("*.mlir"), key=numerical_sort_key)
 
     logging.info(f"Compiled: {len(compiled_files)} | Failed: {len(failed_files)}")
-    print(f"Total: {len(task_list)} | Compiled: {len(compiled_files)} | Failed: {len(failed_files)}")
+    print(
+        f"Total: {len(task_list)} | Compiled: {len(compiled_files)} | Failed: {len(failed_files)}"
+    )
 
     # Write compiled files to candidate_vmfbs.txt
     candidate_vmfbs_file = base_dir / "candidate_vmfbs.txt"
@@ -363,7 +366,7 @@ def benchmark_top_candidates(
     base_dir: Path,
     candidates_dir: Path,
     compiled_files: list[Path],
-    candidate_trackers: CandidateTracker
+    candidate_trackers: CandidateTracker,
 ) -> Path:
     """Benchmark the candidate files and store the top20 results in file (best.log). Return the log file"""
     logging.debug("benchmark_top_candidates()")
@@ -396,7 +399,9 @@ def benchmark_top_candidates(
                 parts = line.split()
 
                 # Update candidate tracker
-                candidate_trackers[int(parts[0])].first_benchmark_time = float(parts[-1])
+                candidate_trackers[int(parts[0])].first_benchmark_time = float(
+                    parts[-1]
+                )
 
                 best_results.append(
                     (
@@ -416,7 +421,10 @@ def benchmark_top_candidates(
 
 
 def compile_unet_candidates(
-    args: argparse.Namespace, base_dir: Path, best_log: Path, candidate_trackers: CandidateTracker
+    args: argparse.Namespace,
+    base_dir: Path,
+    best_log: Path,
+    candidate_trackers: CandidateTracker,
 ) -> list[str]:
     """Compile U-Net candidates stored in best.log. Return the list of U-Net candidate files."""
     logging.debug("compile_unet_candidates()")
@@ -445,23 +453,26 @@ def compile_unet_candidates(
     for unet_candidate in unet_candidates:
         index = int(unet_candidate.stem.split("_")[-1])
         candidate_trackers[index].unet_candidate_path = unet_candidate
-        candidate_trackers[index].unet_vmfb_hash = calculate_md5(candidate_trackers[index].unet_candidate_path)
+        candidate_trackers[index].unet_vmfb_hash = calculate_md5(
+            candidate_trackers[index].unet_candidate_path
+        )
 
     return unet_candidates
 
 
 def benchmark_unet(
-    args: argparse.Namespace, base_dir: Path, unet_candidates: list[str], candidate_trackers: CandidateTracker
+    args: argparse.Namespace,
+    base_dir: Path,
+    unet_candidates: list[str],
+    candidate_trackers: CandidateTracker,
 ) -> None:
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
     logging.debug("benchmark_unet()")
 
-    unet_candidates = (
-        ["unet_baseline.vmfb"] + unet_candidates + ["unet_baseline.vmfb"]
-    )
+    unet_candidates = ["unet_baseline.vmfb"] + unet_candidates + ["unet_baseline.vmfb"]
     # Update candidate tracker
     candidate_trackers[0].unet_candidate_path = "unet_baseline.vmfb"
-    
+
     unet_result_log = base_dir / "unet_results.log"
 
     with unet_result_log.open("w") as log_file:
@@ -479,11 +490,21 @@ def benchmark_unet(
                     logging.error(f"Failed: {command}")
                 else:
                     # Update candidate tracker
-                    parts = result.stdout.split() # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
-                    if 'unet_baseline.vmfb' in parts[1]:
-                        candidate_trackers[0].unet_benchmark_time = float(parts[6]) if candidate_trackers[0].unet_benchmark_time is None or float(parts[6]) < candidate_trackers[0].unet_benchmark_time else candidate_trackers[0].unet_benchmark_time
+                    parts = (
+                        result.stdout.split()
+                    )  # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
+                    if "unet_baseline.vmfb" in parts[1]:
+                        candidate_trackers[0].unet_benchmark_time = (
+                            float(parts[6])
+                            if candidate_trackers[0].unet_benchmark_time is None
+                            or float(parts[6])
+                            < candidate_trackers[0].unet_benchmark_time
+                            else candidate_trackers[0].unet_benchmark_time
+                        )
                     else:
-                        candidate_trackers[int(parts[1].split("_")[-1].split(".")[0])].unet_benchmark_time = float(parts[6])
+                        candidate_trackers[
+                            int(parts[1].split("_")[-1].split(".")[0])
+                        ].unet_benchmark_time = float(parts[6])
                 time.sleep(10)
                 pbar.update(1)
 
@@ -512,15 +533,21 @@ def main():
     print(f"Compiled files in {compiled_dir}\n")
 
     print("Benchmarking top candidates...")
-    best_log = benchmark_top_candidates(args, base_dir, candidates_dir, compiled_files, candidate_trackers)
+    best_log = benchmark_top_candidates(
+        args, base_dir, candidates_dir, compiled_files, candidate_trackers
+    )
     print(f"Top20 candidates selected and stored in {best_log}\n")
 
     print("Compiling unet candidates...")
-    unet_candidates = compile_unet_candidates(args, base_dir, best_log, candidate_trackers)
+    unet_candidates = compile_unet_candidates(
+        args, base_dir, best_log, candidate_trackers
+    )
     print("Unet candidates compiled\n")
 
     print("Bnechmarking unet candidates...")
-    unet_result_log = benchmark_unet(args, base_dir, unet_candidates, candidate_trackers)
+    unet_result_log = benchmark_unet(
+        args, base_dir, unet_candidates, candidate_trackers
+    )
     print(f"Done, stored unet result in {unet_result_log}\n")
 
     print("Check the detailed log in:")
