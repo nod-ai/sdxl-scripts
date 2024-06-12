@@ -14,7 +14,8 @@ def handle_exception(error):
 def run_command(my_env, args, verbose=False):
     if verbose:
         print(f"[Aggregator] Running : {' '.join(args)}")
-    return sp.run(args, cwd=SCRIPT_PATH, capture_output=True, text=True, env=my_env, check=True)
+    return sp.run(args, cwd=SCRIPT_PATH, capture_output=True,
+                  text=True, env=my_env, check=True)
 
 def invoke_iree_compile(my_env, compile_script, compile_args = [],
                         verbose = False):
@@ -130,11 +131,14 @@ def run_all_e2e(my_env, script_dir, args):
                                           "compile-txt2img-tk.sh")
     winograd_compile_script = \
         os.path.join(script_dir, "compile-txt2img-winograd.sh")
+    misa_compile_script = \
+        os.path.join(script_dir, "compile-txt2img-misa.sh")
     run_script = os.path.join(script_dir, "benchmark-txt2img.sh")
 
     print(f"# E2E #")
     run_splat_and_real(my_env, default_compile_script, tk_compile_script,
-                       winograd_compile_script, run_script, args)
+                       winograd_compile_script, misa_compile_script,
+                       run_script, args)
 
 
 def main(args):
