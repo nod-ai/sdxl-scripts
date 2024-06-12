@@ -3,25 +3,51 @@
 ## Overall flow
 
 1. Simlink all scripts and mlir/irpa files in your build dir.
-2. Compile unet and dump all executable files with
-   `--iree-hal-dump-executable-files-to=dump-unet`.
-3. Find the matmul to tune and copy the _benchmark.mlir file to the build dir.
-4. Run the tuner `./tuner.py mmt.mlir -o candidates -l 8192`.
-5. Compile all candidates: `parallel ./compile_candidate.sh {} ::: candidate/*.mlir`.
-6. Benchmark all candidates on GPUs 2-7:
+   - Symlink `iree-build-dir/tools` inside `sdxl-scripts/tuning`.
+   - Symlink UNet MLIR and weights based on `unet.sh`.
+     - The full UNet is in [https://github.com/nod-ai/sdxl-scripts/tree/main/base_ir](https://github.com/nod-ai/sdxl-scripts/tree/main/base_ir).
+     - Check: `stable_diffusion_xl_base_1_0_64_1024x1024_fp16_unet.mlir`.
+     - The weights are on the machine under `/data`.
+     - Usage: `/data/home/perf/data/shark/scheduled_unet.irpa`.
 
-   ```shell
-   time parallel -j6 './benchmark_dispatch.sh {} $(({%}+1))' ::: candidates/compiled/*.vmfb | tee tuned.log
-   ```
+2. Copy the attention/matmul spec as `config.mlir` in the tuning dir. 
+```shell
+cd tuning
+cp ../specs/attention_and_matmul_spec.mlir config.mlir
+```
 
-7. Check the winners:
+3. Temporarily comment out all the existing configs in `config.mlir`.
+   - Example:
+     ```mlir
+     // , @match_mmt_2048x10240x1280 -> @apply_op_config
+     // , @match_mmt_2048x1280x5120 -> @apply_op_config
+     // , @match_mmt_2048x1280x1280 -> @apply_op_config
+     ```
 
-   ```shell
-   cat tuned.log | awk '{printf("%s, %s\n", $NF,$2);}' | sort -n | head -n5`
-   ```
+4. Compile a baseline unet
+```shell
+./unet.sh winograd unet.mlir -o unet_baseline.vmfb --iree-hal-dump-executable-files-to=dump-winograd
+```
 
-8. Copy the transforms script from the correspondig `.mlir` file into the TD
-   spec.
+5. Find the matmul to tune and copy the _benchmark.mlir file to the build dir.
+```shell
+cp dump-winograd/*_141_*benchmark.mlir ./141.mlir
+```
+
+6. Run the tuning script.
+```shell
+python autotune.py winograd 141.mlir --devices=1,3,5 --num-candidates=1024
+```
+
+7. Check the winner candidate IDs in `unet_results.log`
+
+8. Copy the transform spec at the top of `<id>.mlir` file from the corresponding candidate into the `config.mlir` and uncomment them.
+
+9. Add the match function to the entry point in `config.mlir`
+   - Example:
+     ```mlir
+     @match_something -> @apply_op_config
+     ```    
 
 ## Correctness validation
 
