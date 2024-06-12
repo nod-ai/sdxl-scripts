@@ -5,6 +5,32 @@ import tune
 Usage: python -m pytest test_tune.py
 '''
 
+def test_get_mmt_tile_sizes():
+    config = tune.Configuration(
+        subgroup_size=0,
+        workgroup_size=[],
+        intrinsic="",
+        tile_sizes=[128, 320, 32],
+        subgroup_m_count=0,
+        subgroup_n_count=0,
+        waves_per_eu=0,
+        no_workgroup_reorder=0
+    )
+    assert tune.get_mmt_tile_sizes(config) == [128, 320, 32]
+
+def test_get_conv_tile_sizes():
+    config = tune.Configuration(
+        subgroup_size=64,
+        workgroup_size=[256, 1, 1],
+        intrinsic='#iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>',
+        tile_sizes=[464, 320, 16],
+        subgroup_m_count=1,
+        subgroup_n_count=4,
+        waves_per_eu=1,
+        no_workgroup_reorder=0
+    )
+    assert tune.get_conv_tile_sizes(config) == (1, 1, 464, 320, 1, 1, 16)
+
 def test_get_contract_tile_sizes():
     config = tune.Configuration(
         subgroup_size=32,
@@ -84,19 +110,195 @@ def test_get_shapes_batch_matmul():
     assert tune.get_shapes_batch_matmul(template) == ([1, 32, 1024], [1, 1024, 32], [1, 32, 32])
 
 def test_generate_solutions():
-    pass
+    M, N, K = 2048, 3840, 1280
+    configs = None
+    configs = tune.generate_solutions(M, N, K)
+    assert configs is not None
 
-def test_generate_constraints():
-    pass
+def test_generate_constraints_valid_input():
+    # Define input parameters as z3 Ints
+    M, N, K = 256, 384, 32
+    m, n, k = tune.z3.Int("m"), tune.z3.Int("n"), tune.z3.Int("k")
+    subgroup_size = tune.z3.Int("subgroup_size")
+    intrinsic_mn = tune.z3.Int("intrinsic_mn")
+    intrinsic_k = tune.z3.Int("intrinsic_k")
+    wg_x, wg_y, wg_z = tune.z3.Int("wg_x"), tune.z3.Int("wg_y"), tune.z3.Int("wg_z")
+    sg_m_cnt = tune.z3.Int("sg_m_cnt")
+    sg_n_cnt = tune.z3.Int("sg_n_cnt")
+    waves_per_eu = tune.z3.Int("waves_per_eu")
+    no_workgroup_reorder = tune.z3.Int("no_workgroup_reorder")
+
+    constraints = tune.generate_constraints(
+        [M, N, K],
+        [m, n, k],
+        subgroup_size,
+        [intrinsic_mn, intrinsic_k],
+        [wg_x, wg_y, wg_z],
+        sg_m_cnt,
+        sg_n_cnt,
+        waves_per_eu,
+        no_workgroup_reorder,
+    )
+
+    solver = tune.z3.Solver()
+    solver.add(constraints)
+
+    # Check if the constraints are satisfiable
+    assert solver.check() == tune.z3.sat
+
+def test_generate_constraints_invalid_input():
+    # Define input parameters that should lead to unsatisfiable constraints
+    M, N, K = 256, 384, 32
+    m, n, k = tune.z3.Int("m"), tune.z3.Int("n"), tune.z3.Int("k")
+    subgroup_size = tune.z3.Int("subgroup_size")
+    intrinsic_mn = tune.z3.Int("intrinsic_mn")
+    intrinsic_k = tune.z3.Int("intrinsic_k")
+    wg_x, wg_y, wg_z = tune.z3.Int("wg_x"), tune.z3.Int("wg_y"), tune.z3.Int("wg_z")
+    sg_m_cnt = tune.z3.Int("sg_m_cnt")
+    sg_n_cnt = tune.z3.Int("sg_n_cnt")
+    waves_per_eu = tune.z3.Int("waves_per_eu")
+    no_workgroup_reorder = tune.z3.Int("no_workgroup_reorder")
+
+    constraints = tune.generate_constraints(
+        [M, N, K],
+        [m, n, k],
+        subgroup_size,
+        [intrinsic_mn, intrinsic_k],
+        [wg_x, wg_y, wg_z],
+        sg_m_cnt,
+        sg_n_cnt,
+        waves_per_eu,
+        no_workgroup_reorder,
+    )
+    constraints.append(m > 1000)  # Adding an additional unsatisfiable constraint
+
+
+    solver = tune.z3.Solver()
+    solver.add(constraints)
+
+    # Check if the constraints are unsatisfiable
+    assert solver.check() == tune.z3.unsat
 
 def test_apply_params_mmt():
-    pass
+    mlir_template = [
+        "<intrinsic = #iree_gpu.mma_layout<16x16x16_F32>, subgroup_m_count = 16, subgroup_n_count = 16>",
+        "<LLVMGPUVectorDistribute workgroup_size = [16, 16] subgroup_size = 16,",
+        "<tile_sizes = [[8, 8, 8]]>",
+        ", waves_per_eu = 8 : i64"
+    ]
+
+    M, N, K = 2048, 1280, 1280
+
+    config = tune.Configuration(
+        subgroup_size=16,
+        workgroup_size=[16, 16, 1],
+        intrinsic="16x16x16_F32",
+        tile_sizes=[8, 8, 8],
+        subgroup_m_count=16,
+        subgroup_n_count=16,
+        waves_per_eu=8,
+        no_workgroup_reorder=0
+    )
+
+    modified, embeddable = tune.apply_params_mmt(M, N, K, mlir_template, config)
+
+    assert modified is not None
+    assert embeddable is not None
+    assert "intrinsic = 16x16x16_F32, subgroup_m_count = 16, subgroup_n_count = 16" in modified
+    assert "LLVMGPUVectorDistribute workgroup_size = [16, 16, 1] subgroup_size = 16" in modified
+    assert "tile_sizes = [[8, 8, 8]]" in modified
+    assert "waves_per_eu = 8 : i64" in modified
 
 def test_apply_params_conv():
-    pass
+    mlir_template = [
+        "<intrinsic = #iree_gpu.mma_layout<16x16x16_F32>, subgroup_m_count = 16, subgroup_n_count = 16>",
+        "<LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64,",
+        "<tile_sizes = [[1, 1, 64, 128, 1, 1, 32]]>",
+        ", waves_per_eu = 2 : i64"
+    ]
+
+    n, oh, ow, oc, fh, fw, ic = 2, 64, 64, 640, 3, 3, 640
+
+    config = tune.Configuration(
+        subgroup_size=64,
+        workgroup_size=[256, 1, 1],
+        intrinsic='#iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>',
+        tile_sizes=[464, 320, 16],
+        subgroup_m_count=1,
+        subgroup_n_count=4,
+        waves_per_eu=1,
+        no_workgroup_reorder=0
+    )
+    
+    modified, embeddable = tune.apply_params_conv(n, oh, ow, oc, fh, fw, ic, mlir_template, config)
+
+    assert modified is not None
+    assert embeddable is not None
+    assert "intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>, subgroup_m_count = 1, subgroup_n_count = 4" in modified
+    assert "LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64" in modified
+    assert "tile_sizes = [[1, 1, 464, 320, 1, 1, 16]]" in modified
+    assert "waves_per_eu = 1 : i64" in modified
+
 
 def test_apply_params_contract():
-    pass
+    mlir_template = [
+        "<intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>, subgroup_m_count = 2, subgroup_n_count = 2>}>",
+        "<LLVMGPUVectorDistribute workgroup_size = [128, 2, 1] subgroup_size = 64,",
+        "<tile_sizes = [[1, 1, 1, 64, 64, 128]]>",
+        ", waves_per_eu = 2 : i64"
+    ]
+
+    LHS, RHS, RES = ([2, 1024, 1280], [3, 20, 64, 1280], [3, 2, 20, 1024, 64])
+    tile_dims = "*mnk"
+    M, N, K0, K1 = (2048, 3840, 1280, 1280)
+
+    config = tune.Configuration(
+        subgroup_size=64,
+        workgroup_size=[256, 1, 1],
+        intrinsic='#iree_gpu.mma_layout<MFMA_F16_32x32x8_F32>',
+        tile_sizes=[480, 384, 32],
+        subgroup_m_count=1,
+        subgroup_n_count=4,
+        waves_per_eu=2,
+        no_workgroup_reorder=1
+    )
+    
+    new_mlir = tune.apply_params_contract(LHS, RHS, RES, tile_dims, mlir_template, config)
+
+    assert new_mlir is not None
+    assert "intrinsic = #iree_gpu.mma_layout<MFMA_F16_32x32x8_F32>, subgroup_m_count = 1, subgroup_n_count = 4" in new_mlir
+    assert "LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64" in new_mlir
+    assert "tile_sizes = [[1, 480, 384, 32]]" in new_mlir
+    assert ", waves_per_eu = 2 : i64" in new_mlir
 
 def test_apply_params_batch_matmul():
-    pass
+    mlir_template = [
+        "<intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>, subgroup_m_count = 4, subgroup_n_count = 1>}>",
+        "<LLVMGPUVectorDistribute workgroup_size = [64, 4, 1] subgroup_size = 64,",
+        "<tile_sizes = [[1, 128, 64, 64]]>",
+        ", waves_per_eu = 2 : i64"
+    ]
+
+    LHS, RHS, RES = ([64, 968, 640], [64, 640, 320], [64, 968, 320])
+    lhs_dims, rhs_dims, tile_dims = "bmk", "bkn", "*mnk"
+    B, B0, B1, M, N, K0, K1 = (64, 64, 64, 968, 320, 640, 640)
+
+    config = tune.Configuration(
+        subgroup_size=64,
+        workgroup_size=[128, 1, 1],
+        intrinsic='#iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>',
+        tile_sizes=[416, 320, 128],
+        subgroup_m_count=2,
+        subgroup_n_count=2,
+        waves_per_eu=1,
+        no_workgroup_reorder=1
+    )
+
+    modified, embeddable = tune.apply_params_batch_matmul(LHS, RHS, RES, B, M, N, K0, tile_dims, mlir_template, config)
+
+    assert modified is not None
+    assert embeddable is not None
+    assert "intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>, subgroup_m_count = 2, subgroup_n_count = 2" in modified
+    assert "LLVMGPUVectorDistribute workgroup_size = [64, 4, 1] subgroup_size = 64" in modified
+    assert "tile_sizes = [[1, 416, 320, 128]]" in modified
+    assert "waves_per_eu = 1 : i64" in modified
