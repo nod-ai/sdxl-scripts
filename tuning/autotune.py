@@ -10,6 +10,12 @@ from pathlib import Path
 import time
 import multiprocessing
 import tune
+from tqdm import tqdm
+import re
+import hashlib
+from dataclasses import dataclass
+
+# from typing import Callable
 
 """
 Sample Usage:
@@ -25,9 +31,23 @@ DEFAULT_DEVICE_LIST = [0]
 
 # Default values for max number of workers
 DEFAULT_MAX_CPU_WORKERS = (
-    multiprocessing.cpu_count()//2 
+    multiprocessing.cpu_count() // 2
 )  # the actual amount of worker that will be generated = max(min(max_cpu_workers//2, len(task_list)), 1)
 """note: Do not use all CPU cores"""
+
+
+@dataclass
+class CandidateTracker:
+    candidate_id: int
+    mlir_path: str = None
+    mlir_config_path: str = None
+    configuration: tune.Configuration = None
+    compilation_successful: bool = None
+    compiled_vmfb_path: str = None
+    first_benchmark_time: float = None
+    unet_candidate_path: str = None
+    unet_vmfb_hash: str = None
+    unet_benchmark_time: float = None
 
 
 def parse_devices(devices_str: str) -> list[int]:
@@ -139,9 +159,10 @@ def create_worker_context_queue(device_ids: list[int]) -> multiprocessing.Queue:
 
 
 def worker_run_command_with_device_id(
-    args: argparse.Namespace, command: list[str], check: bool = True
+    task_tuple: tuple[argparse.Namespace, str, bool]
 ) -> subprocess.CompletedProcess:
     """worker add its device_id to the command for ./compile_unet_candidate.sh, return the run_command() result"""
+    args, command, check = task_tuple
     command.append(str(device_id))
     return run_command(args, command, check)
 
@@ -183,8 +204,63 @@ def run_command(
             raise
 
 
+def run_command_wrapper(
+    task_tuple: tuple[argparse.Namespace, str, bool]
+) -> subprocess.CompletedProcess:
+    """pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments"""
+    args, command, check = task_tuple
+    return run_command(args, command, check)
+
+
+def multiprocess_progress_wrapper(
+    num_worker: int,
+    task_list: list,
+    function: callable,
+    initializer: callable = None,
+    initializer_inputs=None,
+) -> list[subprocess.CompletedProcess]:
+    """Wrapper of multiprocessing pool and progress bar"""
+    results = []
+    # Create a multiprocessing pool
+    with multiprocessing.Pool(
+        num_worker, initializer, initializer_inputs
+    ) as worker_pool:
+        # Use tqdm to create a progress bar
+        with tqdm(total=len(task_list)) as pbar:
+            # Use imap_unordered to asynchronously execute the worker function on each task
+            for result in worker_pool.imap_unordered(function, task_list):
+                pbar.update(1)  # Update progress bar
+                results.append(result)
+    return results
+
+
+def numerical_sort_key(path: Path) -> tuple[int, str]:
+    """
+    Define a sort key function that splits the filename into a numeric and a string part.
+    Order: 0 | 0_a | 0_b | 1 | 1_a | 2
+    """
+    # Extract the numeric part at the start of the filename
+    match = re.match(r"(\d+)", path.stem)
+    if match:
+        numeric_part = int(match.group(1))
+        # The rest of the filename after the numeric part
+        remaining_part = path.stem[len(match.group(0)) :]
+    else:
+        numeric_part = float("inf")
+        remaining_part = path.stem
+    return (numeric_part, remaining_part)
+
+
+def calculate_md5(file_path: str) -> str:
+    md5 = hashlib.md5()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            md5.update(chunk)
+    return md5.hexdigest()
+
+
 def generate_candidates(
-    args: argparse.Namespace, base_dir: Path
+    args: argparse.Namespace, base_dir: Path, candidate_trackers: CandidateTracker
 ) -> tuple[list[Path], Path]:
     """Generate candidate files for tuning. Returns the list of candidate files and the candidates directory."""
     logging.debug("generate_candidates()")
@@ -201,6 +277,7 @@ def generate_candidates(
 
     shutil.copy(args.input_file, template_mlir)
 
+    mlirs = []
     try:
         tune.tune(
             input=template_mlir,
@@ -210,7 +287,7 @@ def generate_candidates(
             rhs_dims=args.rhs_dims,
             tile_dims=args.tile_dims,
         )
-        candidates = sorted(candidates_dir.glob("*.mlir"))
+        mlirs = sorted(candidates_dir.glob("*.mlir"), key=numerical_sort_key)
     except Exception as e:
         logging.error("An error occurred during candidates generation: %s", str(e))
         # Capture and log debug messages from tune.py
@@ -220,7 +297,17 @@ def generate_candidates(
                 tune_logger.handlers.append(handler)
         tune_logger.exception("Error in tune.py:")
 
-    candidates = sorted(candidates_dir.glob("*.mlir"))
+    # Create candidate trackers
+    candidates = []
+    for mlir in mlirs:
+        if "_config.mlir" not in mlir.name:
+            candidates.append(mlir)
+            new_candidate = CandidateTracker(candidate_id=mlir.stem, mlir_path=mlir)
+            candidate_trackers.append(new_candidate)
+        else:
+            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
+                mlir
+            )
 
     return candidates, candidates_dir
 
@@ -230,29 +317,46 @@ def compile_candidates(
     base_dir: Path,
     candidates: list[Path],
     candidate_dir: Path,
+    candidate_trackers: CandidateTracker,
 ) -> tuple[list[Path], Path]:
     """Compile candidate files for tuning and record in candidate_vmfbs.txt. Returns the list of compiled files and the compiled files directory."""
     logging.debug("compile_candidates()")
 
     task_list = []
     for candidate in candidates:
-        if "_config.mlir" not in candidate.name:
-            command = ["./compile_candidate.sh", f"{args.mode}", f"{candidate}"]
-            check = False
-            task_list.append((args, command, check))
+        command = ["./compile_candidate.sh", f"{args.mode}", f"{candidate}"]
+        check = False
+        task_list.append((args, command, check))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
-    with multiprocessing.Pool(num_worker) as worker_pool:
-        worker_pool.starmap(run_command, task_list)
+    multiprocess_progress_wrapper(
+        num_worker=num_worker, task_list=task_list, function=run_command_wrapper
+    )
 
     compiled_dir = candidate_dir / "compiled"
-    compiled_files = sorted(compiled_dir.glob("*.vmfb"))
+    compiled_files = sorted(compiled_dir.glob("*.vmfb"), key=numerical_sort_key)
+    failed_dir = candidate_dir / "failed"
+    failed_files = sorted(failed_dir.glob("*.mlir"), key=numerical_sort_key)
+
+    logging.info(f"Compiled: {len(compiled_files)} | Failed: {len(failed_files)}")
+    print(
+        f"Total: {len(task_list)} | Compiled: {len(compiled_files)} | Failed: {len(failed_files)}"
+    )
 
     # Write compiled files to candidate_vmfbs.txt
     candidate_vmfbs_file = base_dir / "candidate_vmfbs.txt"
     with candidate_vmfbs_file.open("w") as f:
         for compiled_file in compiled_files:
             f.write(f"{compiled_file}\n")
+
+    # Update candidate tracker
+    for failed_file in failed_files:
+        index = int(failed_file.stem)
+        candidate_trackers[index].compilation_successful = False
+    for compiled_file in compiled_files:
+        index = int(compiled_file.stem)
+        candidate_trackers[index].compilation_successful = True
+        candidate_trackers[index].compiled_vmfb_path = compiled_file
 
     return compiled_files, compiled_dir
 
@@ -262,6 +366,7 @@ def benchmark_top_candidates(
     base_dir: Path,
     candidates_dir: Path,
     compiled_files: list[Path],
+    candidate_trackers: CandidateTracker,
 ) -> Path:
     """Benchmark the candidate files and store the top20 results in file (best.log). Return the log file"""
     logging.debug("benchmark_top_candidates()")
@@ -273,10 +378,13 @@ def benchmark_top_candidates(
         task_list.append((args, command, check))
 
     worker_context_queue = create_worker_context_queue(args.devices)
-    with multiprocessing.Pool(
-        len(args.devices), init_worker_context, (worker_context_queue,)
-    ) as worker_pool:
-        results = worker_pool.starmap(worker_run_command_with_device_id, task_list)
+    results = multiprocess_progress_wrapper(
+        num_worker=len(args.devices),
+        task_list=task_list,
+        function=worker_run_command_with_device_id,
+        initializer=init_worker_context,
+        initializer_inputs=(worker_context_queue,),
+    )
 
     benchmark_results = [result.stdout for result in results]
 
@@ -289,6 +397,12 @@ def benchmark_top_candidates(
         for line in log_file:
             if "failed" not in line:
                 parts = line.split()
+
+                # Update candidate tracker
+                candidate_trackers[int(parts[0])].first_benchmark_time = float(
+                    parts[-1]
+                )
+
                 best_results.append(
                     (
                         parts[-1],
@@ -307,7 +421,10 @@ def benchmark_top_candidates(
 
 
 def compile_unet_candidates(
-    args: argparse.Namespace, base_dir: Path, best_log: Path
+    args: argparse.Namespace,
+    base_dir: Path,
+    best_log: Path,
+    candidate_trackers: CandidateTracker,
 ) -> list[str]:
     """Compile U-Net candidates stored in best.log. Return the list of U-Net candidate files."""
     logging.debug("compile_unet_candidates()")
@@ -322,40 +439,74 @@ def compile_unet_candidates(
                     f"{args.mode}",
                     f"{input_file}",
                 ]
-                task_list.append((args, command))
+                check = True
+                task_list.append((args, command, check))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
-    with multiprocessing.Pool(num_worker) as worker_pool:
-        worker_pool.starmap(run_command, task_list)
-
-    unet_candidates = (
-        ["unet_baseline.vmfb"] + list(base_dir.glob("*.vmfb")) + ["unet_baseline.vmfb"]
+    multiprocess_progress_wrapper(
+        num_worker=num_worker, task_list=task_list, function=run_command_wrapper
     )
+
+    unet_candidates = list(base_dir.glob("*.vmfb"))
+
+    # Update candidate tracker
+    for unet_candidate in unet_candidates:
+        index = int(unet_candidate.stem.split("_")[-1])
+        candidate_trackers[index].unet_candidate_path = unet_candidate
+        candidate_trackers[index].unet_vmfb_hash = calculate_md5(
+            candidate_trackers[index].unet_candidate_path
+        )
 
     return unet_candidates
 
 
 def benchmark_unet(
-    args: argparse.Namespace, base_dir: Path, unet_candidates: list[str]
+    args: argparse.Namespace,
+    base_dir: Path,
+    unet_candidates: list[str],
+    candidate_trackers: CandidateTracker,
 ) -> None:
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
     logging.debug("benchmark_unet()")
 
+    unet_candidates = ["unet_baseline.vmfb"] + unet_candidates + ["unet_baseline.vmfb"]
+    # Update candidate tracker
+    candidate_trackers[0].unet_candidate_path = "unet_baseline.vmfb"
+
     unet_result_log = base_dir / "unet_results.log"
 
     with unet_result_log.open("w") as log_file:
-        for unet_candidate in unet_candidates:
-            command = [
-                "./benchmark_unet_candidate.sh",
-                f"{unet_candidate}",
-                f"{args.devices[0]}",
-            ]  # Default use the first gpu from the user input --device list
-            result = run_command(args, command)
-            log_file.write(result.stdout)
-            log_file.write(result.stderr)
-            if result.returncode != 0:
-                print("Failed")
-            time.sleep(10)
+        with tqdm(total=len(unet_candidates)) as pbar:
+            for unet_candidate in unet_candidates:
+                command = [
+                    "./benchmark_unet_candidate.sh",
+                    f"{unet_candidate}",
+                    f"{args.devices[0]}",
+                ]  # Default use the first gpu from the user input --device list
+                result = run_command(args, command)
+                log_file.write(result.stdout)
+                log_file.write(result.stderr)
+                if result.returncode != 0:
+                    logging.error(f"Failed: {command}")
+                else:
+                    # Update candidate tracker
+                    parts = (
+                        result.stdout.split()
+                    )  # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
+                    if "unet_baseline.vmfb" in parts[1]:
+                        candidate_trackers[0].unet_benchmark_time = (
+                            float(parts[6])
+                            if candidate_trackers[0].unet_benchmark_time is None
+                            or float(parts[6])
+                            < candidate_trackers[0].unet_benchmark_time
+                            else candidate_trackers[0].unet_benchmark_time
+                        )
+                    else:
+                        candidate_trackers[
+                            int(parts[1].split("_")[-1].split(".")[0])
+                        ].unet_benchmark_time = float(parts[6])
+                time.sleep(10)
+                pbar.update(1)
 
     return unet_result_log
 
@@ -366,33 +517,45 @@ def main():
     base_dir = Path(f"tuning_{datetime.now().strftime('%Y_%m_%d_%H_%M')}")
     base_dir.mkdir(parents=True, exist_ok=True)
 
+    candidate_trackers: list[CandidateTracker] = []
+
     print("Setup logging\n")
     log_file_path = setup_logging(args, log_dir=base_dir)
 
-    print("Gnerating candidates...")
-    candidates, candidates_dir = generate_candidates(args, base_dir)
+    print("Generating candidates...")
+    candidates, candidates_dir = generate_candidates(args, base_dir, candidate_trackers)
     print(f"Generated [{args.num_candidates}] candidates in {candidates_dir}\n")
 
     print("Compiling candidates...")
     compiled_files, compiled_dir = compile_candidates(
-        args, base_dir, candidates, candidates_dir
+        args, base_dir, candidates, candidates_dir, candidate_trackers
     )
     print(f"Compiled files in {compiled_dir}\n")
 
     print("Benchmarking top candidates...")
-    best_log = benchmark_top_candidates(args, base_dir, candidates_dir, compiled_files)
+    best_log = benchmark_top_candidates(
+        args, base_dir, candidates_dir, compiled_files, candidate_trackers
+    )
     print(f"Top20 candidates selected and stored in {best_log}\n")
 
-    print("Compiling unet candidtes...")
-    unet_candidates = compile_unet_candidates(args, base_dir, best_log)
-    print("Unet candidtes compiled\n")
+    print("Compiling unet candidates...")
+    unet_candidates = compile_unet_candidates(
+        args, base_dir, best_log, candidate_trackers
+    )
+    print("Unet candidates compiled\n")
 
-    print("Bnechmarking unet candidtes...")
-    unet_result_log = benchmark_unet(args, base_dir, unet_candidates)
+    print("Bnechmarking unet candidates...")
+    unet_result_log = benchmark_unet(
+        args, base_dir, unet_candidates, candidate_trackers
+    )
     print(f"Done, stored unet result in {unet_result_log}\n")
 
-    print("Check result in log file:")
+    print("Check the detailed log in:")
     print(log_file_path, end="\n")
+
+    if args.verbose:
+        for candidate in candidate_trackers:
+            print(candidate)
 
 
 if __name__ == "__main__":

@@ -8,9 +8,12 @@ import logging
 import re
 import z3
 from dataclasses import asdict, dataclass
-from os import mkdir, path
+from os import mkdir, path, makedirs
 from textwrap import indent
 
+'''
+Usage: ./tune.py 121.mlir -o "tuning/candidates" -l 1024 --lhs-dims=mk --rhs-dims=nk --tile-dims=mnk
+'''
 
 tune_logger = logging.getLogger("tune")
 
@@ -652,7 +655,9 @@ def tune(
 
     if output is None:
         output = get_default_output_dir()
-    mkdir(str(output))
+
+    # Create the directory if it does not exist    
+    makedirs(str(output), exist_ok=True)
 
     tune_logger.debug(f"Output directory {output}")
     tune_logger.debug(f"Processing {input_file}")
