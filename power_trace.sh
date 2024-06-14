@@ -2,28 +2,33 @@
 
 set -xe
 
-tmpdir=$(mktemp -d -t "traceXXXXXX")
+readonly tmpdir="$(mktemp -d -t "traceXXXXXX")"
 
 cleanup () {
-    rm -r $tmpdir
+    rm -r "$tmpdir"
 }
 trap cleanup EXIT
 
-script_dir=$(dirname $(realpath $0))
+readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
 
-real_iree=$(command -v iree-benchmark-module)
+readonly real_iree="$(command -v iree-benchmark-module)"
 
+if [ -z "$real_iree" ]; then
+    echo "iree-benchmark-module not found"
+    exit 1
+fi
 
-cat << EOF > $tmpdir/iree-benchmark-module
+cat << EOF > "$tmpdir/iree-benchmark-module"
 #!/bin/bash
-sudo LD_LIBRARY_PATH=/usr/local/lib runTracer.sh $real_iree \$@
+set -xe
+sudo LD_LIBRARY_PATH=/usr/local/lib runTracer.sh "$real_iree" "\$@"
 ret=$?
-python3 $script_dir/corellator.py trace.rpd || echo "Returned $?"
+python3 "$script_dir/corellator.py" trace.rpd || echo "Returned $?"
 exit $ret
 EOF
 
-chmod a+x $tmpdir/iree-benchmark-module
+chmod a+x "$tmpdir/iree-benchmark-module"
 
-export PATH=$tmpdir:$PATH
+export PATH="$tmpdir:$PATH"
 
-source $@
+source "$@"
