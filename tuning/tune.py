@@ -27,7 +27,6 @@ class Configuration:
     subgroup_m_count: int
     subgroup_n_count: int
     waves_per_eu: int
-    no_workgroup_reorder: int
 
 
 def read_input_mlir(filename):
@@ -86,8 +85,6 @@ def get_contract_tile_sizes(configuration: Configuration, tile_dims):
 
 def get_pipeline_config(configuration: Configuration) -> str:
     extra_config = ""
-    if configuration.no_workgroup_reorder == 1:
-        extra_config += ", no_reorder_workgroups"
     if configuration.waves_per_eu != 2:
         extra_config += f', llvm_func_attrs = {{"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"}}'
     return extra_config
@@ -520,8 +517,7 @@ def generate_constraints(
     workgroup_size,
     subgroup_m_count,
     subgroup_n_count,
-    waves_per_eu,
-    no_workgroup_reorder,
+    waves_per_eu
 ):
     M, N, K = problem_size
     m, n, k = tile_sizes
@@ -564,7 +560,6 @@ def generate_constraints(
     constraints += [subgroup_m_count * subgroup_n_count == 4]
 
     constraints += [z3.Or(waves_per_eu == 1, waves_per_eu == 2, waves_per_eu == 4)]
-    constraints += [no_workgroup_reorder >= 0, no_workgroup_reorder <= 1]
 
     return constraints
 
@@ -579,7 +574,6 @@ def generate_solutions(M, N, K):
     sg_m_cnt = z3.Int("sg_m_cnt")
     sg_n_cnt = z3.Int("sg_n_cnt")
     waves_per_eu = z3.Int("waves_per_eu")
-    no_workgroup_reorder = z3.Int("no_workgroup_reorder")
     all_vars = [
         m,
         n,
@@ -592,8 +586,7 @@ def generate_solutions(M, N, K):
         wg_z,
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu,
-        no_workgroup_reorder,
+        waves_per_eu
     ]
 
     solver = z3.Solver()
@@ -605,8 +598,7 @@ def generate_solutions(M, N, K):
         [wg_x, wg_y, wg_z],
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu,
-        no_workgroup_reorder,
+        waves_per_eu
     )
     solver.add(z3.simplify(z3.And(constraints)))
     tune_logger.debug(f"Initial constraints: {solver}")
@@ -622,8 +614,7 @@ def generate_solutions(M, N, K):
             [lookup(m), lookup(n), lookup(k)],
             lookup(sg_m_cnt),
             lookup(sg_n_cnt),
-            lookup(waves_per_eu),
-            lookup(no_workgroup_reorder),
+            lookup(waves_per_eu)
         )
         solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
         i += 1
