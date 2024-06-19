@@ -281,7 +281,7 @@ def calculate_md5(file_path: str) -> str:
     return md5.hexdigest()
 
 
-def find_collisions(lst):
+def find_collisions(hash_list: list[tuple[int, str]]) -> tuple[bool, list[tuple[str, list[int]]]]:
     """
     Detect hash value collisions
     Take input list [(1, 'abc'), (2, 'def'), (3, 'abc')]
@@ -290,7 +290,7 @@ def find_collisions(lst):
     hash_count = {}
     
     # Count occurrences of each hash_val
-    for index, hash_val in lst:
+    for index, hash_val in hash_list:
         if hash_val in hash_count:
             hash_count[hash_val].append(index)
         else:
