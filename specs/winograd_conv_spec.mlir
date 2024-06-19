@@ -453,24 +453,24 @@ module attributes { transform.with_named_sequence } {
 
 
   transform.named_sequence @__transform_main(%func: !transform.any_op {transform.consumed}) {
-    transform.foreach_match in %func // Base: 69.4ms // Best: 67.3ms
+    transform.foreach_match in %func // Base: 63.5ms // Best: 60.5ms
         // @match_conv2x4x128x128x3x3x320 -> @annotate_op, // fail to compile
 
-        @match_conv2x1280x64x64x3x3x1280 -> @annotate_op, // 68.8ms -0.6
-        @match_conv2x640x128x128x3x3x320 -> @annotate_op, // 68.9ms -0.5
-        @match_conv2x1920x64x64x3x3x640 -> @annotate_op, // 69.0ms -0.4
-        @match_conv2x960x128x128x3x3x320 -> @annotate_op, // 69.1ms -0.3
-        @match_conv2x640x128x128x3x3x640 -> @annotate_op, // 69.1ms -0.3
-        @match_conv2x1280x64x64x3x3x640 -> @annotate_op, // 69.2ms -0.2
-        @match_conv2x960x64x64x3x3x640 -> @annotate_op, // 69.2ms -0.2
-        // @match_conv2x320x64x64x3x3x640 -> @annotate_op, // 69.5ms -0.1
-        // @match_conv2x640x64x64x3x3x640 -> @annotate_op, // 69.3ms -0.1
-        // @match_conv2x2560x32x32x3x3x1280 -> @annotate_op, // 69.3ms -0.1
-        // @match_conv2x1920x32x32x3x3x1280 -> @annotate_op, // 69.4ms +0.0
-        // @match_conv2x640x32x32x3x3x1280 -> @annotate_op, // 69.5ms +0.1
-        // @match_conv2x320x128x128x3x3x320 -> @annotate_op, // 69.6ms +0.2
-        // @match_conv2x1280x32x32x3x3x1280 -> @annotate_op, // 69.7ms +0.3
-        // @match_conv2x320x128x128x3x3x4 -> @annotate_op, // 69.7ms +0.3
+        @match_conv2x1280x64x64x3x3x1280 -> @annotate_op, // 63.0ms -0.5
+        @match_conv2x640x128x128x3x3x320 -> @annotate_op, // 63.0ms -0.5
+        @match_conv2x1920x64x64x3x3x640 -> @annotate_op, // 63.2ms -0.3
+        @match_conv2x960x128x128x3x3x320 -> @annotate_op, // 63.1ms -0.4
+        @match_conv2x640x128x128x3x3x640 -> @annotate_op, // 63.0ms -0.5
+        @match_conv2x1280x64x64x3x3x640 -> @annotate_op, // 63.2ms -0.3
+        @match_conv2x960x64x64x3x3x640 -> @annotate_op, // 63.2ms -0.3
+        // @match_conv2x320x64x64x3x3x640 -> @annotate_op,
+        // @match_conv2x640x64x64x3x3x640 -> @annotate_op,
+        // @match_conv2x2560x32x32x3x3x1280 -> @annotate_op,
+        // @match_conv2x1920x32x32x3x3x1280 -> @annotate_op,
+        // @match_conv2x640x32x32x3x3x1280 -> @annotate_op,
+        // @match_conv2x320x128x128x3x3x320 -> @annotate_op,
+        // @match_conv2x1280x32x32x3x3x1280 -> @annotate_op,
+        // @match_conv2x320x128x128x3x3x4 -> @annotate_op,
         @placeholder -> @annotate_op
       : (!transform.any_op) -> (!transform.any_op)
     transform.yield

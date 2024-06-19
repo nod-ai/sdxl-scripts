@@ -19,10 +19,13 @@ readonly CHIP="$2"
 readonly MODE="$3"
 USE_WINOGRAD=0
 USE_MISA=0
+USE_WINOGRAD_AND_MISA=0
 if [[ $MODE =~ "winograd" ]] ; then
   USE_WINOGRAD=1
 elif [[ $MODE =~ "misa" ]] ; then
   USE_MISA=1
+elif [[ $MODE =~ "hybrid" ]] ; then
+  USE_WINOGRAD_AND_MISA=1
 fi
 
 readonly ATTENTION_SPEC="$(realpath "$4")"
@@ -67,11 +70,21 @@ readonly MISA_FLAGS=(
   "--iree-preprocessing-transform-spec-filename=${SPEC_DIR}/misa_unet_spec.mlir"
 )
 
+readonly WINOGRAD_AND_MISA_FLAGS=(
+  "--iree-opt-const-expr-max-size-increase-threshold=1000000000000000"
+  "--iree-preprocessing-pass-pipeline=${WINOGRAD_PIPELINE[*]}"
+  "--iree-hal-executable-object-search-path=${SPEC_DIR}"
+  "--iree-preprocessing-transform-spec-filename=${SPEC_DIR}/misa_unet_spec.mlir"
+  "--iree-preprocessing-pass-pipeline=${WINOGRAD_PIPELINE[*]}"
+)
+
 declare -a FLAGS=("${DEFAULT_FLAGS[*]}")
 if [ "$USE_WINOGRAD" = 1 ] ; then
   FLAGS=("${WINOGRAD_FLAGS[@]}")
 elif [ "$USE_MISA" = 1 ] ; then
   FLAGS=("${MISA_FLAGS[@]}")
+elif [ "$USE_WINOGRAD_AND_MISA" = 1 ] ; then
+  FLAGS=("${WINOGRAD_AND_MISA_FLAGS[@]}")
 fi
 
 set -x
