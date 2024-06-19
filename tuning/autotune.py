@@ -287,8 +287,8 @@ def find_collisions(
 ) -> tuple[bool, list[tuple[str, list[int]]]]:
     """
     Detect hash value collisions
-    Take input list [(1, 'abc'), (2, 'def'), (3, 'abc')]
-    Return output list [('abc', [1,3]), ('def', [2])]
+    Take input list of candidate index numbers and hash value strings: ex. [(1, 'abc'), (2, 'def'), (3, 'abc')]
+    Return collision boolean value and list of unique hash values along with their corresponding indices: ex. [('abc', [1,3]), ('def', [2])]
     """
     hash_count = {}
 
