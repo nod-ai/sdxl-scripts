@@ -113,16 +113,41 @@ def setup_logging(args: argparse.Namespace, log_dir: Path) -> Path:
     log_file_name = f"autotune_{args.mode}_{args.input_file.stem}.log"
     log_file_path = log_dir / log_file_name
 
-    handlers = [logging.FileHandler(log_file_path)]
-    if args.verbose:
-        handlers.append(logging.StreamHandler())
-        pass
+    # Create file handler for logging to a file
+    file_handler = logging.FileHandler(log_file_path)
+    file_handler.setLevel(logging.DEBUG)
 
+    # Create stream handler for logging to the console (only warnings and higher)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.WARNING)
+
+    # Create a formatter that dynamically adds [levelname] for ERROR and WARNING
+    class CustomFormatter(logging.Formatter):
+        def format(self, record):
+            if record.levelno == logging.CRITICAL:
+                return f"{record.message}"
+            else:
+                return f"[{record.levelname}] {record.message}"
+
+    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    console_formatter = CustomFormatter()
+
+    # Set formatters to handlers
+    file_handler.setFormatter(file_formatter)
+    console_handler.setFormatter(console_formatter)
+
+    # Configure the root logger
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=handlers,
+        level=logging.DEBUG,  # Set the root logger to the lowest level
+        handlers=[file_handler, console_handler],
     )
+
+    # If verbose flag is set, add a console handler for INFO level and higher
+    if args.verbose:
+        verbose_console_handler = logging.StreamHandler()
+        verbose_console_handler.setLevel(logging.INFO)
+        verbose_console_handler.setFormatter(file_formatter)
+        logging.getLogger().addHandler(verbose_console_handler)
 
     # config logger in tune.py
     tune_logger = logging.getLogger("tune")
@@ -183,14 +208,12 @@ def run_command(
     try:
         # Convert the command list to a command string for logging
         command_str = " ".join(command)
-        if args.verbose:
-            print(command_str)
+        logging.debug(f"Run: {command_str}")
         result = subprocess.run(command, check=check, capture_output=True, text=True)
         if result.stdout:
-            logging.info(result.stdout)
+            logging.info(f"stdout: {result.stdout}")
         if result.stderr:
-            logging.error(result.stderr)
-            print(f"[warning] error flag raised by: {command_str}")
+            logging.error(f"stderr: {result.stderr}")
         return result
     except subprocess.CalledProcessError as e:
         print(f"Command '{e.cmd}' returned non-zero exit status {e.returncode}.")
@@ -259,11 +282,37 @@ def calculate_md5(file_path: str) -> str:
     return md5.hexdigest()
 
 
+def find_collisions(
+    hash_list: list[tuple[int, str]]
+) -> tuple[bool, list[tuple[str, list[int]]]]:
+    """
+    Detect hash value collisions
+    Take input list of candidate index numbers and hash value strings: ex. [(1, 'abc'), (2, 'def'), (3, 'abc')]
+    Return collision boolean value and list of unique hash values along with their corresponding indices: ex. [('abc', [1,3]), ('def', [2])]
+    """
+    hash_count = {}
+
+    # Count occurrences of each hash_val
+    for index, hash_val in hash_list:
+        if hash_val in hash_count:
+            hash_count[hash_val].append(index)
+        else:
+            hash_count[hash_val] = [index]
+
+    # Prepare output for all hash values
+    hash_values = [(hash_val, indices) for hash_val, indices in hash_count.items()]
+
+    # Determine if there are collisions
+    collisions_exist = any(len(indices) > 1 for hash_val, indices in hash_count.items())
+
+    return collisions_exist, hash_values
+
+
 def generate_candidates(
     args: argparse.Namespace, base_dir: Path, candidate_trackers: CandidateTracker
 ) -> tuple[list[Path], Path]:
     """Generate candidate files for tuning. Returns the list of candidate files and the candidates directory."""
-    logging.debug("generate_candidates()")
+    logging.info("generate_candidates()")
 
     try:
         shutil.copy("config_prolog.mlir", base_dir / "config_prolog.mlir")
@@ -279,6 +328,7 @@ def generate_candidates(
 
     mlirs = []
     try:
+        logging.debug("Captured messages from tune.py:")
         tune.tune(
             input=template_mlir,
             output=candidates_dir,
@@ -296,6 +346,7 @@ def generate_candidates(
             if isinstance(handler, logging.FileHandler):
                 tune_logger.handlers.append(handler)
         tune_logger.exception("Error in tune.py:")
+    logging.debug("tune.py ends")
 
     # Create candidate trackers
     candidates = []
@@ -320,7 +371,7 @@ def compile_candidates(
     candidate_trackers: CandidateTracker,
 ) -> tuple[list[Path], Path]:
     """Compile candidate files for tuning and record in candidate_vmfbs.txt. Returns the list of compiled files and the compiled files directory."""
-    logging.debug("compile_candidates()")
+    logging.info("compile_candidates()")
 
     task_list = []
     for candidate in candidates:
@@ -338,9 +389,10 @@ def compile_candidates(
     failed_dir = candidate_dir / "failed"
     failed_files = sorted(failed_dir.glob("*.mlir"), key=numerical_sort_key)
 
-    logging.info(f"Compiled: {len(compiled_files)} | Failed: {len(failed_files)}")
-    print(
-        f"Total: {len(task_list)} | Compiled: {len(compiled_files)} | Failed: {len(failed_files)}"
+    total, good, bad = len(task_list), len(compiled_files), len(failed_files)
+    compiling_rate = good / total * 100
+    logging.critical(
+        f"Total: {total} | Compiled: {good} | Failed: {bad} | Compiling Rate: {compiling_rate:.1f}%"
     )
 
     # Write compiled files to candidate_vmfbs.txt
@@ -358,6 +410,12 @@ def compile_candidates(
         candidate_trackers[index].compilation_successful = True
         candidate_trackers[index].compiled_vmfb_path = compiled_file
 
+    if good == 0:
+        logging.error("Failed to compile all candidate .mlir files")
+        sys.exit(1)
+    if compiling_rate < 10:
+        logging.warning(f"Compiling rate [{compiling_rate:.1f}%] < 10%")
+
     return compiled_files, compiled_dir
 
 
@@ -369,7 +427,7 @@ def benchmark_top_candidates(
     candidate_trackers: CandidateTracker,
 ) -> Path:
     """Benchmark the candidate files and store the top20 results in file (best.log). Return the log file"""
-    logging.debug("benchmark_top_candidates()")
+    logging.info("benchmark_top_candidates()")
 
     task_list = []
     for compiled_file in compiled_files:
@@ -411,6 +469,21 @@ def benchmark_top_candidates(
                     )
                 )
 
+    benchmarked_dir = candidates_dir / "compiled"
+    benchmarked_files = sorted(benchmarked_dir.glob("*.vmfb"), key=numerical_sort_key)
+    benchmark_failed_dir = benchmarked_dir / "benchmark_failed"
+    benchmark_failed_files = sorted(
+        benchmark_failed_dir.glob("*.vmfb"), key=numerical_sort_key
+    )
+
+    logging.critical(
+        f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)}"
+    )
+
+    if len(best_results) == 0:
+        logging.error("Failed to benchmark all candidate .vmfb files")
+        sys.exit(1)
+
     best_results = sorted(best_results, key=lambda x: x[0])[:20]
     best_log = base_dir / "best.log"
     with best_log.open("w") as log_file:
@@ -427,7 +500,7 @@ def compile_unet_candidates(
     candidate_trackers: CandidateTracker,
 ) -> list[str]:
     """Compile U-Net candidates stored in best.log. Return the list of U-Net candidate files."""
-    logging.debug("compile_unet_candidates()")
+    logging.info("compile_unet_candidates()")
 
     task_list = []
     with best_log.open("r") as log_file:
@@ -449,15 +522,31 @@ def compile_unet_candidates(
 
     unet_candidates = list(base_dir.glob("*.vmfb"))
 
+    unet_candidates_hash_list = []
+
     # Update candidate tracker
     for unet_candidate in unet_candidates:
         index = int(unet_candidate.stem.split("_")[-1])
         candidate_trackers[index].unet_candidate_path = unet_candidate
-        candidate_trackers[index].unet_vmfb_hash = calculate_md5(
-            candidate_trackers[index].unet_candidate_path
-        )
+        hash_val = calculate_md5(candidate_trackers[index].unet_candidate_path)
+        candidate_trackers[index].unet_vmfb_hash = hash_val
+        unet_candidates_hash_list.append((index, hash_val))
 
-    return unet_candidates
+    # Check if unet candidate produces tbe same .vmfb
+    collision_detected, hash_list = find_collisions(unet_candidates_hash_list)
+    if collision_detected:
+        unique_unet_candidates = []
+        logging.warning("Collisions detected")
+        for hash_val, indices in hash_list:
+            if len(indices) != 1:
+                logging.warning(
+                    f"Hash value '{hash_val}' collided at candidate {indices}."
+                )
+            unique_unet_candidates.append(
+                candidate_trackers[indices[0]].unet_candidate_path
+            )
+
+    return unique_unet_candidates if collision_detected else unet_candidates
 
 
 def benchmark_unet(
@@ -467,7 +556,7 @@ def benchmark_unet(
     candidate_trackers: CandidateTracker,
 ) -> None:
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
-    logging.debug("benchmark_unet()")
+    logging.info("benchmark_unet()")
 
     unet_candidates = ["unet_baseline.vmfb"] + unet_candidates + ["unet_baseline.vmfb"]
     # Update candidate tracker
@@ -519,30 +608,31 @@ def main():
 
     candidate_trackers: list[CandidateTracker] = []
 
-    print("Setup logging\n")
+    print("Setup logging")
     log_file_path = setup_logging(args, log_dir=base_dir)
+    print(log_file_path, end="\n\n")
 
     print("Generating candidates...")
     candidates, candidates_dir = generate_candidates(args, base_dir, candidate_trackers)
-    print(f"Generated [{args.num_candidates}] candidates in {candidates_dir}\n")
+    print(f"Generated [{len(candidates)}] candidates in {candidates_dir}\n")
 
     print("Compiling candidates...")
     compiled_files, compiled_dir = compile_candidates(
         args, base_dir, candidates, candidates_dir, candidate_trackers
     )
-    print(f"Compiled files in {compiled_dir}\n")
+    print(f"Compiled [{len(compiled_files)}] files in {compiled_dir}\n")
 
     print("Benchmarking top candidates...")
     best_log = benchmark_top_candidates(
         args, base_dir, candidates_dir, compiled_files, candidate_trackers
     )
-    print(f"Top20 candidates selected and stored in {best_log}\n")
+    print(f"Top candidates results are stored in {best_log}\n")
 
     print("Compiling unet candidates...")
     unet_candidates = compile_unet_candidates(
         args, base_dir, best_log, candidate_trackers
     )
-    print("Unet candidates compiled\n")
+    print(f"Unet candidates compiled in {base_dir}\n")
 
     print("Bnechmarking unet candidates...")
     unet_result_log = benchmark_unet(
@@ -551,10 +641,11 @@ def main():
     print(f"Done, stored unet result in {unet_result_log}\n")
 
     print("Check the detailed log in:")
-    print(log_file_path, end="\n")
+    print(log_file_path)
 
-    if args.verbose:
-        for candidate in candidate_trackers:
+    for candidate in candidate_trackers:
+        logging.debug(candidate)
+        if args.verbose:
             print(candidate)
 
 
