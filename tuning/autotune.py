@@ -128,6 +128,7 @@ def setup_logging(args: argparse.Namespace, log_dir: Path) -> Path:
                 return f"{record.message}"
             else:
                 return f"[{record.levelname}] {record.message}"
+
     file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     console_formatter = CustomFormatter()
 
@@ -281,27 +282,29 @@ def calculate_md5(file_path: str) -> str:
     return md5.hexdigest()
 
 
-def find_collisions(hash_list: list[tuple[int, str]]) -> tuple[bool, list[tuple[str, list[int]]]]:
+def find_collisions(
+    hash_list: list[tuple[int, str]]
+) -> tuple[bool, list[tuple[str, list[int]]]]:
     """
     Detect hash value collisions
     Take input list [(1, 'abc'), (2, 'def'), (3, 'abc')]
     Return output list [('abc', [1,3]), ('def', [2])]
     """
     hash_count = {}
-    
+
     # Count occurrences of each hash_val
     for index, hash_val in hash_list:
         if hash_val in hash_count:
             hash_count[hash_val].append(index)
         else:
             hash_count[hash_val] = [index]
-    
+
     # Prepare output for all hash values
     hash_values = [(hash_val, indices) for hash_val, indices in hash_count.items()]
-    
+
     # Determine if there are collisions
     collisions_exist = any(len(indices) > 1 for hash_val, indices in hash_count.items())
-    
+
     return collisions_exist, hash_values
 
 
@@ -388,7 +391,9 @@ def compile_candidates(
 
     total, good, bad = len(task_list), len(compiled_files), len(failed_files)
     compiling_rate = good / total * 100
-    logging.critical(f"Total: {total} | Compiled: {good} | Failed: {bad} | Compiling Rate: {compiling_rate:.1f}%")
+    logging.critical(
+        f"Total: {total} | Compiled: {good} | Failed: {bad} | Compiling Rate: {compiling_rate:.1f}%"
+    )
 
     # Write compiled files to candidate_vmfbs.txt
     candidate_vmfbs_file = base_dir / "candidate_vmfbs.txt"
@@ -467,9 +472,13 @@ def benchmark_top_candidates(
     benchmarked_dir = candidates_dir / "compiled"
     benchmarked_files = sorted(benchmarked_dir.glob("*.vmfb"), key=numerical_sort_key)
     benchmark_failed_dir = benchmarked_dir / "benchmark_failed"
-    benchmark_failed_files = sorted(benchmark_failed_dir.glob("*.vmfb"), key=numerical_sort_key)
+    benchmark_failed_files = sorted(
+        benchmark_failed_dir.glob("*.vmfb"), key=numerical_sort_key
+    )
 
-    logging.critical(f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)}")
+    logging.critical(
+        f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)}"
+    )
 
     if len(best_results) == 0:
         logging.error("Failed to benchmark all candidate .vmfb files")
@@ -524,14 +533,18 @@ def compile_unet_candidates(
         unet_candidates_hash_list.append((index, hash_val))
 
     # Check if unet candidate produces tbe same .vmfb
-    collision_detected, hash_list= find_collisions(unet_candidates_hash_list)
+    collision_detected, hash_list = find_collisions(unet_candidates_hash_list)
     if collision_detected:
         unique_unet_candidates = []
         logging.warning("Collisions detected")
         for hash_val, indices in hash_list:
             if len(indices) != 1:
-                logging.warning(f"Hash value '{hash_val}' collided at candidate {indices}.")
-            unique_unet_candidates.append(candidate_trackers[indices[0]].unet_candidate_path)
+                logging.warning(
+                    f"Hash value '{hash_val}' collided at candidate {indices}."
+                )
+            unique_unet_candidates.append(
+                candidate_trackers[indices[0]].unet_candidate_path
+            )
 
     return unique_unet_candidates if collision_detected else unet_candidates
 
@@ -632,7 +645,8 @@ def main():
 
     for candidate in candidate_trackers:
         logging.debug(candidate)
-        if args.verbose: print(candidate)
+        if args.verbose:
+            print(candidate)
 
 
 if __name__ == "__main__":
