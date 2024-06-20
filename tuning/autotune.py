@@ -543,7 +543,7 @@ def compile_unet_candidates(
                     f"Hash value '{hash_val}' collided at candidate {indices}."
                 )
             unique_unet_candidates.append(
-                candidate_trackers[indices[0]].unet_candidate_path
+                candidate_trackers[indices[0]].unet_candidate_path # If collision occurs, use the first candidate index in the list
             )
 
     return unique_unet_candidates if collision_detected else unet_candidates
@@ -626,7 +626,7 @@ def main():
     best_log = benchmark_top_candidates(
         args, base_dir, candidates_dir, compiled_files, candidate_trackers
     )
-    print(f"Top candidates results are stored in {best_log}\n")
+    print(f"Top20 candidates results are stored in {best_log}\n")
 
     print("Compiling unet candidates...")
     unet_candidates = compile_unet_candidates(
@@ -634,7 +634,7 @@ def main():
     )
     print(f"Unet candidates compiled in {base_dir}\n")
 
-    print("Bnechmarking unet candidates...")
+    print(f"Bnechmarking [{len(unet_candidates)}] unet candidates...")
     unet_result_log = benchmark_unet(
         args, base_dir, unet_candidates, candidate_trackers
     )

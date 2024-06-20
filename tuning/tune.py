@@ -557,7 +557,9 @@ def generate_constraints(
     constraints += [k == intrinsic_mn * z3.FreshInt()]
     constraints += [k * n % (wg_x * wg_y * wg_z) == 0]
     constraints += [k * m % (wg_x * wg_y * wg_z) == 0]
-    constraints += [subgroup_m_count * subgroup_n_count == 4]
+    # constraints += [subgroup_m_count * subgroup_n_count == 4] # splat
+    # constraints += [subgroup_m_count * subgroup_n_count == 2] # real_weights
+    constraints += [subgroup_m_count * subgroup_n_count == 5] # conv
 
     constraints += [z3.Or(waves_per_eu == 1, waves_per_eu == 2, waves_per_eu == 4)]
 
