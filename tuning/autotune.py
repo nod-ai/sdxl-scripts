@@ -66,7 +66,7 @@ def parse_arguments() -> argparse.Namespace:
 
     # Required arguments
     parser.add_argument(
-        "mode", choices=["default", "winograd"], help="Compilation mode"
+        "mode", choices=["default", "winograd", "misa", "hybrid"], help="Compilation mode"
     )
     parser.add_argument(
         "input_file", type=Path, help="Path to the input benchmark file (.mlir)"
