@@ -14,9 +14,9 @@ from iree.compiler import ir
 import iree.compiler as ireec
 from iree.compiler.dialects import _linalg_ops_gen, _util_ops_gen
 
-'''
+"""
 Usage: ./tune.py 121.mlir -o "tuning/candidates" -l 1024 --lhs-dims=mk --rhs-dims=nk --tile-dims=mnk
-'''
+"""
 
 tune_logger = logging.getLogger("tune")
 
@@ -31,6 +31,7 @@ class Configuration:
     subgroup_n_count: int
     waves_per_eu: int
 
+
 @dataclass
 class OpWalkResult:
     wasInterrupted: bool = False
@@ -38,6 +39,7 @@ class OpWalkResult:
     isMatmul: bool = False
     isContraction: bool = False
     isBatchMatmul: bool = False
+
 
 def read_input_mlir(filename):
     template = f""
@@ -527,7 +529,7 @@ def generate_constraints(
     workgroup_size,
     subgroup_m_count,
     subgroup_n_count,
-    waves_per_eu
+    waves_per_eu,
 ):
     M, N, K = problem_size
     m, n, k = tile_sizes
@@ -596,7 +598,7 @@ def generate_solutions(M, N, K):
         wg_z,
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu
+        waves_per_eu,
     ]
 
     solver = z3.Solver()
@@ -608,7 +610,7 @@ def generate_solutions(M, N, K):
         [wg_x, wg_y, wg_z],
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu
+        waves_per_eu,
     )
     solver.add(z3.simplify(z3.And(constraints)))
     tune_logger.debug(f"Initial constraints: {solver}")
@@ -624,7 +626,7 @@ def generate_solutions(M, N, K):
             [lookup(m), lookup(n), lookup(k)],
             lookup(sg_m_cnt),
             lookup(sg_n_cnt),
-            lookup(waves_per_eu)
+            lookup(waves_per_eu),
         )
         solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
         i += 1
@@ -643,6 +645,7 @@ def get_default_output_dir():
 
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
+
 def parse_mlir(mlir_text: str) -> ir.Module:
     mlir_module = None
     with ireec.ir.Context() as context:
@@ -652,16 +655,19 @@ def parse_mlir(mlir_text: str) -> ir.Module:
         except ireec.ir.MLIRError as e:
             tune_logger.error(f"Error parsing MLIR: {e}")
             raise RuntimeError(f"Error parsing MLIR: {e}")
-        
+
     return mlir_module
 
-def walk_callback_detect_type(op: ir.Operation, walk_result: OpWalkResult) -> ir.WalkResult:
+
+def walk_callback_detect_type(
+    op: ir.Operation, walk_result: OpWalkResult
+) -> ir.WalkResult:
     if isinstance(op.opview, ireec.dialects._linalg_ops_gen.Conv2DNhwcHwcfOp):
         walk_result.set_conv()
         walk_result.set_interrupt()
 
         return ir.WalkResult.INTERRUPT
-    
+
     if isinstance(op.opview, ireec.dialects._util_ops_gen.FuncOp):
         if "matmul_transpose_b" in str(op.opview.sym_name):
             walk_result.isMatmul = walk_result.wasInterrupted = True
@@ -674,6 +680,7 @@ def walk_callback_detect_type(op: ir.Operation, walk_result: OpWalkResult) -> ir
             return ir.WalkResult.INTERRUPT
 
     return ir.WalkResult.ADVANCE
+
 
 def tune(
     input: str,
@@ -688,7 +695,7 @@ def tune(
     if output is None:
         output = get_default_output_dir()
 
-    # Create the directory if it does not exist    
+    # Create the directory if it does not exist
     makedirs(str(output), exist_ok=True)
 
     tune_logger.debug(f"Output directory {output}")
@@ -698,10 +705,13 @@ def tune(
 
     mlir_module = parse_mlir(mlir_text)
     ops = list()
-    
+
     walk_result = OpWalkResult()
     for op in mlir_module.body.operations:
-        op.walk(lambda op: walk_callback_detect_type(op, walk_result), ir.WalkOrder.PRE_ORDER)
+        op.walk(
+            lambda op: walk_callback_detect_type(op, walk_result),
+            ir.WalkOrder.PRE_ORDER,
+        )
         if walk_result.wasInterrupted:
             break
     assert [
