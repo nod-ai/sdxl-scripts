@@ -1,6 +1,19 @@
 # Matmul auto-tuning scripts
 
-## Overall flow
+## Prerequisites
+Using virtual environments and install required dependencies:
+```shell
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+Using the IREE's Python bindings:
+```shell
+source ../iree-build/.env && export PYTHONPATH
+```
+For more information, refer to the [IREE documentation](https://iree.dev/building-from-source/getting-started/#python-bindings)
+
+### Overall flow
 
 1. Simlink all scripts and mlir/irpa files in your build dir.
    - Symlink `iree-build-dir/tools` inside `sdxl-scripts/tuning`.
@@ -49,7 +62,7 @@ python autotune.py winograd 141.mlir --devices=1,3,5 --num-candidates=1024
      @match_something -> @apply_op_config
      ```    
 
-## Correctness validation
+### Correctness validation
 
 We tune on full dispatches that often contain fused `linalg.generic`s in
 addition to the main matmul. For the purpose of correctness validation, we
