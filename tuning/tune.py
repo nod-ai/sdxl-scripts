@@ -31,6 +31,13 @@ class Configuration:
     subgroup_n_count: int
     waves_per_eu: int
 
+@dataclass
+class OpWalkResult:
+    wasInterrupted: bool = False
+    isConv: bool = False
+    isMatmul: bool = False
+    isContraction: bool = False
+    isBatchMatmul: bool = False
 
 def read_input_mlir(filename):
     template = f""
@@ -636,7 +643,7 @@ def get_default_output_dir():
 
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
-def parse_mlir(mlir_text):
+def parse_mlir(mlir_text: str) -> ir.Module:
     mlir_module = None
     with ireec.ir.Context() as context:
         try:
@@ -648,30 +655,7 @@ def parse_mlir(mlir_text):
         
     return mlir_module
 
-class OpWalkResult:
-    def __init__(self):
-        self.wasInterrupted = False
-        self.isConv = False
-        self.isMatmul = False
-        self.isContraction = False
-        self.isBatchMatmul = False
-
-    def set_interrupt(self):
-        self.wasInterrupted = True
-
-    def set_conv(self):
-        self.isConv = True
-
-    def set_matmul(self):
-        self.isMatmul = True
-
-    def set_contraction(self):
-        self.isContraction = True
-
-    def set_batch_matmul(self):
-        self.isBatchMatmul = True
-
-def walk_callback_detect_type(op: ireec._mlir_libs._mlir.ir.Operation, walk_result: OpWalkResult) -> ireec._mlir_libs._mlir.ir.WalkResult:
+def walk_callback_detect_type(op: ir.Operation, walk_result: OpWalkResult) -> ir.WalkResult:
     if isinstance(op.opview, ireec.dialects._linalg_ops_gen.Conv2DNhwcHwcfOp):
         walk_result.set_conv()
         walk_result.set_interrupt()
@@ -680,16 +664,13 @@ def walk_callback_detect_type(op: ireec._mlir_libs._mlir.ir.Operation, walk_resu
     
     if isinstance(op.opview, ireec.dialects._util_ops_gen.FuncOp):
         if "matmul_transpose_b" in str(op.opview.sym_name):
-            walk_result.set_matmul()
-            walk_result.set_interrupt()
+            walk_result.isMatmul = walk_result.wasInterrupted = True
             return ir.WalkResult.INTERRUPT
         if "matmul_like" in str(op.opview.sym_name):
-            walk_result.set_contraction()
-            walk_result.set_interrupt()
+            walk_result.isContraction = walk_result.wasInterrupted = True
             return ir.WalkResult.INTERRUPT
         if "batch_matmul" in str(op.opview.sym_name):
-            walk_result.set_batch_matmul()
-            walk_result.set_interrupt()
+            walk_result.isBatchMatmul = walk_result.wasInterrupted = True
             return ir.WalkResult.INTERRUPT
 
     return ir.WalkResult.ADVANCE
