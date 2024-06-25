@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Usage: PATH=/path/to/iree/build/tools:$PATH ./compile-scheduled-unet.sh <target-chip> <default|winograd|misa> [extra flags]
+# Usage: PATH=/path/to/iree/build/tools:$PATH ./compile-scheduled-unet.sh <target-chip> <default|winograd|misa|hybrid> [extra flags]
 
 set -euo pipefail
 

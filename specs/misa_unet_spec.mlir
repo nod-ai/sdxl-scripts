@@ -857,15 +857,16 @@ module attributes {transform.with_named_sequence} {
     transform.foreach %funcs : !transform.any_op {
       ^bb1(%func: !transform.any_op):
         transform.foreach_match in %func
-            @match_conv_k1 -> @cast_and_call_dag_k1,
-            @match_conv_k2 -> @cast_and_call_dag_k2,
-            @match_conv_k3 -> @cast_and_call_dag_k3,
-            @match_conv_k4 -> @cast_and_call_dag_k4,
-            @match_conv_k5 -> @cast_and_call_dag_k5,
-            @match_conv_k6 -> @cast_and_call_dag_k6,
-            @match_conv_k7 -> @cast_and_call_dag_k7,
-            @match_conv_k8 -> @cast_and_call_dag_k8,
-            @match_conv_k9 -> @cast_and_call_dag_k9
+        // base - 63.5 ms
+            @match_conv_k1 -> @cast_and_call_dag_k1, // -1.4 ms
+            // @match_conv_k2 -> @cast_and_call_dag_k2, // -0.1 ms
+            // @match_conv_k3 -> @cast_and_call_dag_k3, // -0.1 ms
+            // @match_conv_k4 -> @cast_and_call_dag_k4, // 0 ms
+            // @match_conv_k5 -> @cast_and_call_dag_k5, // -0.1 ms
+            // @match_conv_k6 -> @cast_and_call_dag_k6, // -0.1 ms
+            @match_conv_k7 -> @cast_and_call_dag_k7 // -0.5 ms
+            // @match_conv_k8 -> @cast_and_call_dag_k8, // -0.1 ms
+            // @match_conv_k9 -> @cast_and_call_dag_k9 // -0.2 ms
           : (!transform.any_op) -> (!transform.any_op)
     }
     transform.apply_dce to %module : !transform.any_op
