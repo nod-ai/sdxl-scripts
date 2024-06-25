@@ -10,6 +10,9 @@ import z3
 from dataclasses import asdict, dataclass
 from os import mkdir, path, makedirs
 from textwrap import indent
+from iree.compiler import ir
+import iree.compiler as ireec
+from iree.compiler.dialects import _linalg_ops_gen, _util_ops_gen
 
 '''
 Usage: ./tune.py 121.mlir -o "tuning/candidates" -l 1024 --lhs-dims=mk --rhs-dims=nk --tile-dims=mnk
@@ -633,6 +636,63 @@ def get_default_output_dir():
 
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
+def parse_mlir(mlir_text):
+    mlir_module = None
+    with ireec.ir.Context() as context:
+        try:
+            mlir_module = ireec.ir.Module.parse(mlir_text)
+            tune_logger.info("MLIR parsing successful!")
+        except ireec.ir.MLIRError as e:
+            tune_logger.error(f"Error parsing MLIR: {e}")
+            raise RuntimeError(f"Error parsing MLIR: {e}")
+        
+    return mlir_module
+
+class OpWalkResult:
+    def __init__(self):
+        self.wasInterrupted = False
+        self.isConv = False
+        self.isMatmul = False
+        self.isContraction = False
+        self.isBatchMatmul = False
+
+    def set_interrupt(self):
+        self.wasInterrupted = True
+
+    def set_conv(self):
+        self.isConv = True
+
+    def set_matmul(self):
+        self.isMatmul = True
+
+    def set_contraction(self):
+        self.isContraction = True
+
+    def set_batch_matmul(self):
+        self.isBatchMatmul = True
+
+def walk_callback_detect_type(op: ireec._mlir_libs._mlir.ir.Operation, walk_result: OpWalkResult) -> ireec._mlir_libs._mlir.ir.WalkResult:
+    if isinstance(op.opview, ireec.dialects._linalg_ops_gen.Conv2DNhwcHwcfOp):
+        walk_result.set_conv()
+        walk_result.set_interrupt()
+
+        return ir.WalkResult.INTERRUPT
+    
+    if isinstance(op.opview, ireec.dialects._util_ops_gen.FuncOp):
+        if "matmul_transpose_b" in str(op.opview.sym_name):
+            walk_result.set_matmul()
+            walk_result.set_interrupt()
+            return ir.WalkResult.INTERRUPT
+        if "matmul_like" in str(op.opview.sym_name):
+            walk_result.set_contraction()
+            walk_result.set_interrupt()
+            return ir.WalkResult.INTERRUPT
+        if "batch_matmul" in str(op.opview.sym_name):
+            walk_result.set_batch_matmul()
+            walk_result.set_interrupt()
+            return ir.WalkResult.INTERRUPT
+
+    return ir.WalkResult.ADVANCE
 
 def tune(
     input: str,
@@ -653,23 +713,28 @@ def tune(
     tune_logger.debug(f"Output directory {output}")
     tune_logger.debug(f"Processing {input_file}")
     mlir_template = read_input_mlir(input_file)
+    mlir_text = "".join(mlir_template)
 
-    detected_mmt = is_mmt(mlir_template)
-    detected_conv = is_conv(mlir_template)
-    detected_contract = is_contract(mlir_template)
-    detected_batch_matmul = is_batch_matmul(mlir_template)
+    mlir_module = parse_mlir(mlir_text)
+    ops = list()
+    
+    walk_result = OpWalkResult()
+    for op in mlir_module.body.operations:
+        op.walk(lambda op: walk_callback_detect_type(op, walk_result), ir.WalkOrder.PRE_ORDER)
+        if walk_result.wasInterrupted:
+            break
     assert [
-        detected_mmt,
-        detected_conv,
-        detected_contract,
-        detected_batch_matmul,
+        walk_result.isConv,
+        walk_result.isMatmul,
+        walk_result.isContraction,
+        walk_result.isBatchMatmul,
     ].count(True) == 1
 
     # Save the input file as the first candidate.
     with open(path.join(output, f"0.mlir"), "w") as f:
-        f.write("".join(mlir_template))
+        f.write(mlir_text)
 
-    if detected_mmt:
+    if walk_result.isMatmul:
         M, N, K = get_shapes_mmt(mlir_template)
         tune_logger.debug(f"Matmul shape: [{M}, {N}, {K}]")
 
@@ -685,7 +750,7 @@ def tune(
                 f.write(new_mlir)
             with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
                 f.write(embeddable_tuning)
-    elif detected_conv:
+    elif walk_result.isConv:
         n, oh, ow, oc, fh, fw, ic = get_shapes_conv(mlir_template)
         tune_logger.debug(f"Conv shape: [n{n}, oh{oh}, oc{oc}, fh{fh}, fw{fw}, ic{ic}]")
         M = oh * ow
@@ -705,7 +770,7 @@ def tune(
                 f.write(new_mlir)
             with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
                 f.write(embeddable_tuning)
-    elif detected_contract:
+    elif walk_result.isContraction:
         LHS, RHS, RES = get_shapes_contract(mlir_template)
         tune_logger.debug(f"Contract shape: ({LHS}, {RHS}) -> {RES}")
         assert len(LHS) == len(lhs_dims)
@@ -725,7 +790,7 @@ def tune(
 
             with open(path.join(output, f"{i+1}.mlir"), "w") as f:
                 f.write(new_mlir)
-    elif detected_batch_matmul:
+    elif walk_result.isBatchMatmul:
         LHS, RHS, RES = get_shapes_batch_matmul(mlir_template)
         assert len(LHS) == len(lhs_dims)
         assert len(RHS) == len(rhs_dims)
