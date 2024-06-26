@@ -1,11 +1,10 @@
 # Matmul auto-tuning scripts
 
 ## Prerequisites
-Using virtual environments and install required dependencies:
+Using virtual environments:
 ```shell
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
 ```
 Using the IREE's Python bindings:
 ```shell
