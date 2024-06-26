@@ -14,8 +14,7 @@ from tqdm import tqdm
 import re
 import hashlib
 from dataclasses import dataclass
-
-# from typing import Callable
+from typing import Literal
 
 """
 Sample Usage:
@@ -165,6 +164,32 @@ def setup_logging(args: argparse.Namespace, log_dir: Path) -> Path:
     )  # Default use the first gpu from the user input --device list
 
     return log_file_path
+
+
+def handle_error(
+    condition: bool,
+    msg: str,
+    level: Literal["error", "warning", "info", "debug"] = "error",
+    exit_program: bool = True,
+) -> None:
+    """Handles errors with logging and optional program exit"""
+    if condition:
+        # Log the message with the specified level
+        if level == "error":
+            logging.error(msg)
+        elif level == "warning":
+            logging.warning(msg)
+        elif level == "info":
+            logging.info(msg)
+        elif level == "debug":
+            logging.debug(msg)
+        else:
+            raise ValueError(
+                "Invalid logging level specified: choose from 'error', 'warning', 'info', 'debug'"
+            )
+
+        if exit_program:
+            sys.exit(1)
 
 
 def init_worker_context(queue: multiprocessing.Queue) -> None:
@@ -318,8 +343,7 @@ def generate_candidates(
         shutil.copy("config_prolog.mlir", base_dir / "config_prolog.mlir")
         shutil.copy("config_epilog.mlir", base_dir / "config_epilog.mlir")
     except FileNotFoundError as e:
-        logging.error(f"Configuration file not found: {e}")
-        sys.exit(1)
+        handle_error(condition=True, msg=f"Configuration file not found: {e}")
 
     template_mlir = base_dir / "template.mlir"
     candidates_dir = base_dir / "candidates"
@@ -359,6 +383,10 @@ def generate_candidates(
             candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
                 mlir
             )
+
+    handle_error(
+        condition=(len(candidates) == 0), msg="Failed to generate any candidates"
+    )
 
     return candidates, candidates_dir
 
@@ -410,11 +438,14 @@ def compile_candidates(
         candidate_trackers[index].compilation_successful = True
         candidate_trackers[index].compiled_vmfb_path = compiled_file
 
-    if good == 0:
-        logging.error("Failed to compile all candidate .mlir files")
-        sys.exit(1)
-    if compiling_rate < 10:
-        logging.warning(f"Compiling rate [{compiling_rate:.1f}%] < 10%")
+    handle_error(
+        condition=(good == 0), msg="Failed to compile all candidate .mlir files"
+    )
+    handle_error(
+        condition=(compiling_rate < 10),
+        msg=f"Compiling rate [{compiling_rate:.1f}%] < 10%",
+        level="warning",
+    )
 
     return compiled_files, compiled_dir
 
@@ -477,12 +508,13 @@ def benchmark_top_candidates(
     )
 
     logging.critical(
-        f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)}"
+        f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)} | Benchmarking Rate: {len(benchmarked_files)/(len(benchmark_results)*100):.1f}%"
     )
 
-    if len(best_results) == 0:
-        logging.error("Failed to benchmark all candidate .vmfb files")
-        sys.exit(1)
+    handle_error(
+        condition=(len(best_results) == 0),
+        msg="Failed to benchmark all candidate .vmfb files",
+    )
 
     best_results = sorted(best_results, key=lambda x: x[0])[:20]
     best_log = base_dir / "best.log"

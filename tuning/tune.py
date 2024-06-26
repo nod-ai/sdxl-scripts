@@ -663,8 +663,7 @@ def walk_callback_detect_type(
     op: ir.Operation, walk_result: OpWalkResult
 ) -> ir.WalkResult:
     if isinstance(op.opview, ireec.dialects._linalg_ops_gen.Conv2DNhwcHwcfOp):
-        walk_result.set_conv()
-        walk_result.set_interrupt()
+        walk_result.isConv = walk_result.wasInterrupted = True
 
         return ir.WalkResult.INTERRUPT
 
