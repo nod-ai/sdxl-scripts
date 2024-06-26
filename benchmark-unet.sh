@@ -15,10 +15,10 @@ iree-benchmark-module \
   --device=rocm://$1 \
   --device_allocator=caching \
   --module=$PWD/tmp/unet.vmfb \
-  --parameters=model=${IRPA_PATH_PREFIX}/scheduled_unet.irpa \
+  --parameters=model=${IRPA_PATH_PREFIX}/punet_06_19.irpa \
   --function=main \
   --input=1x4x128x128xf16 \
-  --input=1xi64 \
+  --input=1xsi32 \
   --input=2x64x2048xf16 \
   --input=2x1280xf16 \
   --input=2x6xf16 \
