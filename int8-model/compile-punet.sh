@@ -8,17 +8,20 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null &
 
 readonly IREE_COMPILE="$(which iree-compile)"
 readonly CHIP="$1"
+WORKING_DIR=${WORKING_DIR:-${SCRIPT_DIR}}
 shift
 
 set -x
 
-"${SCRIPT_DIR}/compile-unet-base.sh" "$IREE_COMPILE" "$CHIP" \
+"${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
   "${SCRIPT_DIR}/base_ir/punet_06_26_all_signed.mlir" \
-  --iree-hal-dump-executable-configurations-to=configurations/unet \
-  --iree-hal-dump-executable-sources-to=sources/unet \
-  --iree-hal-dump-executable-binaries-to=binaries/unet \
-  --iree-hal-dump-executable-benchmarks-to=benchmarks/unet \
-  -o "${PWD}/tmp/unet.vmfb" \
+  --iree-hal-dump-executable-configurations-to="${WORKING_DIR}/configurations/punet" \
+  --iree-hal-dump-executable-sources-to="${WORKING_DIR}/sources/punet" \
+  --iree-hal-dump-executable-binaries-to="${WORKING_DIR}/binaries/punet" \
+  --iree-hal-dump-executable-benchmarks-to="${WORKING_DIR}/benchmarks/punet" \
+  --iree-scheduling-dump-statistics-file="${WORKING_DIR}/tmp/punet_scheduling_stats.txt" \
+  --iree-scheduling-dump-statistics-format=csv \
+  -o "${WORKING_DIR}/tmp/punet.vmfb" \
   "$@"
 
   #--iree-hal-benchmark-dispatch-repeat-count=20 \
