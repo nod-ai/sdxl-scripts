@@ -30,17 +30,11 @@ set -x
     --iree-hal-target-backends=rocm \
     --iree-rocm-target-chip="$CHIP" \
     --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-2024-03-07" \
-    --iree-global-opt-propagate-transposes=true \
-    --iree-opt-outer-dim-concat=true \
-    --iree-opt-const-eval=false \
     --iree-opt-data-tiling=false \
-    --iree-rocm-waves-per-eu=2 \
+    --iree-flow-enable-aggressive-fusion \
     --iree-vm-target-truncate-unsupported-floats \
     --iree-codegen-llvmgpu-use-vector-distribution \
     --iree-llvmgpu-enable-prefetch \
     --iree-codegen-gpu-native-math-precision=true \
-    --iree-flow-enable-aggressive-fusion \
-    --iree-global-opt-enable-fuse-horizontal-contractions=true \
-    --iree-opt-aggressively-propagate-transposes=true \
     --iree-execution-model=async-external \
     "$@"
