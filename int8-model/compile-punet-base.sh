@@ -30,6 +30,7 @@ set -x
     --iree-hal-target-backends=rocm \
     --iree-rocm-target-chip="$CHIP" \
     --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-2024-03-07" \
+    --iree-opt-const-eval=false \
     --iree-opt-data-tiling=false \
     --iree-flow-enable-aggressive-fusion \
     --iree-vm-target-truncate-unsupported-floats \
@@ -37,4 +38,5 @@ set -x
     --iree-llvmgpu-enable-prefetch \
     --iree-codegen-gpu-native-math-precision=true \
     --iree-execution-model=async-external \
+    --compile-to=executable-sources \
     "$@"
