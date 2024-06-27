@@ -173,8 +173,10 @@ def handle_error(
     exit_program: bool = True,
 ) -> None:
     """Handles errors with logging and optional program exit"""
-    if condition:
-        # Log the message with the specified level
+    if not condition:
+        return
+    
+    # Log the message with the specified level
         if level == logging.ERROR:
             logging.error(msg)
         elif level == logging.WARNING:
