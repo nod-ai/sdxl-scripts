@@ -382,4 +382,4 @@ def test_walk_mlir_op():
 
     walk_result = detect_mlir_type("./test-data/batch_matmul.mlir")
     assert walk_result.was_interrupted
-    assert walk_result.dispatch_kind == tune.DispatchKind.batch_mmt
+    assert walk_result.dispatch_kind == tune.DispatchKind.batch_matmul

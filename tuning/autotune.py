@@ -177,21 +177,21 @@ def handle_error(
         return
     
     # Log the message with the specified level
-        if level == logging.ERROR:
-            logging.error(msg)
-        elif level == logging.WARNING:
-            logging.warning(msg)
-        elif level == logging.INFO:
-            logging.info(msg)
-        elif level == logging.DEBUG:
-            logging.debug(msg)
-        else:
-            raise ValueError(
-                "Invalid logging level specified: choose from logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG"
-            )
+    if level == logging.ERROR:
+        logging.error(msg)
+    elif level == logging.WARNING:
+        logging.warning(msg)
+    elif level == logging.INFO:
+        logging.info(msg)
+    elif level == logging.DEBUG:
+        logging.debug(msg)
+    else:
+        raise ValueError(
+            "Invalid logging level specified: choose from logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG"
+        )
 
-        if exit_program:
-            sys.exit(1)
+    if exit_program:
+        sys.exit(1)
 
 
 def init_worker_context(queue: multiprocessing.Queue) -> None:

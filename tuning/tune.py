@@ -668,7 +668,7 @@ def walk_callback_detect_type(
             return ir.WalkResult.INTERRUPT
         if "batch_matmul" in str(op.opview.sym_name):
             walk_result.was_interrupted = True
-            walk_result.dispatch_kind = DispatchKind.batch_mmt
+            walk_result.dispatch_kind = DispatchKind.batch_matmul
             return ir.WalkResult.INTERRUPT
 
     return ir.WalkResult.ADVANCE
@@ -772,7 +772,7 @@ def tune(
 
             with open(path.join(output, f"{i+1}.mlir"), "w") as f:
                 f.write(new_mlir)
-    elif walk_result.dispatch_kind == DispatchKind.batch_mmt:
+    elif walk_result.dispatch_kind == DispatchKind.batch_matmul:
         LHS, RHS, RES = get_shapes_batch_matmul(mlir_template)
         assert len(LHS) == len(lhs_dims)
         assert len(RHS) == len(rhs_dims)
