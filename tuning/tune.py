@@ -37,7 +37,7 @@ class DispatchKind(Enum):
     conv = 1
     mmt = 2
     contraction = 3
-    batch_mmt = 4
+    batch_matmul = 4
 
 
 @dataclass
