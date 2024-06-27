@@ -10,10 +10,14 @@ import z3
 from dataclasses import asdict, dataclass
 from os import mkdir, path, makedirs
 from textwrap import indent
+from iree.compiler import ir
+import iree.compiler as ireec
+from iree.compiler.dialects import _linalg_ops_gen, _util_ops_gen
+from enum import Enum
 
-'''
+"""
 Usage: ./tune.py 121.mlir -o "tuning/candidates" -l 1024 --lhs-dims=mk --rhs-dims=nk --tile-dims=mnk
-'''
+"""
 
 tune_logger = logging.getLogger("tune")
 
@@ -29,27 +33,24 @@ class Configuration:
     waves_per_eu: int
 
 
+class DispatchKind(Enum):
+    conv = 1
+    mmt = 2
+    contraction = 3
+    batch_matmul = 4
+
+
+@dataclass
+class OpWalkResult:
+    was_interrupted: bool = False
+    dispatch_kind: DispatchKind = None
+
+
 def read_input_mlir(filename):
     template = f""
     with open(filename, "r") as f:
         template = f.readlines()
     return template
-
-
-def is_mmt(lines) -> bool:
-    return any("func.func" in line and "matmul_transpose_b" in line for line in lines)
-
-
-def is_conv(lines) -> bool:
-    return any("func.func" in line and "conv_2d_nhwc_hwcf" in line for line in lines)
-
-
-def is_contract(lines) -> bool:
-    return any("func.func" in line and "matmul_like" in line for line in lines)
-
-
-def is_batch_matmul(lines) -> bool:
-    return any("func.func" in line and "batch_matmul" in line for line in lines)
 
 
 def get_mmt_tile_sizes(configuration: Configuration):
@@ -517,7 +518,7 @@ def generate_constraints(
     workgroup_size,
     subgroup_m_count,
     subgroup_n_count,
-    waves_per_eu
+    waves_per_eu,
 ):
     M, N, K = problem_size
     m, n, k = tile_sizes
@@ -586,7 +587,7 @@ def generate_solutions(M, N, K):
         wg_z,
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu
+        waves_per_eu,
     ]
 
     solver = z3.Solver()
@@ -598,7 +599,7 @@ def generate_solutions(M, N, K):
         [wg_x, wg_y, wg_z],
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu
+        waves_per_eu,
     )
     solver.add(z3.simplify(z3.And(constraints)))
     tune_logger.debug(f"Initial constraints: {solver}")
@@ -614,7 +615,7 @@ def generate_solutions(M, N, K):
             [lookup(m), lookup(n), lookup(k)],
             lookup(sg_m_cnt),
             lookup(sg_n_cnt),
-            lookup(waves_per_eu)
+            lookup(waves_per_eu),
         )
         solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
         i += 1
@@ -634,6 +635,58 @@ def get_default_output_dir():
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
 
+def parse_mlir(mlir_text: str) -> ir.Module:
+    mlir_module = None
+    with ireec.ir.Context() as context:
+        try:
+            mlir_module = ireec.ir.Module.parse(mlir_text)
+            tune_logger.info("MLIR parsing successful!")
+        except ireec.ir.MLIRError as e:
+            tune_logger.error(f"Error parsing MLIR: {e}")
+            raise RuntimeError(f"Error parsing MLIR: {e}")
+
+    return mlir_module
+
+
+def walk_callback_detect_type(
+    op: ir.Operation, walk_result: OpWalkResult
+) -> ir.WalkResult:
+    if isinstance(op.opview, ireec.dialects._linalg_ops_gen.Conv2DNhwcHwcfOp):
+        walk_result.was_interrupted = True
+        walk_result.dispatch_kind = DispatchKind.conv
+
+        return ir.WalkResult.INTERRUPT
+
+    if isinstance(op.opview, ireec.dialects._util_ops_gen.FuncOp):
+        if "matmul_transpose_b" in str(op.opview.sym_name):
+            walk_result.was_interrupted = True
+            walk_result.dispatch_kind = DispatchKind.mmt
+            return ir.WalkResult.INTERRUPT
+        if "matmul_like" in str(op.opview.sym_name):
+            walk_result.was_interrupted = True
+            walk_result.dispatch_kind = DispatchKind.contraction
+            return ir.WalkResult.INTERRUPT
+        if "batch_matmul" in str(op.opview.sym_name):
+            walk_result.was_interrupted = True
+            walk_result.dispatch_kind = DispatchKind.batch_matmul
+            return ir.WalkResult.INTERRUPT
+
+    return ir.WalkResult.ADVANCE
+
+
+def walk_mlir_op(mlir_module: str) -> OpWalkResult:
+    walk_result = OpWalkResult()
+    for op in mlir_module.body.operations:
+        op.walk(
+            lambda op: walk_callback_detect_type(op, walk_result),
+            ir.WalkOrder.POST_ORDER,
+        )
+        if walk_result.was_interrupted:
+            break
+
+    return walk_result
+
+
 def tune(
     input: str,
     output: str = None,
@@ -647,45 +700,23 @@ def tune(
     if output is None:
         output = get_default_output_dir()
 
-    # Create the directory if it does not exist    
+    # Create the directory if it does not exist
     makedirs(str(output), exist_ok=True)
 
     tune_logger.debug(f"Output directory {output}")
     tune_logger.debug(f"Processing {input_file}")
     mlir_template = read_input_mlir(input_file)
+    mlir_text = "".join(mlir_template)
 
-    detected_mmt = is_mmt(mlir_template)
-    detected_conv = is_conv(mlir_template)
-    detected_contract = is_contract(mlir_template)
-    detected_batch_matmul = is_batch_matmul(mlir_template)
-    assert [
-        detected_mmt,
-        detected_conv,
-        detected_contract,
-        detected_batch_matmul,
-    ].count(True) == 1
+    mlir_module = parse_mlir(mlir_text)
+    walk_result = walk_mlir_op(mlir_module)
+    assert walk_result.dispatch_kind != None
 
     # Save the input file as the first candidate.
     with open(path.join(output, f"0.mlir"), "w") as f:
-        f.write("".join(mlir_template))
+        f.write(mlir_text)
 
-    if detected_mmt:
-        M, N, K = get_shapes_mmt(mlir_template)
-        tune_logger.debug(f"Matmul shape: [{M}, {N}, {K}]")
-
-        for i, config in enumerate(generate_solutions(M, N, K)):
-            if i >= limit:
-                break
-            tune_logger.info(f"Solution #{i+1}: {config}")
-            new_mlir, embeddable_tuning = apply_params_mmt(
-                M, N, K, mlir_template, config
-            )
-
-            with open(path.join(output, f"{i+1}.mlir"), "w") as f:
-                f.write(new_mlir)
-            with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
-                f.write(embeddable_tuning)
-    elif detected_conv:
+    if walk_result.dispatch_kind == DispatchKind.conv:
         n, oh, ow, oc, fh, fw, ic = get_shapes_conv(mlir_template)
         tune_logger.debug(f"Conv shape: [n{n}, oh{oh}, oc{oc}, fh{fh}, fw{fw}, ic{ic}]")
         M = oh * ow
@@ -705,7 +736,23 @@ def tune(
                 f.write(new_mlir)
             with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
                 f.write(embeddable_tuning)
-    elif detected_contract:
+    elif walk_result.dispatch_kind == DispatchKind.mmt:
+        M, N, K = get_shapes_mmt(mlir_template)
+        tune_logger.debug(f"Matmul shape: [{M}, {N}, {K}]")
+
+        for i, config in enumerate(generate_solutions(M, N, K)):
+            if i >= limit:
+                break
+            tune_logger.info(f"Solution #{i+1}: {config}")
+            new_mlir, embeddable_tuning = apply_params_mmt(
+                M, N, K, mlir_template, config
+            )
+
+            with open(path.join(output, f"{i+1}.mlir"), "w") as f:
+                f.write(new_mlir)
+            with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
+                f.write(embeddable_tuning)
+    elif walk_result.dispatch_kind == DispatchKind.contraction:
         LHS, RHS, RES = get_shapes_contract(mlir_template)
         tune_logger.debug(f"Contract shape: ({LHS}, {RHS}) -> {RES}")
         assert len(LHS) == len(lhs_dims)
@@ -725,7 +772,7 @@ def tune(
 
             with open(path.join(output, f"{i+1}.mlir"), "w") as f:
                 f.write(new_mlir)
-    elif detected_batch_matmul:
+    elif walk_result.dispatch_kind == DispatchKind.batch_matmul:
         LHS, RHS, RES = get_shapes_batch_matmul(mlir_template)
         assert len(LHS) == len(lhs_dims)
         assert len(RHS) == len(rhs_dims)
