@@ -681,6 +681,19 @@ def walk_callback_detect_type(
     return ir.WalkResult.ADVANCE
 
 
+def walk_mlir_op(mlir_module: str) -> OpWalkResult:
+    walk_result = OpWalkResult()
+    for op in mlir_module.body.operations:
+        op.walk(
+            lambda op: walk_callback_detect_type(op, walk_result),
+            ir.WalkOrder.POST_ORDER,
+        )
+        if walk_result.wasInterrupted:
+            break
+
+    return walk_result
+
+
 def tune(
     input: str,
     output: str = None,
@@ -703,16 +716,7 @@ def tune(
     mlir_text = "".join(mlir_template)
 
     mlir_module = parse_mlir(mlir_text)
-    ops = list()
-
-    walk_result = OpWalkResult()
-    for op in mlir_module.body.operations:
-        op.walk(
-            lambda op: walk_callback_detect_type(op, walk_result),
-            ir.WalkOrder.PRE_ORDER,
-        )
-        if walk_result.wasInterrupted:
-            break
+    walk_result = walk_mlir_op(mlir_module)
     assert [
         walk_result.isConv,
         walk_result.isMatmul,
