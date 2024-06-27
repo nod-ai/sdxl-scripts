@@ -356,8 +356,8 @@ def test_parse_mlir():
   """
     mlir_module = tune.parse_mlir(mlir_str)
     assert mlir_module != None
-    assert isinstance(mlir_module, tune.ireec._mlir_libs._mlir.ir.Module) == True
-    assert isinstance(mlir_module.body.operations[0], tune.ireec.dialects.func.FuncOp) == True
+    assert isinstance(mlir_module, tune.ireec._mlir_libs._mlir.ir.Module)
+    assert isinstance(mlir_module.body.operations[0], tune.ireec.dialects.func.FuncOp)
 
 def test_walk_mlir_op():
     def detect_mlir_type(mlir_file_path):
