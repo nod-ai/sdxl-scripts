@@ -169,23 +169,23 @@ def setup_logging(args: argparse.Namespace, log_dir: Path) -> Path:
 def handle_error(
     condition: bool,
     msg: str,
-    level: Literal["error", "warning", "info", "debug"] = "error",
+    level: int = logging.ERROR,
     exit_program: bool = True,
 ) -> None:
     """Handles errors with logging and optional program exit"""
     if condition:
         # Log the message with the specified level
-        if level == "error":
+        if level == logging.ERROR:
             logging.error(msg)
-        elif level == "warning":
+        elif level == logging.WARNING:
             logging.warning(msg)
-        elif level == "info":
+        elif level == logging.INFO:
             logging.info(msg)
-        elif level == "debug":
+        elif level == logging.DEBUG:
             logging.debug(msg)
         else:
             raise ValueError(
-                "Invalid logging level specified: choose from 'error', 'warning', 'info', 'debug'"
+                "Invalid logging level specified: choose from logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG"
             )
 
         if exit_program:
@@ -444,7 +444,8 @@ def compile_candidates(
     handle_error(
         condition=(compiling_rate < 10),
         msg=f"Compiling rate [{compiling_rate:.1f}%] < 10%",
-        level="warning",
+        level=logging.WARNING,
+        exit_program=False
     )
 
     return compiled_files, compiled_dir
