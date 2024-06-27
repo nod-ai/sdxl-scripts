@@ -34,10 +34,10 @@ class Configuration:
 
 
 class DispatchKind(Enum):
-    is_conv = 1
-    is_matmul = 2
-    is_contraction = 3
-    is_batch_matmul = 4
+    conv = 1
+    mmt = 2
+    contraction = 3
+    batch_mmt = 4
 
 
 @dataclass
@@ -51,22 +51,6 @@ def read_input_mlir(filename):
     with open(filename, "r") as f:
         template = f.readlines()
     return template
-
-
-def is_mmt(lines) -> bool:
-    return any("func.func" in line and "matmul_transpose_b" in line for line in lines)
-
-
-def is_conv(lines) -> bool:
-    return any("func.func" in line and "conv_2d_nhwc_hwcf" in line for line in lines)
-
-
-def is_contract(lines) -> bool:
-    return any("func.func" in line and "matmul_like" in line for line in lines)
-
-
-def is_batch_matmul(lines) -> bool:
-    return any("func.func" in line and "batch_matmul" in line for line in lines)
 
 
 def get_mmt_tile_sizes(configuration: Configuration):
@@ -669,22 +653,22 @@ def walk_callback_detect_type(
 ) -> ir.WalkResult:
     if isinstance(op.opview, ireec.dialects._linalg_ops_gen.Conv2DNhwcHwcfOp):
         walk_result.was_interrupted = True
-        walk_result.dispatch_kind = DispatchKind.is_conv
+        walk_result.dispatch_kind = DispatchKind.conv
 
         return ir.WalkResult.INTERRUPT
 
     if isinstance(op.opview, ireec.dialects._util_ops_gen.FuncOp):
         if "matmul_transpose_b" in str(op.opview.sym_name):
             walk_result.was_interrupted = True
-            walk_result.dispatch_kind = DispatchKind.is_matmul
+            walk_result.dispatch_kind = DispatchKind.mmt
             return ir.WalkResult.INTERRUPT
         if "matmul_like" in str(op.opview.sym_name):
             walk_result.was_interrupted = True
-            walk_result.dispatch_kind = DispatchKind.is_contraction
+            walk_result.dispatch_kind = DispatchKind.contraction
             return ir.WalkResult.INTERRUPT
         if "batch_matmul" in str(op.opview.sym_name):
             walk_result.was_interrupted = True
-            walk_result.dispatch_kind = DispatchKind.is_batch_matmul
+            walk_result.dispatch_kind = DispatchKind.batch_mmt
             return ir.WalkResult.INTERRUPT
 
     return ir.WalkResult.ADVANCE
@@ -732,7 +716,7 @@ def tune(
     with open(path.join(output, f"0.mlir"), "w") as f:
         f.write(mlir_text)
 
-    if walk_result.dispatch_kind == DispatchKind.is_conv:
+    if walk_result.dispatch_kind == DispatchKind.conv:
         n, oh, ow, oc, fh, fw, ic = get_shapes_conv(mlir_template)
         tune_logger.debug(f"Conv shape: [n{n}, oh{oh}, oc{oc}, fh{fh}, fw{fw}, ic{ic}]")
         M = oh * ow
@@ -752,7 +736,7 @@ def tune(
                 f.write(new_mlir)
             with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
                 f.write(embeddable_tuning)
-    elif walk_result.dispatch_kind == DispatchKind.is_matmul:
+    elif walk_result.dispatch_kind == DispatchKind.mmt:
         M, N, K = get_shapes_mmt(mlir_template)
         tune_logger.debug(f"Matmul shape: [{M}, {N}, {K}]")
 
@@ -768,7 +752,7 @@ def tune(
                 f.write(new_mlir)
             with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
                 f.write(embeddable_tuning)
-    elif walk_result.dispatch_kind == DispatchKind.is_contraction:
+    elif walk_result.dispatch_kind == DispatchKind.contraction:
         LHS, RHS, RES = get_shapes_contract(mlir_template)
         tune_logger.debug(f"Contract shape: ({LHS}, {RHS}) -> {RES}")
         assert len(LHS) == len(lhs_dims)
@@ -788,7 +772,7 @@ def tune(
 
             with open(path.join(output, f"{i+1}.mlir"), "w") as f:
                 f.write(new_mlir)
-    elif walk_result.dispatch_kind == DispatchKind.is_batch_matmul:
+    elif walk_result.dispatch_kind == DispatchKind.batch_mmt:
         LHS, RHS, RES = get_shapes_batch_matmul(mlir_template)
         assert len(LHS) == len(lhs_dims)
         assert len(RHS) == len(rhs_dims)

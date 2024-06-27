@@ -369,17 +369,17 @@ def test_walk_mlir_op():
         return walk_result
 
     walk_result = detect_mlir_type("./test-data/convolution.mlir")
-    assert walk_result.was_interrupted == True
-    assert walk_result.dispatch_kind == tune.DispatchKind.is_conv
+    assert walk_result.was_interrupted
+    assert walk_result.dispatch_kind == tune.DispatchKind.conv
 
     walk_result = detect_mlir_type("./test-data/matmul.mlir")
-    assert walk_result.was_interrupted == True
-    assert walk_result.dispatch_kind == tune.DispatchKind.is_matmul
+    assert walk_result.was_interrupted
+    assert walk_result.dispatch_kind == tune.DispatchKind.mmt
 
     walk_result = detect_mlir_type("./test-data/contraction.mlir")
-    assert walk_result.was_interrupted == True
-    assert walk_result.dispatch_kind == tune.DispatchKind.is_contraction
+    assert walk_result.was_interrupted
+    assert walk_result.dispatch_kind == tune.DispatchKind.contraction
 
     walk_result = detect_mlir_type("./test-data/batch_matmul.mlir")
-    assert walk_result.was_interrupted == True
-    assert walk_result.dispatch_kind == tune.DispatchKind.is_batch_matmul
+    assert walk_result.was_interrupted
+    assert walk_result.dispatch_kind == tune.DispatchKind.batch_mmt
