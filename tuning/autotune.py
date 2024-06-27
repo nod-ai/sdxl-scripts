@@ -445,7 +445,7 @@ def compile_candidates(
         condition=(compiling_rate < 10),
         msg=f"Compiling rate [{compiling_rate:.1f}%] < 10%",
         level=logging.WARNING,
-        exit_program=False
+        exit_program=False,
     )
 
     return compiled_files, compiled_dir
