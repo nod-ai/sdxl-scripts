@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Usage: PATH=/path/to/iree/build/tools:$PATH ./compile-txt2img-winograd.sh [extra flags]
+# Usage: PATH=/path/to/iree/build/tools:$PATH ./compile-txt2img-misa.sh [extra flags]
 
 set -xeu
 
@@ -10,9 +10,9 @@ readonly TRANSFORM_PREFIX="${2:-}"
 "$PWD"/compile-clip.sh "$TARGET"
 
 if [ "$TRANSFORM_PREFIX" == "" ] ; then
-  "$PWD"/compile-scheduled-unet-winograd.sh "$TARGET"
+  "$PWD"/compile-scheduled-unet-misa.sh "$TARGET"
 else
-  "$PWD"/compile-scheduled-unet-winograd.sh "$TARGET" "$TRANSFORM_PREFIX"
+  "$PWD"/compile-scheduled-unet-misa.sh "$TARGET" "$TRANSFORM_PREFIX"
 fi
 
 "$PWD"/compile-vae.sh "$TARGET"
@@ -20,7 +20,7 @@ fi
 iree-compile "$PWD"/base_ir/sdxl_pipeline_bench_f16.mlir \
     --iree-hal-target-backends=rocm \
     --iree-rocm-target-chip="$TARGET" \
-    --iree-rocm-bc-dir="$PWD"/bitcode-2024-03-07 \
+    --iree-rocm-bc-dir="$PWD"/../bitcode-2024-03-07 \
     --iree-global-opt-propagate-transposes=true \
     --iree-codegen-llvmgpu-use-vector-distribution \
     --iree-codegen-gpu-native-math-precision=true \

@@ -13,7 +13,7 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_fp16_prompt_encoder.ml
     --iree-hal-target-backends=rocm \
     --iree-input-type=torch \
     --iree-rocm-target-chip=$1 \
-    --iree-rocm-bc-dir=$PWD/bitcode-2024-03-07 \
+    --iree-rocm-bc-dir=$PWD/../bitcode-2024-03-07 \
     --iree-global-opt-propagate-transposes=true \
     --iree-opt-outer-dim-concat=true \
     --iree-opt-const-eval=false \
