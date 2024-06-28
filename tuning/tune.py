@@ -384,11 +384,13 @@ def apply_params_batch_matmul(
 def get_shape_dims(shape_str):
     return [int(x) for x in shape_str.split("x")[:-1]]
 
+
 def get_bit_width() -> tuple[int, int, int]:
     lhs_type_bit_width = -1
     rhs_type_bit_width = 16
     output_type_bit_width = -1
     return (lhs_type_bit_width, rhs_type_bit_width, output_type_bit_width)
+
 
 def get_shapes_mmt(template):
     for line in template:
@@ -586,19 +588,25 @@ def generate_constraints(
     elems_per_thread = z3.Int("elems_per_thread")
     wg_threads = z3.Int("wg_threads")
     constraints += [wg_n == intrinsic_mn * subgroup_n_tile_count * subgroup_n_count]
-    constraints += [wg_k == intrinsic_k * subgroup_k_tile_count ]
+    constraints += [wg_k == intrinsic_k * subgroup_k_tile_count]
     constraints += [inner_lhs_dim_size == wg_k]
     if problem_size.dispatch_kind == DispatchKind.mmt:
         constraints += [inner_rhs_dim_size == wg_n]
-    else: 
+    else:
         constraints += [inner_rhs_dim_size == wg_k]
     constraints += [kMaxVectorLoadBitWidth == 128]
     constraints += [elems_per_thread == kMaxVectorLoadBitWidth / problem_size.rhs_bw]
     constraints += [wg_threads == subgroup_m_count * subgroup_n_count * subgroup_size]
     constraints += [
         z3.And(
-            z3.Or((inner_lhs_dim_size / elems_per_thread) % wg_threads == 0, wg_threads % (inner_lhs_dim_size / elems_per_thread) == 0),
-            z3.Or((inner_rhs_dim_size / elems_per_thread) % wg_threads == 0, wg_threads % (inner_rhs_dim_size / elems_per_thread) == 0),
+            z3.Or(
+                (inner_lhs_dim_size / elems_per_thread) % wg_threads == 0,
+                wg_threads % (inner_lhs_dim_size / elems_per_thread) == 0,
+            ),
+            z3.Or(
+                (inner_rhs_dim_size / elems_per_thread) % wg_threads == 0,
+                wg_threads % (inner_rhs_dim_size / elems_per_thread) == 0,
+            ),
         )
     ]
 
@@ -764,7 +772,9 @@ def tune(
         N = oc
         K = fh * fw * ic
         tune_logger.debug(f"Equivalent matmul shape: [{M}, {N}, {K}]")
-        problem_size = ProblemSize(M, N, K, *get_bit_width(), dispatch_kind=walk_result.dispatch_kind)
+        problem_size = ProblemSize(
+            M, N, K, *get_bit_width(), dispatch_kind=walk_result.dispatch_kind
+        )
 
         for i, config in enumerate(generate_solutions(problem_size)):
             if i >= limit:
@@ -781,7 +791,9 @@ def tune(
     elif walk_result.dispatch_kind == DispatchKind.mmt:
         M, N, K = get_shapes_mmt(mlir_template)
         tune_logger.debug(f"Matmul shape: [{M}, {N}, {K}]")
-        problem_size = ProblemSize(M, N, K, *get_bit_width(), dispatch_kind=walk_result.dispatch_kind)
+        problem_size = ProblemSize(
+            M, N, K, *get_bit_width(), dispatch_kind=walk_result.dispatch_kind
+        )
 
         for i, config in enumerate(generate_solutions(problem_size)):
             if i >= limit:
@@ -806,7 +818,9 @@ def tune(
         K1 = product(val if dim == "k" else 1 for dim, val in zip(rhs_dims, RHS))
         assert K0 == K1
         tune_logger.debug(f"Equivalent matmul shape: [{M}, {N}, {K0}]")
-        problem_size = ProblemSize(M, N, K0, *get_bit_width(), dispatch_kind=walk_result.dispatch_kind)
+        problem_size = ProblemSize(
+            M, N, K0, *get_bit_width(), dispatch_kind=walk_result.dispatch_kind
+        )
 
         for i, config in enumerate(generate_solutions(problem_size)):
             if i >= limit:
@@ -831,7 +845,9 @@ def tune(
         assert B == B0 and B == B1
         assert K0 == K1
         tune_logger.debug(f"Batch matmul shape: {B}x[{M}, {N}, {K0}]")
-        problem_size = ProblemSize(M, N, K0, *get_bit_width(), dispatch_kind=walk_result.dispatch_kind)
+        problem_size = ProblemSize(
+            M, N, K0, *get_bit_width(), dispatch_kind=walk_result.dispatch_kind
+        )
 
         for i, config in enumerate(generate_solutions(problem_size)):
             if i >= limit:
