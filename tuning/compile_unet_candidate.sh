@@ -10,7 +10,7 @@ shift 2
 readonly BASE_DIR="$(dirname "${INPUT}")"
 readonly CANDIDATE="$(basename "${INPUT}" _spec.mlir)"
 
-timeout 180s "${SCRIPT_DIR}/../compile-unet-base.sh" "${SCRIPT_DIR}/tools/iree-compile" gfx942 \
+timeout 180s "${SCRIPT_DIR}/../fp16-model/compile-unet-base.sh" "${SCRIPT_DIR}/tools/iree-compile" gfx942 \
   "$MODE" \
   "$INPUT" \
   "${SCRIPT_DIR}/unet.mlir" \
