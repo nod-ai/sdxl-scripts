@@ -14,7 +14,7 @@ shift
 set -x
 
 "${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
-  "${SCRIPT_DIR}/base_ir/punet_06_26_all_signed.mlir" \
+  "${SCRIPT_DIR}/base_ir/punet_06_29.mlir" \
   --iree-hal-dump-executable-configurations-to="${WORKING_DIR}/configurations/punet" \
   --iree-hal-dump-executable-sources-to="${WORKING_DIR}/sources/punet" \
   --iree-hal-dump-executable-binaries-to="${WORKING_DIR}/binaries/punet" \
