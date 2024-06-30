@@ -13,6 +13,11 @@ shift
 
 set -x
 
+rm -rf "${WORKING_DIR}/configurations/punet"
+rm -rf "${WORKING_DIR}/sources/punet"
+rm -rf "${WORKING_DIR}/binaries/punet"
+rm -rf "${WORKING_DIR}/benchmarks/punet"
+
 "${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
   "${SCRIPT_DIR}/base_ir/punet_06_29.mlir" \
   --iree-hal-dump-executable-configurations-to="${WORKING_DIR}/configurations/punet" \
