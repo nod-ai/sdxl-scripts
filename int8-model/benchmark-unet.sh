@@ -15,7 +15,7 @@ iree-benchmark-module \
   --device=rocm://$1 \
   --device_allocator=caching \
   --module=$PWD/tmp/punet.vmfb \
-  --parameters=model=/data/home/slaurenz/tmp/stassets/integration.models.punet.integration_test/sdxl_int8_dataset.irpa \
+  --parameters=model=${IRPA_PATH_PREFIX}/sdxl_int8_dataset.irpa \
   --function=main \
   --input=1x4x128x128xf16 \
   --input=1xi64 \
