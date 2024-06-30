@@ -42,7 +42,6 @@ set -x
     --iree-hal-target-backends=rocm \
     --iree-rocm-target-chip="$CHIP" \
     --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-2024-03-07" \
-    --iree-opt-const-expr-hoisting=false \
     --iree-opt-const-eval=false \
     --iree-opt-const-expr-hoisting=false \
     --iree-opt-data-tiling=false \
