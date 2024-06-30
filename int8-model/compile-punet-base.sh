@@ -24,6 +24,11 @@ fi
 
 shift 3
 
+readonly DEFAULT_FLAGS=(
+  "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics))"
+)
+declare -a FLAGS=("${DEFAULT_FLAGS[*]}")
+
 set -x
 
 "$IREE_COMPILE" "$INPUT" \
@@ -40,4 +45,5 @@ set -x
     --iree-llvmgpu-enable-prefetch \
     --iree-codegen-gpu-native-math-precision=true \
     --iree-execution-model=async-external \
+    "${FLAGS[@]}" \
     "$@"
