@@ -11,6 +11,12 @@ readonly CHIP="$1"
 WORKING_DIR=${WORKING_DIR:-${SCRIPT_DIR}}
 shift
 
+TRANSFORM_PREFIX=""
+if [[ "${1:-}" =~ ^(splat|SPLAT)$ ]] ; then
+  TRANSFORM_PREFIX="splat_"
+  shift
+fi
+
 set -x
 
 rm -rf "${WORKING_DIR}/configurations/punet"
@@ -19,6 +25,7 @@ rm -rf "${WORKING_DIR}/binaries/punet"
 rm -rf "${WORKING_DIR}/benchmarks/punet"
 
 "${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
+  "${SCRIPT_DIR}/specs/${TRANSFORM_PREFIX}attention_and_matmul_spec.mlir" \
   "${SCRIPT_DIR}/base_ir/punet_06_29.mlir" \
   --iree-hal-dump-executable-configurations-to="${WORKING_DIR}/configurations/punet" \
   --iree-hal-dump-executable-sources-to="${WORKING_DIR}/sources/punet" \

@@ -16,13 +16,20 @@ fi
 
 readonly CHIP="$2"
 
-readonly INPUT="$(realpath "$3")"
+readonly ATTENTION_SPEC="$(realpath "$3")"
+if [ ! -f "$ATTENTION_SPEC" ] ; then
+  echo "Specified attention spec file not found: ${ATTENTION_SPEC}"
+  exit 1
+fi
+
+readonly INPUT="$(realpath "$4")"
 if [ ! -f "$INPUT" ] ; then
   echo "Input mlir file not found: ${INPUT}"
   exit 1
 fi
 
-shift 3
+
+shift 4
 
 readonly DEFAULT_FLAGS=(
   "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics))"
@@ -45,5 +52,6 @@ set -x
     --iree-llvmgpu-enable-prefetch \
     --iree-codegen-gpu-native-math-precision=true \
     --iree-execution-model=async-external \
+    --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
     "${FLAGS[@]}" \
     "$@"
