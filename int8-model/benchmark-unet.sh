@@ -18,7 +18,7 @@ iree-benchmark-module \
   --parameters=model=${IRPA_PATH_PREFIX}/sdxl_int8_dataset.irpa \
   --function=main \
   --input=1x4x128x128xf16 \
-  --input=1xi64 \
+  --input=1xsi32 \
   --input=2x64x2048xf16 \
   --input=2x1280xf16 \
   --input=2x6xf16 \
