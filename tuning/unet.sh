@@ -7,7 +7,7 @@ readonly MODE="$1"
 readonly INPUT="$(realpath "$2")"
 shift 2
 
-"${SCRIPT_DIR}/../compile-unet-base.sh" "${SCRIPT_DIR}/tools/iree-compile" gfx942 "$MODE" \
+"${SCRIPT_DIR}/../fp16-model/compile-unet-base.sh" "${SCRIPT_DIR}/tools/iree-compile" gfx942 "$MODE" \
   "${SCRIPT_DIR}/config.mlir" \
   "$INPUT" \
   "$@"
