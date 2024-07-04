@@ -7,9 +7,15 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 Using the IREE's Python bindings:
-```shell
-source ../iree-build/.env && export PYTHONPATH
-```
+   - Building with CMake
+     ```shell
+     -DIREE_BUILD_PYTHON_BINDINGS=ON
+     -DPython3_EXECUTABLE="$(which python)"
+     ```
+   - Set environment
+      ```shell
+      source ../iree-build/.env && export PYTHONPATH
+      ```
 For more information, refer to the [IREE documentation](https://iree.dev/building-from-source/getting-started/#python-bindings)
 
 ### Overall flow
@@ -17,7 +23,6 @@ For more information, refer to the [IREE documentation](https://iree.dev/buildin
 1. Simlink all scripts and mlir/irpa files in your build dir.
    - Symlink `iree-build-dir/tools` inside `sdxl-scripts/tuning`.
    - Symlink UNet MLIR and weights based on `unet.sh`.
-     - The full UNet is in `sdxl-scripts/*-model/specs`.
      - The weights are on the mi300-perf machine under `/data`.
      - Usage: `/data/home/perf/data/shark/scheduled_unet.irpa`.
 
