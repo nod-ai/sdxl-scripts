@@ -23,8 +23,9 @@ For more information, refer to the [IREE documentation](https://iree.dev/buildin
 1. Symlink all scripts and mlir/irpa files in your build dir.
    - Symlink `iree-build-dir/tools` inside `sdxl-scripts/tuning`.
    - Symlink UNet MLIR and weights based on `unet.sh`.
+     - The full unet is in `sdxl-scripts/*-model/base_ir`
      - The weights are on the mi300-perf machine under `/data`.
-     - Usage: `/data/home/perf/data/shark/scheduled_unet.irpa`.
+        - Usage: `/data/home/perf/data/shark/scheduled_unet.irpa`.
 
 2. Copy the attention/matmul spec as `config.mlir` in the tuning dir. 
 ```shell
