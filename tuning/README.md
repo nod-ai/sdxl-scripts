@@ -22,18 +22,28 @@ For more information, refer to the [IREE documentation](https://iree.dev/buildin
 
 1. Symlink all scripts and mlir/irpa files in your build dir.
    - Symlink `iree-build-dir/tools` inside `sdxl-scripts/tuning`.
+     ```shell
+     ln -s ../iree-build-dir/tools ../sdxl-scripts
+     ```
    - Symlink UNet MLIR and weights based on `unet.sh`.
      - The full unet is in `sdxl-scripts/*-model/base_ir`
      - The weights are on the mi300-perf machine under `/data`.
-        - Usage: `/data/home/perf/data/shark/scheduled_unet.irpa`.
+     - Example:
+        ```shell
+        cd tuning
+        ln -s ~/iree/sdxl-scripts/fp16-model/base_ir/stable_diffusion_xl_base_1_0_64_1024x1024_fp16_unet.mlir unet.mlir
+        ln -s /data/home/perf/data/shark/scheduled_unet.irpa unet.irpa
+        ```
 
-2. Copy the attention/matmul spec as `config.mlir` in the tuning dir. 
-```shell
-cd tuning
-cp ../specs/attention_and_matmul_spec.mlir config.mlir
-```
+2. Copy the attention/matmul spec as `config.mlir` in the tuning dir.
+   - The full spec.mlir is in `sdxl-scripts/*-model/specs`
+   - Example:
+   ```shell
+   cd tuning
+   cp ~/iree/sdxl-scripts/fp16-model/specs/attention_and_matmul_spec.mlir config.mlir
+   ```
 
-3. Temporarily comment out all the existing configs in `config.mlir`.
+4. Temporarily comment out all the existing configs in `config.mlir`.
    - Example:
      ```mlir
      // , @match_mmt_2048x10240x1280 -> @apply_op_config
@@ -41,7 +51,7 @@ cp ../specs/attention_and_matmul_spec.mlir config.mlir
      // , @match_mmt_2048x1280x1280 -> @apply_op_config
      ```
 
-4. Compile a baseline unet
+5. Compile a baseline unet
 ```shell
 ./unet.sh winograd unet.mlir -o unet_baseline.vmfb --iree-hal-dump-executable-files-to=dump-winograd
 ```
