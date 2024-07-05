@@ -20,7 +20,7 @@ For more information, refer to the [IREE documentation](https://iree.dev/buildin
 
 ### Overall flow
 
-1. Simlink all scripts and mlir/irpa files in your build dir.
+1. Symlink all scripts and mlir/irpa files in your build dir.
    - Symlink `iree-build-dir/tools` inside `sdxl-scripts/tuning`.
    - Symlink UNet MLIR and weights based on `unet.sh`.
      - The weights are on the mi300-perf machine under `/data`.
