@@ -9,7 +9,7 @@ source .venv/bin/activate
 Using the IREE's Python bindings:
    - Building with CMake
      ```shell
-     -DIREE_BUILD_PYTHON_BINDINGS=ON
+     -DIREE_BUILD_PYTHON_BINDINGS=ON \
      -DPython3_EXECUTABLE="$(which python)"
      ```
    - Set environment
