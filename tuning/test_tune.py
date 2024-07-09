@@ -198,7 +198,7 @@ def test_apply_params_mmt():
         "<intrinsic = #iree_gpu.mma_layout<16x16x16_F32>, subgroup_m_count = 16, subgroup_n_count = 16>",
         "<LLVMGPUVectorDistribute workgroup_size = [16, 16] subgroup_size = 16,",
         "<tile_sizes = [[8, 8, 8]]>",
-        ", waves_per_eu = 8 : i64",
+        '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}',
     ]
 
     M, N, K = 2048, 1280, 1280
@@ -226,7 +226,7 @@ def test_apply_params_mmt():
         in modified
     )
     assert "tile_sizes = [[8, 8, 8]]" in modified
-    assert "waves_per_eu = 8 : i64" in modified
+    assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "8"}' in modified
 
 
 def test_apply_params_conv():
@@ -234,7 +234,7 @@ def test_apply_params_conv():
         "<intrinsic = #iree_gpu.mma_layout<16x16x16_F32>, subgroup_m_count = 16, subgroup_n_count = 16>",
         "<LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64,",
         "<tile_sizes = [[1, 1, 64, 128, 1, 1, 32]]>",
-        ", waves_per_eu = 2 : i64",
+        '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}',
     ]
 
     n, oh, ow, oc, fh, fw, ic = 2, 64, 64, 640, 3, 3, 640
@@ -246,7 +246,7 @@ def test_apply_params_conv():
         tile_sizes=[464, 320, 16],
         subgroup_m_count=1,
         subgroup_n_count=4,
-        waves_per_eu=1,
+        waves_per_eu=2,
     )
 
     modified, embeddable = tune.apply_params_conv(
@@ -264,7 +264,7 @@ def test_apply_params_conv():
         in modified
     )
     assert "tile_sizes = [[1, 1, 464, 320, 1, 1, 16]]" in modified
-    assert "waves_per_eu = 1 : i64" in modified
+    assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}' in modified
 
 
 def test_apply_params_contract():
@@ -272,7 +272,7 @@ def test_apply_params_contract():
         "<intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>, subgroup_m_count = 2, subgroup_n_count = 2>}>",
         "<LLVMGPUVectorDistribute workgroup_size = [128, 2, 1] subgroup_size = 64,",
         "<tile_sizes = [[1, 1, 1, 64, 64, 128]]>",
-        ", waves_per_eu = 2 : i64",
+        '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}',
     ]
 
     LHS, RHS, RES = ([2, 1024, 1280], [3, 20, 64, 1280], [3, 2, 20, 1024, 64])
@@ -303,7 +303,7 @@ def test_apply_params_contract():
         in new_mlir
     )
     assert "tile_sizes = [[1, 480, 384, 32]]" in new_mlir
-    assert ", waves_per_eu = 2 : i64" in new_mlir
+    assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}' in new_mlir
 
 
 def test_apply_params_batch_matmul():
@@ -311,7 +311,7 @@ def test_apply_params_batch_matmul():
         "<intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>, subgroup_m_count = 4, subgroup_n_count = 1>}>",
         "<LLVMGPUVectorDistribute workgroup_size = [64, 4, 1] subgroup_size = 64,",
         "<tile_sizes = [[1, 128, 64, 64]]>",
-        ", waves_per_eu = 2 : i64",
+        '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}',
     ]
 
     LHS, RHS, RES = ([64, 968, 640], [64, 640, 320], [64, 968, 320])
@@ -325,7 +325,7 @@ def test_apply_params_batch_matmul():
         tile_sizes=[416, 320, 128],
         subgroup_m_count=2,
         subgroup_n_count=2,
-        waves_per_eu=1,
+        waves_per_eu=2,
     )
 
     modified, embeddable = tune.apply_params_batch_matmul(
@@ -343,7 +343,7 @@ def test_apply_params_batch_matmul():
         in modified
     )
     assert "tile_sizes = [[1, 416, 320, 128]]" in modified
-    assert "waves_per_eu = 1 : i64" in modified
+    assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}' in modified
 
 
 def test_parse_mlir():

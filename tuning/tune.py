@@ -207,11 +207,11 @@ def apply_params_mmt(M, N, K, template, configuration: Configuration):
         r"LLVMGPUVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),"
     )
     expr2 = re.compile(r"tile_sizes = \[\[([0-9]+), ([0-9]+), ([0-9]+)\]\]")
-    expr3 = re.compile(r", waves_per_eu = ([0-9]) : i64")
-    repl0 = f"<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}"
+    expr3 = re.compile(r"\"amdgpu-waves-per-eu\" = \"([0-9])\"")
+    repl0 = f"<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>"
     repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_mmt_tile_sizes(configuration)))}]]'
-    repl3 = f", waves_per_eu = {configuration.waves_per_eu} : i64"
+    repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
 
     modified = indent(
         get_transform_function_mmt(M, N, K, f"match_mmt_{M}x{N}x{K}", configuration),
@@ -224,7 +224,7 @@ def apply_params_mmt(M, N, K, template, configuration: Configuration):
             line = re.sub(expr1, repl1, line)
         if "tile_sizes" in line:
             line = re.sub(expr2, repl2, line)
-        if "waves_per_eu" in line:
+        if "amdgpu-waves-per-eu" in line:
             line = re.sub(expr3, repl3, line)
         modified += line
 
@@ -246,13 +246,13 @@ def apply_params_conv(
         r"LLVMGPUVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),"
     )
     expr2 = re.compile(r"tile_sizes = \[\[([0-9]+)(, ([0-9]+))+\]\]")
-    expr3 = re.compile(r", waves_per_eu = ([0-9]) : i64")
-    repl0 = f"<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}"
+    expr3 = re.compile(r"\"amdgpu-waves-per-eu\" = \"([0-9])\"")
+    repl0 = f"<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>"
     repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
     repl2 = (
         f'tile_sizes = [[{", ".join(map(str, get_conv_tile_sizes(configuration)))}]]'
     )
-    repl3 = f", waves_per_eu = {configuration.waves_per_eu} : i64"
+    repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
 
     modified = indent(
         get_transform_function_conv(
@@ -275,7 +275,7 @@ def apply_params_conv(
             line = re.sub(expr1, repl1, line)
         if "tile_sizes" in line:
             line = re.sub(expr2, repl2, line)
-        if "waves_per_eu" in line:
+        if "amdgpu-waves-per-eu" in line:
             line = re.sub(expr3, repl3, line)
         modified += line
 
@@ -300,11 +300,11 @@ def apply_params_contract(
         r"LLVMGPUVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),"
     )
     expr2 = re.compile(r"tile_sizes = \[\[(([0-9]+), )+([0-9]+)\]\]")
-    expr3 = re.compile(r", waves_per_eu = ([0-9]) : i64")
+    expr3 = re.compile(r"\"amdgpu-waves-per-eu\" = \"([0-9])\"")
     repl0 = f"<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}"
     repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))}]]'
-    repl3 = f", waves_per_eu = {configuration.waves_per_eu} : i64"
+    repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
 
     modified = ""  # indent(get_transform_function_mmt(f'match_mmt_{M}x{N}x{K}', configuration), '//   ', M, N, K)
     for line in template:
@@ -314,7 +314,7 @@ def apply_params_contract(
             line = re.sub(expr1, repl1, line)
         if "tile_sizes" in line:
             line = re.sub(expr2, repl2, line)
-        if "waves_per_eu" in line:
+        if "amdgpu-waves-per-eu" in line:
             line = re.sub(expr3, repl3, line)
         modified += line
 
@@ -333,11 +333,11 @@ def apply_params_batch_matmul(
         r"LLVMGPUPandAndVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),"
     )
     expr2 = re.compile(r"tile_sizes = \[\[(([0-9]+), )+([0-9]+)\]\]")
-    expr3 = re.compile(r", waves_per_eu = ([0-9]) : i64")
+    expr3 = re.compile(r"\"amdgpu-waves-per-eu\" = \"([0-9])\"")
     repl0 = f"<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}"
     repl1 = f'LLVMGPUPadAndVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))}]]'
-    repl3 = f", waves_per_eu = {configuration.waves_per_eu} : i64"
+    repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
 
     modified = indent(
         get_transform_function_batch_matmul(
@@ -357,7 +357,7 @@ def apply_params_batch_matmul(
             line = re.sub(expr1, repl1, line)
         if "tile_sizes" in line:
             line = re.sub(expr2, repl2, line)
-        if "waves_per_eu" in line:
+        if "amdgpu-waves-per-eu" in line:
             line = re.sub(expr3, repl3, line)
         modified += line
 

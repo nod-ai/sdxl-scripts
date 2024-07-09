@@ -175,7 +175,7 @@ def handle_error(
     """Handles errors with logging and optional program exit"""
     if not condition:
         return
-    
+
     # Log the message with the specified level
     if level == logging.ERROR:
         logging.error(msg)
@@ -614,9 +614,8 @@ def benchmark_unet(
                     logging.error(f"Failed: {command}")
                 else:
                     # Update candidate tracker
-                    parts = (
-                        result.stdout.split()
-                    )  # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
+                    # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
+                    parts = result.stdout.split()
                     if "unet_baseline.vmfb" in parts[1]:
                         candidate_trackers[0].unet_benchmark_time = (
                             float(parts[6])
