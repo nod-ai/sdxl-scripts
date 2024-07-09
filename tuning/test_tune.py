@@ -14,7 +14,7 @@ def test_get_mmt_tile_sizes():
         tile_sizes=[128, 320, 32],
         subgroup_m_count=0,
         subgroup_n_count=0,
-        waves_per_eu=0
+        waves_per_eu=0,
     )
     assert tune.get_mmt_tile_sizes(config) == [128, 320, 32]
 
@@ -27,7 +27,7 @@ def test_get_conv_tile_sizes():
         tile_sizes=[464, 320, 16],
         subgroup_m_count=1,
         subgroup_n_count=4,
-        waves_per_eu=1
+        waves_per_eu=1,
     )
     assert tune.get_conv_tile_sizes(config) == (1, 1, 464, 320, 1, 1, 16)
 
@@ -40,7 +40,7 @@ def test_get_contract_tile_sizes():
         tile_sizes=[4, 8, 16],
         subgroup_m_count=1,
         subgroup_n_count=1,
-        waves_per_eu=2
+        waves_per_eu=2,
     )
     assert tune.get_contract_tile_sizes(config, ["m", "n", "k"]) == [4, 8, 16]
     assert tune.get_contract_tile_sizes(config, ["n", "m", "k"]) == [8, 4, 16]
@@ -56,7 +56,7 @@ def test_get_pipeline_config():
         tile_sizes=[4, 8, 16],
         subgroup_m_count=1,
         subgroup_n_count=1,
-        waves_per_eu=2
+        waves_per_eu=2,
     )
     config2 = tune.Configuration(
         subgroup_size=32,
@@ -65,12 +65,12 @@ def test_get_pipeline_config():
         tile_sizes=[4, 8, 16],
         subgroup_m_count=1,
         subgroup_n_count=1,
-        waves_per_eu=4
+        waves_per_eu=4,
     )
-    assert tune.get_pipeline_config(config1) == ""
+    assert tune.get_pipeline_config(config1) == ", prefetch_shared_memory"
     assert (
         tune.get_pipeline_config(config2)
-        == ', llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}'
+        == ', prefetch_shared_memory, llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}'
     )
 
 
@@ -152,7 +152,7 @@ def test_generate_constraints_valid_input():
         [wg_x, wg_y, wg_z],
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu
+        waves_per_eu,
     )
 
     solver = tune.z3.Solver()
@@ -182,7 +182,7 @@ def test_generate_constraints_invalid_input():
         [wg_x, wg_y, wg_z],
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu
+        waves_per_eu,
     )
     constraints.append(m > 1000)  # Adding an additional unsatisfiable constraint
 
@@ -210,7 +210,7 @@ def test_apply_params_mmt():
         tile_sizes=[8, 8, 8],
         subgroup_m_count=16,
         subgroup_n_count=16,
-        waves_per_eu=8
+        waves_per_eu=8,
     )
 
     modified, embeddable = tune.apply_params_mmt(M, N, K, mlir_template, config)
@@ -246,7 +246,7 @@ def test_apply_params_conv():
         tile_sizes=[464, 320, 16],
         subgroup_m_count=1,
         subgroup_n_count=4,
-        waves_per_eu=1
+        waves_per_eu=1,
     )
 
     modified, embeddable = tune.apply_params_conv(
@@ -286,7 +286,7 @@ def test_apply_params_contract():
         tile_sizes=[480, 384, 32],
         subgroup_m_count=1,
         subgroup_n_count=4,
-        waves_per_eu=2
+        waves_per_eu=2,
     )
 
     new_mlir = tune.apply_params_contract(
@@ -325,7 +325,7 @@ def test_apply_params_batch_matmul():
         tile_sizes=[416, 320, 128],
         subgroup_m_count=2,
         subgroup_n_count=2,
-        waves_per_eu=1
+        waves_per_eu=1,
     )
 
     modified, embeddable = tune.apply_params_batch_matmul(
@@ -345,6 +345,7 @@ def test_apply_params_batch_matmul():
     assert "tile_sizes = [[1, 416, 320, 128]]" in modified
     assert "waves_per_eu = 1 : i64" in modified
 
+
 def test_parse_mlir():
     mlir_str = r"""
     builtin.module  {
@@ -359,9 +360,10 @@ def test_parse_mlir():
     assert isinstance(mlir_module, tune.ireec._mlir_libs._mlir.ir.Module)
     assert isinstance(mlir_module.body.operations[0], tune.ireec.dialects.func.FuncOp)
 
+
 def test_walk_mlir_op():
     def detect_mlir_type(mlir_file_path):
-        with open(mlir_file_path, 'r') as f:
+        with open(mlir_file_path, "r") as f:
             mlir_text = f.read()
         mlir_module = tune.parse_mlir(mlir_text)
         walk_result = tune.walk_mlir_op(mlir_module)
