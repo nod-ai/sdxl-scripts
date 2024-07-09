@@ -85,7 +85,7 @@ def get_contract_tile_sizes(configuration: Configuration, tile_dims):
 
 
 def get_pipeline_config(configuration: Configuration) -> str:
-    extra_config = ""
+    extra_config = ", prefetch_shared_memory"
     if configuration.waves_per_eu != 2:
         extra_config += f', llvm_func_attrs = {{"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"}}'
     return extra_config
