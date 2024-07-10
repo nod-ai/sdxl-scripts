@@ -41,7 +41,8 @@ class DispatchKind(Enum):
     conv = 1
     mmt = 2
     contraction = 3
-    batch_matmul = 4
+    batch_mmt = 4
+    batch_matmul = 5
 
 
 @dataclass
@@ -159,6 +160,10 @@ def get_contract_tile_sizes(configuration: Configuration, tile_dims: str) -> lis
         if dim == "k":
             tile_size[idx] = k
     return tile_size
+
+
+def get_batch_mmt_tile_sizes(configuration: Configuration) -> list[int]:
+    return [1] + configuration.tile_sizes
 
 
 def get_pipeline_config(configuration: Configuration) -> str:
@@ -356,10 +361,13 @@ def apply_params_contract(
     tile_dims: str,
     template: list[str],
     configuration: Configuration,
-) -> str:
+) -> tuple[str, str]:
     # TODO: Generate transform function.
-    return apply_configuration(
-        template, configuration, get_contract_tile_sizes(configuration, tile_dims)
+    return (
+        apply_configuration(
+            template, configuration, get_contract_tile_sizes(configuration, tile_dims)
+        ),
+        "",
     )
 
 
@@ -391,6 +399,18 @@ def apply_params_batch_matmul(
         "  ",
     )
     return modified, embeddable
+
+
+def apply_params_batch_mmt(
+    problem_size: ProblemSize, template: list[str], configuration: Configuration
+) -> tuple[str, str]:
+    # TODO: Generate transform function.
+    return (
+        apply_configuration(
+            template, configuration, get_batch_mmt_tile_sizes(configuration)
+        ),
+        "",
+    )
 
 
 def parse_tensor_type(tensor_type: str) -> ShapedType:
@@ -598,6 +618,52 @@ def get_shapes_batch_matmul(
             rhs_type=rhs_shaped_type,
             res_type=res_shaped_type,
             dispatch_kind=DispatchKind.batch_matmul,
+        )
+
+    assert False, "Shape not found"
+
+
+def get_shapes_batch_mmt(template: list[str]) -> ProblemSize:
+    for line in template:
+        if "linalg.generic" not in line:
+            continue
+        if (
+            r'iterator_types = ["parallel", "parallel", "parallel", "reduction"]'
+            not in line
+        ):
+            continue
+        # ins(%11, %12 : tensor<2x4096x640xi8>, tensor<2x640x640xi8>) outs(%19 : tensor<2x4096x640xi32>)
+        bmmt_re = rf"{MlirRegex.dps_ins_two_args()}\s+{MlirRegex.dps_outs_one_arg()}"
+        dps = re.search(bmmt_re, line)
+        if dps is None:
+            continue
+
+        lhs_tensor_type = dps.group("LHS")
+        rhs_tensor_type = dps.group("RHS")
+        lhs_shaped_type = parse_tensor_type(lhs_tensor_type)
+        assert lhs_shaped_type.rank() == 3
+
+        rhs_shaped_type = parse_tensor_type(rhs_tensor_type)
+        assert rhs_shaped_type.rank() == 3
+
+        res_tensor_type = dps.group("RES")
+        res_shaped_type = parse_tensor_type(res_tensor_type)
+        assert res_shaped_type.rank() == 3
+
+        B0, M0, K0 = lhs_shaped_type.shape
+        B1, N1, K1 = rhs_shaped_type.shape
+        B2, M2, N2 = res_shaped_type.shape
+        assert B0 == B1
+        assert B0 == B2
+        assert M0 == M2
+        assert N1 == N2
+        assert K0 == K1
+        return ProblemSize(
+            MatmulSize(M0, N1, K0, B0),
+            lhs_shaped_type,
+            rhs_shaped_type,
+            res_shaped_type,
+            DispatchKind.batch_mmt,
         )
 
     assert False, "Shape not found"
@@ -840,22 +906,26 @@ def walk_callback_detect_type(
     if op.name == "linalg.conv_2d_nhwc_hwcf":
         walk_result.was_interrupted = True
         walk_result.dispatch_kind = DispatchKind.conv
-
         return ir.WalkResult.INTERRUPT
+
     if op.name == "util.func":
-        if "matmul_transpose_b" in str(op.opview.sym_name):
+        func_name = str(op.opview.sym_name)
+        if "batch_matmul_transpose_b" in func_name:
             walk_result.was_interrupted = True
-            walk_result.dispatch_kind = DispatchKind.mmt
+            walk_result.dispatch_kind = DispatchKind.batch_mmt
             return ir.WalkResult.INTERRUPT
-        if "matmul_like" in str(op.opview.sym_name):
-            walk_result.was_interrupted = True
-            walk_result.dispatch_kind = DispatchKind.contraction
-            return ir.WalkResult.INTERRUPT
-        if "batch_matmul" in str(op.opview.sym_name):
+        if "batch_matmul" in func_name:
             walk_result.was_interrupted = True
             walk_result.dispatch_kind = DispatchKind.batch_matmul
             return ir.WalkResult.INTERRUPT
-
+        if "matmul_transpose_b" in func_name:
+            walk_result.was_interrupted = True
+            walk_result.dispatch_kind = DispatchKind.mmt
+            return ir.WalkResult.INTERRUPT
+        if "matmul_like" in func_name:
+            walk_result.was_interrupted = True
+            walk_result.dispatch_kind = DispatchKind.contraction
+            return ir.WalkResult.INTERRUPT
     return ir.WalkResult.ADVANCE
 
 
@@ -915,9 +985,8 @@ def tune(
         get_shapes_fn = lambda template: get_shapes_contract(
             template, lhs_dims, rhs_dims
         )
-        apply_params_fn = lambda ps, template, config: (
-            apply_params_contract(ps, tile_dims, template, config),
-            "",
+        apply_params_fn = lambda ps, template, config: apply_params_contract(
+            ps, tile_dims, template, config
         )
     elif walk_result.dispatch_kind == DispatchKind.batch_matmul:
         get_shapes_fn = lambda template: get_shapes_batch_matmul(
@@ -926,6 +995,9 @@ def tune(
         apply_params_fn = lambda ps, template, config: apply_params_batch_matmul(
             ps, tile_dims, template, config
         )
+    elif walk_result.dispatch_kind == DispatchKind.batch_mmt:
+        get_shapes_fn = get_shapes_batch_mmt
+        apply_params_fn = apply_params_batch_mmt
     else:
         assert False, f"Unhandled dispatch kind: {walk_result.dispatch_kind}"
 
