@@ -15,6 +15,7 @@ import re
 import hashlib
 from dataclasses import dataclass
 from typing import Literal
+import pickle
 
 """
 Sample Usage:
@@ -335,6 +336,12 @@ def find_collisions(
     return collisions_exist, hash_values
 
 
+def load_pickle(file_path: Path) -> list[any]:
+    with open(file_path, "rb") as file:
+        loaded_array = pickle.load(file)
+    return loaded_array
+
+
 def generate_candidates(
     args: argparse.Namespace, base_dir: Path, candidate_trackers: CandidateTracker
 ) -> tuple[list[Path], Path]:
@@ -374,17 +381,25 @@ def generate_candidates(
         tune_logger.exception("Error in tune.py:")
     logging.debug("tune.py ends")
 
+    candidate_configs = load_pickle(candidates_dir / "configs.pkl")
+    candidate_configs.insert(0, None)  # No Configuration class for 0.mlir
+
     # Create candidate trackers
+    assert len(mlirs) // 2 + 1 == len(candidate_configs)
     candidates = []
     for mlir in mlirs:
         if "_config.mlir" not in mlir.name:
             candidates.append(mlir)
-            new_candidate = CandidateTracker(candidate_id=mlir.stem, mlir_path=mlir)
+            new_candidate = CandidateTracker(
+                candidate_id=mlir.stem,
+                mlir_path=mlir,
+                configuration=candidate_configs[int(mlir.stem)],
+            )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
-                mlir
-            )
+            candidate_trackers[
+                int(mlir.stem.split("_config")[0])
+            ].mlir_config_path = mlir
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
@@ -441,7 +456,9 @@ def compile_candidates(
         candidate_trackers[index].compiled_vmfb_path = compiled_file
 
     handle_error(
-        condition=(good == 0), msg="Failed to compile all candidate .mlir files"
+        condition=(good == 0),
+        msg="Failed to compile all candidate .mlir files",
+        exit_program=False,
     )
     handle_error(
         condition=(compiling_rate < 10),
@@ -511,7 +528,7 @@ def benchmark_top_candidates(
     )
 
     logging.critical(
-        f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)} | Benchmarking Rate: {len(benchmarked_files)/(len(benchmark_results)*100):.1f}%"
+        f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)} | Benchmarking Rate: {(len(benchmarked_files)/len(benchmark_results))*100}%"
     )
 
     handle_error(
@@ -673,6 +690,11 @@ def main():
         args, base_dir, unet_candidates, candidate_trackers
     )
     print(f"Done, stored unet result in {unet_result_log}\n")
+
+    candidate_trackers_file_path = base_dir / "candidate_trackers.pkl"
+    with open(candidate_trackers_file_path, "wb") as file:
+        pickle.dump(candidate_trackers, file)
+    print(f"Candidate trackers are saved in {candidate_trackers_file_path}")
 
     print("Check the detailed log in:")
     print(log_file_path)
