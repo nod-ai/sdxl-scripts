@@ -32,7 +32,7 @@ fi
 shift 4
 
 readonly DEFAULT_FLAGS=(
-  "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics))"
+"--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics))"
 )
 declare -a FLAGS=("${DEFAULT_FLAGS[*]}")
 
@@ -45,6 +45,8 @@ set -x
     --iree-opt-const-eval=false \
     --iree-opt-const-expr-hoisting=false \
     --iree-opt-data-tiling=false \
+    --iree-global-opt-propagate-transposes=true \
+    --iree-opt-aggressively-propagate-transposes=true \
     --iree-flow-enable-aggressive-fusion \
     --iree-vm-target-truncate-unsupported-floats \
     --iree-codegen-llvmgpu-use-vector-distribution \
