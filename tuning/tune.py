@@ -657,7 +657,7 @@ def walk_callback_detect_type(
         walk_result.dispatch_kind = DispatchKind.conv
 
         return ir.WalkResult.INTERRUPT
-    elif op.name == "util.func":
+    if op.name == "util.func":
         if "matmul_transpose_b" in str(op.opview.sym_name):
             walk_result.was_interrupted = True
             walk_result.dispatch_kind = DispatchKind.mmt
