@@ -759,7 +759,6 @@ def tune(
 
     mlir_module = parse_mlir(mlir_text)
     walk_result = walk_mlir_op(mlir_module)
-    walk_result.dispatch_kind = DispatchKind.mmt
     assert walk_result.dispatch_kind != None
 
     # Save the input file as the first candidate.
