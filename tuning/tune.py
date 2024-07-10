@@ -14,6 +14,7 @@ from iree.compiler import ir
 import iree.compiler as ireec
 from iree.compiler.dialects import _linalg_ops_gen, _util_ops_gen
 from enum import Enum
+import pickle
 
 """
 Usage: ./tune.py 121.mlir -o "tuning/candidates" -l 1024 --lhs-dims=mk --rhs-dims=nk --tile-dims=mnk
@@ -503,11 +504,11 @@ def get_shapes_batch_matmul(template):
 
 
 def is_pow2(x, min, max):
-    return z3.Or(list(x == 2**i for i in range(min, max + 1)))
+    return z3.Or(list(x == 2 ** i for i in range(min, max + 1)))
 
 
 def is_not_pow2(x, min, max):
-    return z3.And(list(x != 2**i for i in range(min, max + 1)))
+    return z3.And(list(x != 2 ** i for i in range(min, max + 1)))
 
 
 def generate_constraints(
@@ -651,13 +652,12 @@ def parse_mlir(mlir_text: str) -> ir.Module:
 def walk_callback_detect_type(
     op: ir.Operation, walk_result: OpWalkResult
 ) -> ir.WalkResult:
-    if isinstance(op.opview, ireec.dialects._linalg_ops_gen.Conv2DNhwcHwcfOp):
+    if op.name == "linalg.conv_2d_nhwc_hwcf":
         walk_result.was_interrupted = True
         walk_result.dispatch_kind = DispatchKind.conv
 
         return ir.WalkResult.INTERRUPT
-
-    if isinstance(op.opview, ireec.dialects._util_ops_gen.FuncOp):
+    if op.name == "util.func":
         if "matmul_transpose_b" in str(op.opview.sym_name):
             walk_result.was_interrupted = True
             walk_result.dispatch_kind = DispatchKind.mmt
@@ -716,6 +716,7 @@ def tune(
     with open(path.join(output, f"0.mlir"), "w") as f:
         f.write(mlir_text)
 
+    configs = []
     if walk_result.dispatch_kind == DispatchKind.conv:
         n, oh, ow, oc, fh, fw, ic = get_shapes_conv(mlir_template)
         tune_logger.debug(f"Conv shape: [n{n}, oh{oh}, oc{oc}, fh{fh}, fw{fw}, ic{ic}]")
@@ -728,6 +729,7 @@ def tune(
             if i >= limit:
                 break
             tune_logger.info(f"Solution #{i+1}: {config}")
+            configs.append(config)
             new_mlir, embeddable_tuning = apply_params_conv(
                 n, oh, ow, oc, fh, fw, ic, mlir_template, config
             )
@@ -744,6 +746,7 @@ def tune(
             if i >= limit:
                 break
             tune_logger.info(f"Solution #{i+1}: {config}")
+            configs.append(config)
             new_mlir, embeddable_tuning = apply_params_mmt(
                 M, N, K, mlir_template, config
             )
@@ -766,6 +769,8 @@ def tune(
         for i, config in enumerate(generate_solutions(M, N, K0)):
             if i >= limit:
                 break
+            tune_logger.info(f"Solution #{i+1}: {config}")
+            configs.append(config)
             new_mlir = apply_params_contract(
                 LHS, RHS, RES, tile_dims, mlir_template, config
             )
@@ -789,6 +794,8 @@ def tune(
         for i, config in enumerate(generate_solutions(M, N, K0)):
             if i >= limit:
                 break
+            tune_logger.info(f"Solution #{i+1}: {config}")
+            configs.append(config)
             new_mlir, embeddable_tuning = apply_params_batch_matmul(
                 LHS, RHS, RES, B, M, N, K0, tile_dims, mlir_template, config
             )
@@ -799,6 +806,10 @@ def tune(
                 f.write(embeddable_tuning)
     else:
         assert False
+
+    with open(output / "configs.pkl", "wb") as file:
+        pickle.dump(configs, file)
+    tune_logger.INFO(f"Configurations .pkl is stored in {output/'configs.pkl'}")
 
 
 def main():
