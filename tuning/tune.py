@@ -521,11 +521,11 @@ def get_shapes_batch_matmul(template):
 
 
 def is_pow2(x, min, max):
-    return z3.Or(list(x == 2**i for i in range(min, max + 1)))
+    return z3.Or(list(x == 2 ** i for i in range(min, max + 1)))
 
 
 def is_not_pow2(x, min, max):
-    return z3.And(list(x != 2**i for i in range(min, max + 1)))
+    return z3.And(list(x != 2 ** i for i in range(min, max + 1)))
 
 
 def generate_constraints(
