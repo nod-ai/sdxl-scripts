@@ -591,9 +591,9 @@ def generate_constraints(
     constraints += [wg_k == intrinsic_k * subgroup_k_tile_count]
     constraints += [inner_lhs_dim_size == wg_k]
     if problem_size.dispatch_kind == DispatchKind.mmt:
-        constraints += [inner_rhs_dim_size == wg_n]
-    else:
         constraints += [inner_rhs_dim_size == wg_k]
+    else:
+        constraints += [inner_rhs_dim_size == wg_n]
     constraints += [kMaxVectorLoadBitWidth == 128]
     constraints += [elems_per_thread == kMaxVectorLoadBitWidth / problem_size.rhs_bw]
     constraints += [wg_threads == subgroup_m_count * subgroup_n_count * subgroup_size]
@@ -759,6 +759,7 @@ def tune(
 
     mlir_module = parse_mlir(mlir_text)
     walk_result = walk_mlir_op(mlir_module)
+    walk_result.dispatch_kind = DispatchKind.mmt
     assert walk_result.dispatch_kind != None
 
     # Save the input file as the first candidate.
