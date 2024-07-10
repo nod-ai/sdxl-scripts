@@ -127,14 +127,16 @@ def test_get_shapes_batch_matmul():
 
 def test_generate_solutions():
     M, N, K = 2048, 3840, 1280
+    problem_size = tune.ProblemSize(M, N, K, -1, 16, -1, tune.DispatchKind.mmt)
     configs = None
-    configs = tune.generate_solutions(M, N, K)
+    configs = tune.generate_solutions(problem_size)
     assert configs is not None
 
 
 def test_generate_constraints_valid_input():
     # Define input parameters as z3 Ints
     M, N, K = 256, 384, 32
+    problem_size = tune.ProblemSize(M, N, K, -1, 16, -1, tune.DispatchKind.mmt)
     m, n, k = tune.z3.Int("m"), tune.z3.Int("n"), tune.z3.Int("k")
     subgroup_size = tune.z3.Int("subgroup_size")
     intrinsic_mn = tune.z3.Int("intrinsic_mn")
@@ -145,7 +147,7 @@ def test_generate_constraints_valid_input():
     waves_per_eu = tune.z3.Int("waves_per_eu")
 
     constraints = tune.generate_constraints(
-        [M, N, K],
+        problem_size,
         [m, n, k],
         subgroup_size,
         [intrinsic_mn, intrinsic_k],
@@ -165,6 +167,7 @@ def test_generate_constraints_valid_input():
 def test_generate_constraints_invalid_input():
     # Define input parameters that should lead to unsatisfiable constraints
     M, N, K = 256, 384, 32
+    problem_size = tune.ProblemSize(M, N, K, -1, 16, -1, tune.DispatchKind.mmt)
     m, n, k = tune.z3.Int("m"), tune.z3.Int("n"), tune.z3.Int("k")
     subgroup_size = tune.z3.Int("subgroup_size")
     intrinsic_mn = tune.z3.Int("intrinsic_mn")
@@ -175,7 +178,7 @@ def test_generate_constraints_invalid_input():
     waves_per_eu = tune.z3.Int("waves_per_eu")
 
     constraints = tune.generate_constraints(
-        [M, N, K],
+        problem_size,
         [m, n, k],
         subgroup_size,
         [intrinsic_mn, intrinsic_k],
