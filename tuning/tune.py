@@ -809,7 +809,7 @@ def tune(
 
     with open(output / "configs.pkl", "wb") as file:
         pickle.dump(configs, file)
-    tune_logger.INFO(f"Configurations .pkl is store in {output/'configs.pkl'}")
+    tune_logger.INFO(f"Configurations .pkl is stored in {output/'configs.pkl'}")
 
 
 def main():
