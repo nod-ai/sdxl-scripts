@@ -456,9 +456,7 @@ def compile_candidates(
         candidate_trackers[index].compiled_vmfb_path = compiled_file
 
     handle_error(
-        condition=(good == 0),
-        msg="Failed to compile all candidate .mlir files",
-        exit_program=False,
+        condition=(good == 0), msg="Failed to compile all candidate .mlir files"
     )
     handle_error(
         condition=(compiling_rate < 10),
