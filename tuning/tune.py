@@ -563,36 +563,6 @@ def generate_constraints(
 
     constraints += [z3.Or(waves_per_eu == 1, waves_per_eu == 2, waves_per_eu == 4)]
 
-    wg_n = z3.Int("wg_n")
-    wg_k = z3.Int("wg_k")
-    inner_lhs_dim_size = z3.Int("inner_lhs_dim_size")
-    inner_rhs_dim_size = z3.Int("inner_rhs_dim_size")
-    kMaxVectorLoadBitWidth = z3.Int("kMaxVectorLoadBitWidth")
-    elems_per_thread = z3.Int("elems_per_thread")
-    wg_threads = z3.Int("wg_threads")
-    constraints += [wg_n == intrinsic_mn * subgroup_n_tile_count * subgroup_n_count]
-    constraints += [wg_k == intrinsic_k * subgroup_k_tile_count]
-    constraints += [inner_lhs_dim_size == wg_k]
-    if problem_size.dispatch_kind == DispatchKind.mmt:
-        constraints += [inner_rhs_dim_size == wg_k]
-    else:
-        constraints += [inner_rhs_dim_size == wg_n]
-    constraints += [kMaxVectorLoadBitWidth == 128]
-    constraints += [elems_per_thread == kMaxVectorLoadBitWidth / problem_size.rhs_bw]
-    constraints += [wg_threads == subgroup_m_count * subgroup_n_count * subgroup_size]
-    constraints += [
-        z3.And(
-            z3.Or(
-                (inner_lhs_dim_size / elems_per_thread) % wg_threads == 0,
-                wg_threads % (inner_lhs_dim_size / elems_per_thread) == 0,
-            ),
-            z3.Or(
-                (inner_rhs_dim_size / elems_per_thread) % wg_threads == 0,
-                wg_threads % (inner_rhs_dim_size / elems_per_thread) == 0,
-            ),
-        )
-    ]
-
     return constraints
 
 
@@ -682,13 +652,12 @@ def parse_mlir(mlir_text: str) -> ir.Module:
 def walk_callback_detect_type(
     op: ir.Operation, walk_result: OpWalkResult
 ) -> ir.WalkResult:
-    if isinstance(op.opview, ireec.dialects._linalg_ops_gen.Conv2DNhwcHwcfOp):
+    if op.name == "linalg.conv_2d_nhwc_hwcf":
         walk_result.was_interrupted = True
         walk_result.dispatch_kind = DispatchKind.conv
 
         return ir.WalkResult.INTERRUPT
-
-    if isinstance(op.opview, ireec.dialects._util_ops_gen.FuncOp):
+    elif op.name == "util.func":
         if "matmul_transpose_b" in str(op.opview.sym_name):
             walk_result.was_interrupted = True
             walk_result.dispatch_kind = DispatchKind.mmt
