@@ -524,9 +524,9 @@ def benchmark_top_candidates(
     benchmark_failed_files = sorted(
         benchmark_failed_dir.glob("*.vmfb"), key=numerical_sort_key
     )
-
+    
+    benchmarking_rate = (len(benchmarked_files) / len(benchmark_results)) * 100
     logging.critical(
-        benchmarking_rate = (len(benchmarked_files) / len(benchmark_results)) * 100
         f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)} | Benchmarking Rate: {benchmarking_rate:.1f}%"
     )
 
