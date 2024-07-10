@@ -526,7 +526,8 @@ def benchmark_top_candidates(
     )
 
     logging.critical(
-        f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)} | Benchmarking Rate: {(len(benchmarked_files)/len(benchmark_results))*100}%"
+        benchmarking_rate = (len(benchmarked_files) / len(benchmark_results)) * 100
+        f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)} | Benchmarking Rate: {benchmarking_rate:.1f}%"
     )
 
     handle_error(
