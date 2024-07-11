@@ -14,9 +14,8 @@ from tqdm import tqdm
 import re
 import hashlib
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Type
 import pickle
-from typing import Type
 
 """
 Sample Usage:
