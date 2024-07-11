@@ -54,5 +54,6 @@ set -x
     --iree-codegen-gpu-native-math-precision=true \
     --iree-execution-model=async-external \
     --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
+    --enable-generalize-linalg-matmul-ops \
     "${FLAGS[@]}" \
     "$@"
