@@ -679,7 +679,7 @@ def product(vals):
     return res
 
 
-def get_default_output_dir():
+def get_default_output_dir() -> str:
     from datetime import datetime
 
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
@@ -870,9 +870,9 @@ def tune(
     else:
         assert False
 
-    with open(output / "configs.pkl", "wb") as file:
+    with open(path.join(output, "configs.pkl"), "wb") as file:
         pickle.dump(configs, file)
-    tune_logger.INFO(f"Configurations .pkl is stored in {output/'configs.pkl'}")
+    tune_logger.INFO(f"Configurations .pkl is stored in {output}/'configs.pkl'")
 
 
 def main():
