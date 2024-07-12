@@ -12,7 +12,9 @@ fi
 IRPA_PATH_PREFIX="${2:-/data/shark}"
 
 iree-benchmark-module \
-  --device=rocm://$1 \
+  --device=hip://$1 \
+  --hip_use_streams=true \
+  --hip_allow_inline_execution=true \
   --device_allocator=caching \
   --module=$PWD/tmp/punet.vmfb \
   --parameters=model=${IRPA_PATH_PREFIX}/sdxl_int8_dataset.irpa \
