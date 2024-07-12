@@ -78,7 +78,7 @@ class ShapedType:
 
     def rank(self) -> int:
         return len(self.shape)
-    
+
     @property
     def bitwidth(self) -> int:
         return self.element_type.bitwidth
@@ -291,7 +291,9 @@ def apply_params_mmt(
 
     M, N, K = problem_size.MNK
     modified = indent(
-        get_transform_function_mmt(problem_size, f"match_mmt_{M}x{N}x{K}", configuration),
+        get_transform_function_mmt(
+            problem_size, f"match_mmt_{M}x{N}x{K}", configuration
+        ),
         "//   ",
     )
     for line in template:
@@ -568,7 +570,9 @@ def get_shapes_conv(template: list[str]):
     assert False, "Shape not found"
 
 
-def get_shapes_contract(template: list[str], lhs_dims: str, rhs_dims: str) -> ProblemSize:
+def get_shapes_contract(
+    template: list[str], lhs_dims: str, rhs_dims: str
+) -> ProblemSize:
     for line in template:
         if "linalg.generic" not in line:
             continue
@@ -595,10 +599,22 @@ def get_shapes_contract(template: list[str], lhs_dims: str, rhs_dims: str) -> Pr
         res_shaped_type = parse_tensor_type(res_tensor_type)
         assert res_shaped_type.rank() >= 2
 
-        M = math.prod(val if dim == "m" else 1 for dim, val in zip(lhs_dims, lhs_shaped_type.shape))
-        N = math.prod(val if dim == "n" else 1 for dim, val in zip(rhs_dims, rhs_shaped_type.shape))
-        K0 = math.prod(val if dim == "k" else 1 for dim, val in zip(lhs_dims, lhs_shaped_type.shape))
-        K1 = math.prod(val if dim == "k" else 1 for dim, val in zip(rhs_dims, rhs_shaped_type.shape))
+        M = math.prod(
+            val if dim == "m" else 1
+            for dim, val in zip(lhs_dims, lhs_shaped_type.shape)
+        )
+        N = math.prod(
+            val if dim == "n" else 1
+            for dim, val in zip(rhs_dims, rhs_shaped_type.shape)
+        )
+        K0 = math.prod(
+            val if dim == "k" else 1
+            for dim, val in zip(lhs_dims, lhs_shaped_type.shape)
+        )
+        K1 = math.prod(
+            val if dim == "k" else 1
+            for dim, val in zip(rhs_dims, rhs_shaped_type.shape)
+        )
         assert K0 == K1
 
         return ProblemSize(
@@ -612,7 +628,9 @@ def get_shapes_contract(template: list[str], lhs_dims: str, rhs_dims: str) -> Pr
     assert False, "Shape not found"
 
 
-def get_shapes_batch_matmul(template: list[str], lhs_dims: str, rhs_dims: str) -> ProblemSize:
+def get_shapes_batch_matmul(
+    template: list[str], lhs_dims: str, rhs_dims: str
+) -> ProblemSize:
     for line in template:
         if "linalg.batch_matmul" not in line:
             continue
@@ -634,7 +652,7 @@ def get_shapes_batch_matmul(template: list[str], lhs_dims: str, rhs_dims: str) -
         res_tensor_type = dps.group("RES")
         res_shaped_type = parse_tensor_type(res_tensor_type)
         assert res_shaped_type.rank() == lhs_shaped_type.rank()
-        
+
         LHS = lhs_shaped_type.shape
         RHS = rhs_shaped_type.shape
         RES = res_shaped_type.shape
@@ -648,7 +666,7 @@ def get_shapes_batch_matmul(template: list[str], lhs_dims: str, rhs_dims: str) -
         K1 = math.prod(val if dim == "k" else 1 for dim, val in zip(rhs_dims, RHS))
         assert B == B0 and B == B1
         assert K0 == K1
-        
+
         return ProblemSize(
             MatmulSize(M, N, K0, B),
             lhs_type=lhs_shaped_type,
@@ -661,11 +679,11 @@ def get_shapes_batch_matmul(template: list[str], lhs_dims: str, rhs_dims: str) -
 
 
 def is_pow2(x, min, max):
-    return z3.Or(list(x == 2 ** i for i in range(min, max + 1)))
+    return z3.Or(list(x == 2**i for i in range(min, max + 1)))
 
 
 def is_not_pow2(x, min, max):
-    return z3.And(list(x != 2 ** i for i in range(min, max + 1)))
+    return z3.And(list(x != 2**i for i in range(min, max + 1)))
 
 
 def generate_constraints(
@@ -678,7 +696,11 @@ def generate_constraints(
     subgroup_n_count,
     waves_per_eu,
 ):
-    M, N, K = problem_size.matmul_size.M, problem_size.matmul_size.N, problem_size.matmul_size.K
+    M, N, K = (
+        problem_size.matmul_size.M,
+        problem_size.matmul_size.N,
+        problem_size.matmul_size.K,
+    )
     m, n, k = tile_sizes
     intrinsic_mn, intrinsic_k = intrinsic_size
     wg_x, wg_y, wg_z = workgroup_size
@@ -815,6 +837,7 @@ def generate_solutions(problem_size: ProblemSize):
 
 def get_default_output_dir() -> str:
     from datetime import datetime
+
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
 

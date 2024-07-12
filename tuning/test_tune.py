@@ -12,6 +12,7 @@ def test_get_shaped_type_element_bitwidth():
     assert tune.ShapedType([2048, 512, 384], tune.ElementType.f8).bitwidth == 8
     assert tune.ShapedType([1, 1], tune.ElementType.f16).bitwidth == 16
 
+
 def test_get_shaped_type_to_str():
     assert str(tune.ShapedType([1024, 2048], tune.ElementType.i8)) == "1024x2048xi8"
     assert str(tune.ShapedType([1024], tune.ElementType.f32)) == "1024xf32"
@@ -93,6 +94,7 @@ def test_get_pipeline_config():
         tune.get_pipeline_config(config2)
         == ', prefetch_shared_memory, llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}'
     )
+
 
 def test_get_shapes_mmt():
     template = [
