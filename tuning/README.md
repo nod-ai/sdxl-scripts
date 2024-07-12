@@ -1,10 +1,15 @@
-# Matmul auto-tuning scripts
+# IREE dispatch auto-tuning scripts
 
 ## Prerequisites
 Using virtual environments:
 ```shell
+cd tuning
 python -m venv .venv
 source .venv/bin/activate
+```
+Install python dependencies:
+```shell
+pip install -r ./tuner_requirements/requirements.txt
 ```
 Using the IREE's Python bindings:
    - Building with CMake
@@ -24,13 +29,13 @@ For more information, refer to the [IREE documentation](https://iree.dev/buildin
    - Symlink `iree-build-dir/tools` inside `sdxl-scripts/tuning`.
    - Symlink UNet MLIR and weights based on `unet.sh`.
      - The full unet is in `sdxl-scripts/*-model/base_ir`
-     - The weights are on the mi300-perf machine under `/data`.
+     - The weights are in `sdxl-scripts/*-model/splat`.
    - Example:
    ```shell
    ln -s ~iree/iree-build-dir/tools ~/iree/sdxl-scripts/tools
    cd tuning
    ln -s ~/iree/sdxl-scripts/fp16-model/base_ir/stable_diffusion_xl_base_1_0_64_1024x1024_fp16_unet.mlir unet.mlir
-   ln -s /data/home/perf/data/shark/scheduled_unet.irpa unet.irpa
+   ln -s ~/iree/sdxl-scripts/fp16-model/splat/scheduled_unet.irpa unet.irpa
    ```
 
 2. Copy the attention/matmul spec as `config.mlir` in the tuning dir.
