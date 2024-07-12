@@ -47,15 +47,67 @@ class OpWalkResult:
     dispatch_kind: DispatchKind = None
 
 
+class ElementType(Enum):
+    i8 = 1
+    i32 = 2
+    f8 = 3
+    f16 = 4
+    f32 = 5
+
+    @property
+    def bitwidth(self) -> int:
+        return {
+            ElementType.i8: 8,
+            ElementType.i32: 32,
+            ElementType.f8: 8,
+            ElementType.f16: 16,
+            ElementType.f32: 32,
+        }[self]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 @dataclass
-class ProblemSize:
+class ShapedType:
+    shape: list[int]
+    element_type: ElementType
+
+    def rank(self) -> int:
+        return len(self.shape)
+    
+    @property
+    def bitwidth(self) -> int:
+        return self.element_type.bitwidth
+
+    def __str__(self) -> str:
+        return "x".join(map(str, self.shape)) + "x" + str(self.element_type)
+
+
+@dataclass
+class MatmulSize:
     M: int
     N: int
     K: int
-    lhs_bw: int
-    rhs_bw: int
-    out_bw: int
+    B: int = 1
+
+
+@dataclass
+class ProblemSize:
+    matmul_size: MatmulSize
+    lhs_type: ShapedType
+    rhs_type: ShapedType
+    res_type: ShapedType
     dispatch_kind: DispatchKind
+
+    @property
+    def MNK(self) -> tuple[int, int, int]:
+        return (self.matmul_size.M, self.matmul_size.N, self.matmul_size.K)
+
+
+class MlirRegex(str, Enum):
+    ssa_value = r"%[a-zA-Z0-9-_]+"
+    tensor_type = r"tensor<(([0-9]+x)+((f|i)[0-9]+))>"
 
 
 def read_input_mlir(filename):
@@ -209,9 +261,10 @@ transform.named_sequence @{functionName}(%batch_matmul: !transform.any_op {{tran
 """
 
 
-def apply_params_mmt(M, N, K, template, configuration: Configuration):
+def apply_params_mmt(
+    problem_size: ProblemSize, template: list[str], configuration: Configuration
+) -> tuple[str, str]:
     tune_logger.info(f"{configuration}")
-    extra_config = get_pipeline_config(configuration)
     expr0 = re.compile(
         r"<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>"
     )
@@ -225,6 +278,7 @@ def apply_params_mmt(M, N, K, template, configuration: Configuration):
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_mmt_tile_sizes(configuration)))}]]'
     repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
 
+    M, N, K = problem_size.MNK
     modified = indent(
         get_transform_function_mmt(M, N, K, f"match_mmt_{M}x{N}x{K}", configuration),
         "//   ",
@@ -393,22 +447,69 @@ def get_bit_width() -> tuple[int, int, int]:
     return (lhs_type_bit_width, rhs_type_bit_width, output_type_bit_width)
 
 
-def get_shapes_mmt(template):
+def parse_tensor_type(tensor_type: str) -> ShapedType:
+    shape_match = re.search(MlirRegex.tensor_type, tensor_type)
+    assert shape_match
+
+    shape_str = shape_match.group(1)
+    dims_and_elem = shape_str.split("x")
+    dims = [int(x) for x in dims_and_elem[:-1]]
+    elem = dims_and_elem[-1]
+    str_to_elem_ty = {
+        "i8": ElementType.i8,
+        "i32": ElementType.i32,
+        "f8": ElementType.f8,
+        "f16": ElementType.f16,
+        "f32": ElementType.f32,
+    }
+    return ShapedType(dims, str_to_elem_ty[elem])
+
+
+def get_shapes_mmt(template: list[str]) -> ProblemSize:
     for line in template:
         if "linalg.generic" not in line:
             continue
         if r'iterator_types = ["parallel", "parallel", "reduction"]' not in line:
             continue
         # ins(%13, %14 : tensor<2048x1280xf16>, tensor<1280x1280xf16>) outs(%19 : tensor<2048x1280xf32>)
-        mmt_re = r"ins\(.+tensor<([0-9]+)x([0-9]+)xf16>, tensor<([0-9]+)x([0-9]+)xf16>\).+outs"
-        shape = re.search(mmt_re, line)
-        if shape is None:
+        ins_re = rf"ins\({MlirRegex.ssa_value}, {MlirRegex.ssa_value} : (?P<LHS>{MlirRegex.tensor_type}), (?P<RHS>{MlirRegex.tensor_type})\)"
+        outs_re = rf"outs\({MlirRegex.ssa_value} : (?P<RES>{MlirRegex.tensor_type})\)"
+        mmt_re = rf"{ins_re}\s+{outs_re}"
+        dps = re.search(mmt_re, line)
+        if dps is None:
             continue
 
-        assert len(shape.groups()) == 4
-        M, K0, N, K1 = shape.groups()
-        assert K0 == K1
-        return int(M), int(N), int(K0)
+        lhs_tensor_type = dps.group("LHS")
+        rhs_tensor_type = dps.group("RHS")
+        lhs_shaped_type = parse_tensor_type(lhs_tensor_type)
+        assert lhs_shaped_type.rank() == 2
+        lhs_M, lhs_K = lhs_shaped_type.shape
+
+        rhs_shaped_type = parse_tensor_type(rhs_tensor_type)
+        assert rhs_shaped_type.rank() == 2
+        rhs_N, rhs_K = rhs_shaped_type.shape
+
+        assert lhs_shaped_type.element_type == rhs_shaped_type.element_type
+        assert lhs_K == rhs_K
+
+        res_tensor_type = dps.group("RES")
+        res_shaped_type = parse_tensor_type(res_tensor_type)
+        assert res_shaped_type.rank() == 2
+        res_M, res_N = res_shaped_type.shape
+
+        assert lhs_M == res_M
+        assert rhs_N == res_N
+
+        matmul_size = MatmulSize(
+            lhs_shaped_type.shape[0], rhs_shaped_type.shape[0], lhs_shaped_type.shape[1]
+        )
+        return ProblemSize(
+            matmul_size,
+            lhs_type=lhs_shaped_type,
+            rhs_type=rhs_shaped_type,
+            res_type=res_shaped_type,
+            dispatch_kind=DispatchKind.mmt,
+        )
 
     assert False, "Shape not found"
 
@@ -539,7 +640,7 @@ def generate_constraints(
     subgroup_n_count,
     waves_per_eu,
 ):
-    M, N, K = problem_size.M, problem_size.N, problem_size.K
+    M, N, K = problem_size.matmul_size.M, problem_size.matmul_size.N, problem_size.matmul_size.K
     m, n, k = tile_sizes
     intrinsic_mn, intrinsic_k = intrinsic_size
     wg_x, wg_y, wg_z = workgroup_size
@@ -596,7 +697,9 @@ def generate_constraints(
     else:
         constraints += [inner_rhs_dim_size == wg_n]
     constraints += [kMaxVectorLoadBitWidth == 128]
-    constraints += [elems_per_thread == kMaxVectorLoadBitWidth / problem_size.rhs_bw]
+
+    rhs_bitwidth = problem_size.rhs_type.bitwidth
+    constraints += [elems_per_thread == kMaxVectorLoadBitWidth / rhs_bitwidth]
     constraints += [wg_threads == subgroup_m_count * subgroup_n_count * subgroup_size]
     constraints += [
         z3.And(
@@ -791,11 +894,8 @@ def tune(
             with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
                 f.write(embeddable_tuning)
     elif walk_result.dispatch_kind == DispatchKind.mmt:
-        M, N, K = get_shapes_mmt(mlir_template)
-        tune_logger.debug(f"Matmul shape: [{M}, {N}, {K}]")
-        problem_size = ProblemSize(
-            M, N, K, *get_bit_width(), dispatch_kind=walk_result.dispatch_kind
-        )
+        problem_size: ProblemSize = get_shapes_mmt(mlir_template)
+        tune_logger.debug(f"Matmul problem size: {problem_size}")
 
         for i, config in enumerate(generate_solutions(problem_size)):
             if i >= limit:
@@ -803,7 +903,7 @@ def tune(
             tune_logger.info(f"Solution #{i+1}: {config}")
             configs.append(config)
             new_mlir, embeddable_tuning = apply_params_mmt(
-                M, N, K, mlir_template, config
+                problem_size, mlir_template, config
             )
 
             with open(path.join(output, f"{i+1}.mlir"), "w") as f:
