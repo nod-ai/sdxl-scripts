@@ -44,6 +44,7 @@ set -x
     --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
     --iree-opt-const-eval=false \
     --iree-opt-data-tiling=false \
+    --iree-global-opt-enable-generalize-linalg-matmul-ops=true \
     --iree-global-opt-propagate-transposes=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-flow-enable-aggressive-fusion \
