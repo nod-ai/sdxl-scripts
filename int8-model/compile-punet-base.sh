@@ -32,7 +32,7 @@ fi
 shift 4
 
 readonly DEFAULT_FLAGS=(
-"--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics))"
+"--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics), util.func(iree-preprocessing-generalize-linalg-matmul-experimental))"
 )
 declare -a FLAGS=("${DEFAULT_FLAGS[*]}")
 
@@ -44,7 +44,6 @@ set -x
     --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
     --iree-opt-const-eval=false \
     --iree-opt-data-tiling=false \
-    --iree-global-opt-enable-generalize-linalg-matmul-ops=true \
     --iree-global-opt-propagate-transposes=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-flow-enable-aggressive-fusion \
