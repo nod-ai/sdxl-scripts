@@ -41,7 +41,7 @@ set -x
 "$IREE_COMPILE" "$INPUT" \
     --iree-hal-target-backends=rocm \
     --iree-rocm-target-chip="$CHIP" \
-    --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-2024-03-07" \
+    --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
     --iree-opt-const-eval=false \
     --iree-opt-data-tiling=false \
     --iree-global-opt-propagate-transposes=true \
