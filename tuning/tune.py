@@ -937,7 +937,7 @@ def tune(
             template, lhs_dims, rhs_dims, config
         )
     else:
-        assert False
+        assert False, f"Unhandled dispatch kind: {walk_result.dispatch_kind}"
 
     problem_size = get_shapes_fn(mlir_template)
     tune_logger.debug(str(problem_size))
