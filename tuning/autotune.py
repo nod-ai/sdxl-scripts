@@ -337,7 +337,7 @@ def find_collisions(
 
 
 def load_pickle(file_path: Path) -> list[any]:
-    handle_error(condition=(not file_path.exists()), msg=f"Configuration file not found: {e}", error_type=FileNotFoundError)
+    handle_error(condition=(not file_path.exists()), msg=f"Configuration file not found", error_type=FileNotFoundError)
     with open(file_path, "rb") as file:
         loaded_array = pickle.load(file)
     return loaded_array

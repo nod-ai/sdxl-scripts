@@ -122,7 +122,13 @@ def test_get_shapes_conv():
         r"%8 = linalg.conv_2d_nhwc_hwcf {dilations = dense<1> : vector<2xi64>, lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 32, 256, 1, 1, 32]]>, strides = dense<1> : vector<2xi64>} ins(%5, %6 : tensor<1x3x34x1280xf16>, tensor<3x3x1280x256xf16>) outs(%7 : tensor<1x1x32x256xf32>) -> tensor<1x1x32x256xf32>",
         r"flow.dispatch.tensor.store %8, %2, offsets = [%workgroup_id_z, %workgroup_id_y, 0, %3], sizes = [1, 1, 32, 256], strides = [1, 1, 1, 1] : tensor<1x1x32x256xf32> -> !flow.dispatch.tensor<writeonly:tensor<2x32x32x1280xf32>>",
     ]
-    assert tune.get_shapes_conv(template) == (1, 1, 32, 256, 3, 3, 1280)
+    assert tune.get_shapes_conv(template) == tune.ProblemSize(
+        tune.MatmulSize(32, 256, 11520),
+        tune.ShapedType([1, 3, 34, 1280], tune.ElementType.f16),
+        tune.ShapedType([3, 3, 1280, 256], tune.ElementType.f16),
+        tune.ShapedType([1, 1, 32, 256], tune.ElementType.f32),
+        tune.DispatchKind.conv,
+    )
 
 
 def test_get_shapes_contract():
@@ -300,9 +306,14 @@ def test_apply_params_conv():
         waves_per_eu=2,
     )
 
-    modified, embeddable = tune.apply_params_conv(
-        n, oh, ow, oc, fh, fw, ic, mlir_template, config
+    problem_size = tune.ProblemSize(
+        tune.MatmulSize(oh * ow, oc, fh * fw * ic),
+        tune.ShapedType([n, oh + 2, ow + 2, oc], tune.ElementType.f16),
+        tune.ShapedType([fh, fw, ic, oc], tune.ElementType.f16),
+        tune.ShapedType([n, oh, ow, oc], tune.ElementType.f32),
+        tune.DispatchKind.conv,
     )
+    modified, embeddable = tune.apply_params_conv(problem_size, mlir_template, config)
 
     assert modified is not None
     assert embeddable is not None
