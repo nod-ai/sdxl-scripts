@@ -138,10 +138,12 @@ def test_get_shapes_contract():
         r'%20 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%13, %14 : tensor<2048x1280xf16>, tensor<1280x1280xf16>) outs(%19 : tensor<2048x1280xf32>) attrs =  {lowering_config = #iree_codegen.lowering_config<tile_sizes = [[64, 128, 64]]>} {',
         r"^bb0(%in: f16, %in_0: f16, %out: f32):",
     ]
-    assert tune.get_shapes_contract(template) == (
-        [2048, 1280],
-        [1280, 1280],
-        [2048, 1280],
+    assert tune.get_shapes_contract(template, "mk", "nk") == tune.ProblemSize(
+        tune.MatmulSize(2048, 1280, 1280),
+        tune.ShapedType([2048, 1280], tune.ElementType.f16),
+        tune.ShapedType([1280, 1280], tune.ElementType.f16),
+        tune.ShapedType([2048, 1280], tune.ElementType.f32),
+        tune.DispatchKind.contraction,
     )
 
 
@@ -337,9 +339,14 @@ def test_apply_params_contract():
         '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}',
     ]
 
-    LHS, RHS, RES = ([2, 1024, 1280], [3, 20, 64, 1280], [3, 2, 20, 1024, 64])
     tile_dims = "*mnk"
-    M, N, K0, K1 = (2048, 3840, 1280, 1280)
+    problem_size = tune.ProblemSize(
+        tune.MatmulSize(2048, 3840, 1280),
+        tune.ShapedType([2, 1024, 1280], tune.ElementType.f16),
+        tune.ShapedType([3, 20, 64, 1280], tune.ElementType.f16),
+        tune.ShapedType([3, 2, 20, 1024, 64], tune.ElementType.f32),
+        tune.DispatchKind.contraction,
+    )
 
     config = tune.Configuration(
         subgroup_size=64,
@@ -352,7 +359,7 @@ def test_apply_params_contract():
     )
 
     new_mlir = tune.apply_params_contract(
-        LHS, RHS, RES, tile_dims, mlir_template, config
+        problem_size, tile_dims, mlir_template, config
     )
 
     assert new_mlir is not None

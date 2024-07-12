@@ -365,8 +365,11 @@ def apply_params_conv(
 
 
 def apply_params_contract(
-    LHS, RHS, RES, tile_dims, template, configuration: Configuration
-):
+    problem_size: ProblemSize,
+    tile_dims: str,
+    template: list[str],
+    configuration: Configuration,
+) -> str:
     tune_logger.info(f"{configuration}")
     extra_config = get_pipeline_config(configuration)
     expr0 = re.compile(
@@ -382,7 +385,8 @@ def apply_params_contract(
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))}]]'
     repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
 
-    modified = ""  # indent(get_transform_function_mmt(f'match_mmt_{M}x{N}x{K}', configuration), '//   ', M, N, K)
+    # TODO: Generate transform function.
+    modified = ""
     for line in template:
         if "intrinsic =" in line:
             line = re.sub(expr0, repl0, line)
@@ -565,7 +569,7 @@ def get_shapes_conv(template: list[str]):
     assert False, "Shape not found"
 
 
-def get_shapes_contract(template):
+def get_shapes_contract(template: list[str], lhs_dims: str, rhs_dims: str) -> ProblemSize:
     for line in template:
         if "linalg.generic" not in line:
             continue
@@ -575,27 +579,36 @@ def get_shapes_contract(template):
             continue
 
         # ins(%7, %8 : tensor<2x1024x1280xf16>, tensor<20x64x1280xf16>)
-        tensor_re = r"tensor<([0-9xf]+)>"
-        ins_re = rf"ins\(.+:\s*{tensor_re},\s*{tensor_re}\)"
-        ins_shape = re.search(ins_re, line)
-        if ins_shape is None:
+        cont_re = rf"{MlirRegex.dps_ins_two_args()}\s+{MlirRegex.dps_outs_one_arg()}"
+        dps = re.search(cont_re, line)
+        if dps is None:
             continue
-        tune_logger.debug(f"ins: {ins_shape.groups()}")
 
-        # outs(%11 : tensor<2x20x1024x64xf32>)
-        outs_re = rf"outs\(.+:\s*{tensor_re}\)"
-        outs_shape = re.search(outs_re, line)
-        assert outs_shape is not None
-        tune_logger.debug(f"outs: {outs_shape.groups()}")
+        lhs_tensor_type = dps.group("LHS")
+        rhs_tensor_type = dps.group("RHS")
+        lhs_shaped_type = parse_tensor_type(lhs_tensor_type)
+        assert lhs_shaped_type.rank() == len(lhs_dims)
 
-        assert len(ins_shape.groups()) == 2
-        assert len(outs_shape.groups()) == 1
+        rhs_shaped_type = parse_tensor_type(rhs_tensor_type)
+        assert rhs_shaped_type.rank() == len(rhs_dims)
 
-        in0_dims = get_shape_dims(ins_shape.groups()[0])
-        in1_dims = get_shape_dims(ins_shape.groups()[1])
-        out_dims = get_shape_dims(outs_shape.groups()[0])
+        res_tensor_type = dps.group("RES")
+        res_shaped_type = parse_tensor_type(res_tensor_type)
+        assert res_shaped_type.rank() >= 2
 
-        return in0_dims, in1_dims, out_dims
+        M = product(val if dim == "m" else 1 for dim, val in zip(lhs_dims, lhs_shaped_type.shape))
+        N = product(val if dim == "n" else 1 for dim, val in zip(rhs_dims, rhs_shaped_type.shape))
+        K0 = product(val if dim == "k" else 1 for dim, val in zip(lhs_dims, lhs_shaped_type.shape))
+        K1 = product(val if dim == "k" else 1 for dim, val in zip(rhs_dims, rhs_shaped_type.shape))
+        assert K0 == K1
+
+        return ProblemSize(
+            MatmulSize(M, N, K0),
+            lhs_type=lhs_shaped_type,
+            rhs_type=rhs_shaped_type,
+            res_type=res_shaped_type,
+            dispatch_kind=DispatchKind.contraction,
+        )
 
     assert False, "Shape not found"
 
@@ -915,19 +928,8 @@ def tune(
             with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
                 f.write(embeddable_tuning)
     elif walk_result.dispatch_kind == DispatchKind.contraction:
-        LHS, RHS, RES = get_shapes_contract(mlir_template)
-        tune_logger.debug(f"Contract shape: ({LHS}, {RHS}) -> {RES}")
-        assert len(LHS) == len(lhs_dims)
-        assert len(RHS) == len(rhs_dims)
-        M = product(val if dim == "m" else 1 for dim, val in zip(lhs_dims, LHS))
-        N = product(val if dim == "n" else 1 for dim, val in zip(rhs_dims, RHS))
-        K0 = product(val if dim == "k" else 1 for dim, val in zip(lhs_dims, LHS))
-        K1 = product(val if dim == "k" else 1 for dim, val in zip(rhs_dims, RHS))
-        assert K0 == K1
-        tune_logger.debug(f"Equivalent matmul shape: [{M}, {N}, {K0}]")
-        problem_size = ProblemSize(
-            M, N, K0, *get_bit_width(), dispatch_kind=walk_result.dispatch_kind
-        )
+        problem_size = get_shapes_contract(mlir_template, lhs_dims, rhs_dims)
+        tune_logger.debug(str(problem_size))
 
         for i, config in enumerate(generate_solutions(problem_size)):
             if i >= limit:
@@ -935,7 +937,7 @@ def tune(
             tune_logger.info(f"Solution #{i+1}: {config}")
             configs.append(config)
             new_mlir = apply_params_contract(
-                LHS, RHS, RES, tile_dims, mlir_template, config
+                problem_size, tile_dims, mlir_template, config
             )
 
             with open(path.join(output, f"{i+1}.mlir"), "w") as f:
