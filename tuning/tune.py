@@ -14,6 +14,7 @@ from iree.compiler import ir
 import iree.compiler as ireec
 from iree.compiler.dialects import _linalg_ops_gen, _util_ops_gen
 from enum import Enum
+from typing import Callable
 import pickle
 
 """
@@ -402,8 +403,11 @@ def apply_params_contract(
 
 
 def apply_params_batch_matmul(
-    LHS, RHS, RES, B, M, N, K, tile_dims, template, configuration: Configuration
-):
+    problem_size: ProblemSize,
+    tile_dims: str,
+    template: list[str],
+    configuration: Configuration,
+) -> tuple[str, str]:
     tune_logger.info(f"{configuration}")
     extra_config = get_pipeline_config(configuration)
     expr0 = re.compile(
@@ -419,13 +423,17 @@ def apply_params_batch_matmul(
     repl2 = f'tile_sizes = [[{", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))}]]'
     repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
 
+    M, N, K = problem_size.MNK
+    LHS = problem_size.lhs_type.shape
+    RHS = problem_size.rhs_type.shape
+    RES = problem_size.res_type.shape
     modified = indent(
         get_transform_function_batch_matmul(
             LHS,
             RHS,
             RES,
             tile_dims,
-            f"match_batch_matmul_{B}x{M}x{N}x{K}",
+            f"match_batch_matmul_{problem_size.matmul_size.B}x{M}x{N}x{K}",
             configuration,
         ),
         "//   ",
@@ -448,17 +456,6 @@ def apply_params_batch_matmul(
         "  ",
     )
     return modified, embeddable
-
-
-def get_shape_dims(shape_str):
-    return [int(x) for x in shape_str.split("x")[:-1]]
-
-
-def get_bit_width() -> tuple[int, int, int]:
-    lhs_type_bit_width = -1
-    rhs_type_bit_width = 16
-    output_type_bit_width = -1
-    return (lhs_type_bit_width, rhs_type_bit_width, output_type_bit_width)
 
 
 def parse_tensor_type(tensor_type: str) -> ShapedType:
@@ -613,35 +610,50 @@ def get_shapes_contract(template: list[str], lhs_dims: str, rhs_dims: str) -> Pr
     assert False, "Shape not found"
 
 
-def get_shapes_batch_matmul(template):
+def get_shapes_batch_matmul(template: list[str], lhs_dims: str, rhs_dims: str) -> ProblemSize:
     for line in template:
         if "linalg.batch_matmul" not in line:
             continue
         # ins(%9, %10 : tensor<64x72x1280xf16>, tensor<64x1280x1280xf16>)
         # outs(%12 : tensor<64x72x1280xf32>)
-        tensor_re = r"tensor<([0-9xf]+)>"
-        ins_re = rf"ins\(.+:\s*{tensor_re},\s*{tensor_re}\)"
-        ins_shape = re.search(ins_re, line)
-        if ins_shape is None:
+        cont_re = rf"{MlirRegex.dps_ins_two_args()}\s+{MlirRegex.dps_outs_one_arg()}"
+        dps = re.search(cont_re, line)
+        if dps is None:
             continue
-        tune_logger.debug(f"ins: {ins_shape.groups()}")
 
-        # outs(%11 : tensor<2x20x1024x64xf32>)
-        outs_re = rf"outs\(.+:\s*{tensor_re}\)"
-        outs_shape = re.search(outs_re, line)
-        assert outs_shape is not None
-        tune_logger.debug(f"outs: {outs_shape.groups()}")
+        lhs_tensor_type = dps.group("LHS")
+        rhs_tensor_type = dps.group("RHS")
+        lhs_shaped_type = parse_tensor_type(lhs_tensor_type)
+        assert lhs_shaped_type.rank() == len(lhs_dims)
 
-        assert len(ins_shape.groups()) == 2
-        assert len(outs_shape.groups()) == 1
+        rhs_shaped_type = parse_tensor_type(rhs_tensor_type)
+        assert rhs_shaped_type.rank() == len(rhs_dims)
 
-        in0_dims = get_shape_dims(ins_shape.groups()[0])
-        in1_dims = get_shape_dims(ins_shape.groups()[1])
-        out_dims = get_shape_dims(outs_shape.groups()[0])
+        res_tensor_type = dps.group("RES")
+        res_shaped_type = parse_tensor_type(res_tensor_type)
+        assert res_shaped_type.rank() == lhs_shaped_type.rank()
+        
+        LHS = lhs_shaped_type.shape
+        RHS = rhs_shaped_type.shape
+        RES = res_shaped_type.shape
 
-        assert len(in0_dims) == len(in1_dims)
-        assert len(in0_dims) == len(out_dims)
-        return in0_dims, in1_dims, out_dims
+        B = product(val if dim == "b" else 1 for dim, val in zip(lhs_dims, LHS))
+        B0 = product(val if dim == "b" else 1 for dim, val in zip(lhs_dims, RHS))
+        B1 = product(val if dim == "b" else 1 for dim, val in zip(lhs_dims, RES))
+        M = product(val if dim == "m" else 1 for dim, val in zip(lhs_dims, LHS))
+        N = product(val if dim == "n" else 1 for dim, val in zip(rhs_dims, RHS))
+        K0 = product(val if dim == "k" else 1 for dim, val in zip(lhs_dims, LHS))
+        K1 = product(val if dim == "k" else 1 for dim, val in zip(rhs_dims, RHS))
+        assert B == B0 and B == B1
+        assert K0 == K1
+        
+        return ProblemSize(
+            MatmulSize(M, N, K0, B),
+            lhs_type=lhs_shaped_type,
+            rhs_type=rhs_shaped_type,
+            res_type=res_shaped_type,
+            dispatch_kind=DispatchKind.batch_matmul,
+        )
 
     assert False, "Shape not found"
 
@@ -892,89 +904,51 @@ def tune(
     with open(path.join(output, f"0.mlir"), "w") as f:
         f.write(mlir_text)
 
-    configs = []
+    get_shapes_fn: Callable[[list[str]], ProblemSize] = None
+    apply_params_fn: Callable[
+        [ProblemSize, list[str], Configuration], tuple[str, str]
+    ] = None
     if walk_result.dispatch_kind == DispatchKind.conv:
-        problem_size = get_shapes_conv(mlir_template)
-        tune_logger.debug(str(problem_size))
-
-        for i, config in enumerate(generate_solutions(problem_size)):
-            if i >= limit:
-                break
-            tune_logger.info(f"Solution #{i+1}: {config}")
-            configs.append(config)
-            new_mlir, embeddable_tuning = apply_params_conv(
-                problem_size, mlir_template, config
-            )
-
-            with open(path.join(output, f"{i+1}.mlir"), "w") as f:
-                f.write(new_mlir)
-            with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
-                f.write(embeddable_tuning)
+        get_shapes_fn = get_shapes_conv
+        apply_params_fn = apply_params_conv
     elif walk_result.dispatch_kind == DispatchKind.mmt:
-        problem_size: ProblemSize = get_shapes_mmt(mlir_template)
-        tune_logger.debug(str(problem_size))
-
-        for i, config in enumerate(generate_solutions(problem_size)):
-            if i >= limit:
-                break
-            tune_logger.info(f"Solution #{i+1}: {config}")
-            configs.append(config)
-            new_mlir, embeddable_tuning = apply_params_mmt(
-                problem_size, mlir_template, config
-            )
-
-            with open(path.join(output, f"{i+1}.mlir"), "w") as f:
-                f.write(new_mlir)
-            with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
-                f.write(embeddable_tuning)
+        get_shapes_fn = get_shapes_mmt
+        apply_params_fn = apply_params_mmt
     elif walk_result.dispatch_kind == DispatchKind.contraction:
-        problem_size = get_shapes_contract(mlir_template, lhs_dims, rhs_dims)
-        tune_logger.debug(str(problem_size))
-
-        for i, config in enumerate(generate_solutions(problem_size)):
-            if i >= limit:
-                break
-            tune_logger.info(f"Solution #{i+1}: {config}")
-            configs.append(config)
-            new_mlir = apply_params_contract(
-                problem_size, tile_dims, mlir_template, config
-            )
-
-            with open(path.join(output, f"{i+1}.mlir"), "w") as f:
-                f.write(new_mlir)
-    elif walk_result.dispatch_kind == DispatchKind.batch_matmul:
-        LHS, RHS, RES = get_shapes_batch_matmul(mlir_template)
-        assert len(LHS) == len(lhs_dims)
-        assert len(RHS) == len(rhs_dims)
-        B = product(val if dim == "b" else 1 for dim, val in zip(lhs_dims, LHS))
-        B0 = product(val if dim == "b" else 1 for dim, val in zip(lhs_dims, RHS))
-        B1 = product(val if dim == "b" else 1 for dim, val in zip(lhs_dims, RES))
-        M = product(val if dim == "m" else 1 for dim, val in zip(lhs_dims, LHS))
-        N = product(val if dim == "n" else 1 for dim, val in zip(rhs_dims, RHS))
-        K0 = product(val if dim == "k" else 1 for dim, val in zip(lhs_dims, LHS))
-        K1 = product(val if dim == "k" else 1 for dim, val in zip(rhs_dims, RHS))
-        assert B == B0 and B == B1
-        assert K0 == K1
-        tune_logger.debug(f"Batch matmul shape: {B}x[{M}, {N}, {K0}]")
-        problem_size = ProblemSize(
-            M, N, K0, *get_bit_width(), dispatch_kind=walk_result.dispatch_kind
+        get_shapes_fn = lambda template: get_shapes_contract(
+            template, lhs_dims, rhs_dims
         )
-
-        for i, config in enumerate(generate_solutions(problem_size)):
-            if i >= limit:
-                break
-            tune_logger.info(f"Solution #{i+1}: {config}")
-            configs.append(config)
-            new_mlir, embeddable_tuning = apply_params_batch_matmul(
-                LHS, RHS, RES, B, M, N, K0, tile_dims, mlir_template, config
-            )
-
-            with open(path.join(output, f"{i+1}.mlir"), "w") as f:
-                f.write(new_mlir)
-            with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
-                f.write(embeddable_tuning)
+        apply_params_fn = lambda ps, template, config: (
+            apply_params_contract(ps, tile_dims, template, config),
+            "",
+        )
+    elif walk_result.dispatch_kind == DispatchKind.batch_matmul:
+        get_shapes_fn = lambda template: get_shapes_batch_matmul(
+            template, lhs_dims, rhs_dims
+        )
+        apply_params_fn = lambda _ps, template, config: apply_params_batch_matmul(
+            template, lhs_dims, rhs_dims, config
+        )
     else:
         assert False
+
+    problem_size = get_shapes_fn(mlir_template)
+    tune_logger.debug(str(problem_size))
+
+    configs = []
+    for i, config in enumerate(generate_solutions(problem_size)):
+        if i >= limit:
+            break
+        tune_logger.info(f"Solution #{i+1}: {config}")
+        configs.append(config)
+        new_mlir, embeddable_tuning = apply_params_fn(
+            problem_size, mlir_template, config
+        )
+
+        with open(path.join(output, f"{i+1}.mlir"), "w") as f:
+            f.write(new_mlir)
+        with open(path.join(output, f"{i+1}_config.mlir"), "w") as f:
+            f.write(embeddable_tuning)
 
     with open(path.join(output, "configs.pkl"), "wb") as file:
         pickle.dump(configs, file)

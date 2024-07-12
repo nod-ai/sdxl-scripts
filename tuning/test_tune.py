@@ -94,12 +94,6 @@ def test_get_pipeline_config():
         == ', prefetch_shared_memory, llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}'
     )
 
-
-def test_get_shape_dims():
-    assert tune.get_shape_dims("2048x1280xf16") == [2048, 1280]
-    assert tune.get_shape_dims("64x32x128xf32") == [64, 32, 128]
-
-
 def test_get_shapes_mmt():
     template = [
         r"%18 = tensor.empty() : tensor<2048x1280xf32>",
@@ -153,10 +147,12 @@ def test_get_shapes_batch_matmul():
         "%11 = linalg.batch_matmul ins(%8, %9 : tensor<1x32x1024xf32>, tensor<1x1024x32xf32>) outs(%10 : tensor<1x32x32xf32>) -> tensor<1x32x32xf32>",
         "flow.dispatch.tensor.store %11, %2, offsets = [%arg0, %arg1, %arg2], sizes = [1, 32, 32], strides = [1, 1, 1] : tensor<1x32x32xf32> -> !flow.dispatch.tensor<writeonly:tensor<4x32x64xf32>>",
     ]
-    assert tune.get_shapes_batch_matmul(template) == (
-        [1, 32, 1024],
-        [1, 1024, 32],
-        [1, 32, 32],
+    assert tune.get_shapes_batch_matmul(template, "bmk", "bkn") == tune.ProblemSize(
+        tune.MatmulSize(32, 32, 1024, 1),
+        tune.ShapedType([1, 32, 1024], tune.ElementType.f32),
+        tune.ShapedType([1, 1024, 32], tune.ElementType.f32),
+        tune.ShapedType([1, 32, 32], tune.ElementType.f32),
+        tune.DispatchKind.batch_matmul,
     )
 
 
@@ -383,9 +379,14 @@ def test_apply_params_batch_matmul():
         '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}',
     ]
 
-    LHS, RHS, RES = ([64, 968, 640], [64, 640, 320], [64, 968, 320])
-    lhs_dims, rhs_dims, tile_dims = "bmk", "bkn", "*mnk"
-    B, B0, B1, M, N, K0, K1 = (64, 64, 64, 968, 320, 640, 640)
+    tile_dims = "bmnk"
+    problem_size = tune.ProblemSize(
+        tune.MatmulSize(968, 320, 640, 64),
+        tune.ShapedType([64, 968, 640], tune.ElementType.f16),
+        tune.ShapedType([64, 640, 320], tune.ElementType.f16),
+        tune.ShapedType([64, 968, 320], tune.ElementType.f32),
+        tune.DispatchKind.batch_matmul,
+    )
 
     config = tune.Configuration(
         subgroup_size=64,
@@ -398,7 +399,7 @@ def test_apply_params_batch_matmul():
     )
 
     modified, embeddable = tune.apply_params_batch_matmul(
-        LHS, RHS, RES, B, M, N, K0, tile_dims, mlir_template, config
+        problem_size, tile_dims, mlir_template, config
     )
 
     assert modified is not None
