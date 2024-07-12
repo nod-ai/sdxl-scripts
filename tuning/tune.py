@@ -168,7 +168,7 @@ def get_pipeline_config(configuration: Configuration) -> str:
 
 def get_transform_function_mmt(
     problem_size: ProblemSize, functionName: str, configuration: Configuration
-):
+) -> str:
     tile_sizes = ", ".join(map(str, get_mmt_tile_sizes(configuration)))
 
     wg_x, wg_y, wg_z = configuration.workgroup_size
@@ -203,11 +203,11 @@ transform.named_sequence @{functionName}(%matmul: !transform.any_op {{transform.
 # int64_t fw = filterShape[1];
 # int64_t ic = filterShape[2];
 def get_transform_function_conv(
-    N, OH, OW, OC, FH, FW, IC, functionName: str, configuration: Configuration
-):
-    input = f"tensor<{N}x?x?x{IC}xf16>"
-    filter = f"tensor<{FH}x{FW}x{IC}x{OC}xf16>"
-    output = f"tensor<{N}x{OH}x{OW}x{OC}xf32>"
+    problem_size: ProblemSize, functionName: str, configuration: Configuration
+) -> str:
+    input = f"tensor<{problem_size.lhs_type}>"
+    filter = f"tensor<{problem_size.rhs_type}>"
+    output = f"tensor<{problem_size.res_type}>"
 
     tile_sizes = ", ".join(map(str, get_conv_tile_sizes(configuration)))
 
@@ -238,11 +238,14 @@ transform.named_sequence @{functionName}(%conv: !transform.any_op {{transform.re
 
 
 def get_transform_function_batch_matmul(
-    LHS, RHS, RES, tile_dims, functionName: str, configuration: Configuration
-):
-    input0 = f"tensor<{'x'.join(map(str, LHS))}xf16>"
-    input1 = f"tensor<{'x'.join(map(str, RHS))}xf16>"
-    output = f"tensor<{'x'.join(map(str, RES))}xf32>"
+    problem_size: ProblemSize,
+    tile_dims: list[int],
+    functionName: str,
+    configuration: Configuration,
+) -> str:
+    input0 = f"tensor<{problem_size.lhs_type}>"
+    input1 = f"tensor<{problem_size.rhs_type}>"
+    output = f"tensor<{problem_size.res_type}>"
 
     tile_sizes = ", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))
 
@@ -337,13 +340,7 @@ def apply_params_conv(
 
     modified = indent(
         get_transform_function_conv(
-            N,
-            OH,
-            OW,
-            OC,
-            FH,
-            FW,
-            IC,
+            problem_size,
             f"match_conv_2d_nhwc_hwcf_{N}x{OH}x{OW}x{OC}x{FH}x{FW}x{IC}",
             configuration,
         ),
@@ -361,9 +358,7 @@ def apply_params_conv(
         modified += line
 
     embeddable = indent(
-        get_transform_function_conv(
-            N, OH, OW, OC, FH, FW, IC, f"match_op", configuration
-        ),
+        get_transform_function_conv(problem_size, f"match_op", configuration),
         "  ",
     )
     return modified, embeddable
@@ -428,14 +423,9 @@ def apply_params_batch_matmul(
     repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
 
     M, N, K = problem_size.MNK
-    LHS = problem_size.lhs_type.shape
-    RHS = problem_size.rhs_type.shape
-    RES = problem_size.res_type.shape
     modified = indent(
         get_transform_function_batch_matmul(
-            LHS,
-            RHS,
-            RES,
+            problem_size,
             tile_dims,
             f"match_batch_matmul_{problem_size.matmul_size.B}x{M}x{N}x{K}",
             configuration,
@@ -455,7 +445,7 @@ def apply_params_batch_matmul(
 
     embeddable = indent(
         get_transform_function_batch_matmul(
-            LHS, RHS, RES, tile_dims, f"match_op", configuration
+            problem_size, tile_dims, f"match_op", configuration
         ),
         "  ",
     )
