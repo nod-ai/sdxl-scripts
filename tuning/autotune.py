@@ -56,7 +56,11 @@ def parse_devices(devices_str: str) -> list[int]:
         devices = [int(device.strip()) for device in devices_str.split(",")]
         return devices
     except ValueError as e:
-        handle_error(condition=True, msg=f"Invalid device list: {devices_str}. Error: {e}", error_type=argparse.ArgumentTypeError)
+        handle_error(
+            condition=True,
+            msg=f"Invalid device list: {devices_str}. Error: {e}",
+            error_type=argparse.ArgumentTypeError,
+        )
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -170,7 +174,7 @@ def handle_error(
     msg: str,
     level: int = logging.ERROR,
     error_type: Type[BaseException] = Exception,
-    exit_program: bool = False
+    exit_program: bool = False,
 ) -> None:
     """Handles errors with logging and optional program exit"""
     if not condition:
@@ -337,7 +341,11 @@ def find_collisions(
 
 
 def load_pickle(file_path: Path) -> list[any]:
-    handle_error(condition=(not file_path.exists()), msg=f"Configuration file not found: {e}", error_type=FileNotFoundError)
+    handle_error(
+        condition=(not file_path.exists()),
+        msg=f"Configuration file not found: {file_path}",
+        error_type=FileNotFoundError,
+    )
     with open(file_path, "rb") as file:
         loaded_array = pickle.load(file)
     return loaded_array
@@ -353,7 +361,11 @@ def generate_candidates(
         shutil.copy("config_prolog.mlir", base_dir / "config_prolog.mlir")
         shutil.copy("config_epilog.mlir", base_dir / "config_epilog.mlir")
     except FileNotFoundError as e:
-        handle_error(condition=True, msg=f"Configuration file not found: {e}", error_type=FileNotFoundError)
+        handle_error(
+            condition=True,
+            msg=f"Configuration file not found: {e}",
+            error_type=FileNotFoundError,
+        )
 
     template_mlir = base_dir / "template.mlir"
     candidates_dir = base_dir / "candidates"
@@ -399,9 +411,9 @@ def generate_candidates(
             )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[
-                int(mlir.stem.split("_config")[0])
-            ].mlir_config_path = mlir
+            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
+                mlir
+            )
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
@@ -463,7 +475,7 @@ def compile_candidates(
     handle_error(
         condition=(compiling_rate < 10),
         msg=f"Compiling rate [{compiling_rate:.1f}%] < 10%",
-        level=logging.WARNING
+        level=logging.WARNING,
     )
 
     return compiled_files, compiled_dir
@@ -525,7 +537,7 @@ def benchmark_top_candidates(
     benchmark_failed_files = sorted(
         benchmark_failed_dir.glob("*.vmfb"), key=numerical_sort_key
     )
-    
+
     benchmarking_rate = (len(benchmarked_files) / len(benchmark_results)) * 100
     logging.critical(
         f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)} | Benchmarking Rate: {benchmarking_rate:.1f}%"

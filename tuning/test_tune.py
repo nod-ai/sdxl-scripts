@@ -6,6 +6,28 @@ Usage: python -m pytest test_tune.py
 """
 
 
+def test_get_shaped_type_element_bitwidth():
+    assert tune.ShapedType([1024, 2048], tune.ElementType.i8).bitwidth == 8
+    assert tune.ShapedType([2048], tune.ElementType.i32).bitwidth == 32
+    assert tune.ShapedType([2048, 512, 384], tune.ElementType.f8).bitwidth == 8
+    assert tune.ShapedType([1, 1], tune.ElementType.f16).bitwidth == 16
+
+
+def test_get_shaped_type_to_str():
+    assert str(tune.ShapedType([1024, 2048], tune.ElementType.i8)) == "1024x2048xi8"
+    assert str(tune.ShapedType([1024], tune.ElementType.f32)) == "1024xf32"
+    assert str(tune.ShapedType([1, 2, 3], tune.ElementType.f16)) == "1x2x3xf16"
+
+
+def test_parse_tensor_type():
+    assert tune.parse_tensor_type("tensor<1x2x3xf32>") == tune.ShapedType(
+        [1, 2, 3], tune.ElementType.f32
+    )
+    assert tune.parse_tensor_type("tensor<123xi8>") == tune.ShapedType(
+        [123], tune.ElementType.i8
+    )
+
+
 def test_get_mmt_tile_sizes():
     config = tune.Configuration(
         subgroup_size=0,
@@ -74,11 +96,6 @@ def test_get_pipeline_config():
     )
 
 
-def test_get_shape_dims():
-    assert tune.get_shape_dims("2048x1280xf16") == [2048, 1280]
-    assert tune.get_shape_dims("64x32x128xf32") == [64, 32, 128]
-
-
 def test_get_shapes_mmt():
     template = [
         r"%18 = tensor.empty() : tensor<2048x1280xf32>",
@@ -86,7 +103,13 @@ def test_get_shapes_mmt():
         r'%20 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%13, %14 : tensor<2048x1280xf16>, tensor<1280x1280xf16>) outs(%19 : tensor<2048x1280xf32>) attrs =  {lowering_config = #iree_codegen.lowering_config<tile_sizes = [[64, 128, 64]]>} {',
         r"^bb0(%in: f16, %in_0: f16, %out: f32):",
     ]
-    assert tune.get_shapes_mmt(template) == (2048, 1280, 1280)
+    assert tune.get_shapes_mmt(template) == tune.ProblemSize(
+        tune.MatmulSize(2048, 1280, 1280),
+        tune.ShapedType([2048, 1280], tune.ElementType.f16),
+        tune.ShapedType([1280, 1280], tune.ElementType.f16),
+        tune.ShapedType([2048, 1280], tune.ElementType.f32),
+        tune.DispatchKind.mmt,
+    )
 
 
 def test_get_shapes_conv():
@@ -95,7 +118,13 @@ def test_get_shapes_conv():
         r"%8 = linalg.conv_2d_nhwc_hwcf {dilations = dense<1> : vector<2xi64>, lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 32, 256, 1, 1, 32]]>, strides = dense<1> : vector<2xi64>} ins(%5, %6 : tensor<1x3x34x1280xf16>, tensor<3x3x1280x256xf16>) outs(%7 : tensor<1x1x32x256xf32>) -> tensor<1x1x32x256xf32>",
         r"flow.dispatch.tensor.store %8, %2, offsets = [%workgroup_id_z, %workgroup_id_y, 0, %3], sizes = [1, 1, 32, 256], strides = [1, 1, 1, 1] : tensor<1x1x32x256xf32> -> !flow.dispatch.tensor<writeonly:tensor<2x32x32x1280xf32>>",
     ]
-    assert tune.get_shapes_conv(template) == (1, 1, 32, 256, 3, 3, 1280)
+    assert tune.get_shapes_conv(template) == tune.ProblemSize(
+        tune.MatmulSize(32, 256, 11520),
+        tune.ShapedType([1, 3, 34, 1280], tune.ElementType.f16),
+        tune.ShapedType([3, 3, 1280, 256], tune.ElementType.f16),
+        tune.ShapedType([1, 1, 32, 256], tune.ElementType.f32),
+        tune.DispatchKind.conv,
+    )
 
 
 def test_get_shapes_contract():
@@ -105,10 +134,12 @@ def test_get_shapes_contract():
         r'%20 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%13, %14 : tensor<2048x1280xf16>, tensor<1280x1280xf16>) outs(%19 : tensor<2048x1280xf32>) attrs =  {lowering_config = #iree_codegen.lowering_config<tile_sizes = [[64, 128, 64]]>} {',
         r"^bb0(%in: f16, %in_0: f16, %out: f32):",
     ]
-    assert tune.get_shapes_contract(template) == (
-        [2048, 1280],
-        [1280, 1280],
-        [2048, 1280],
+    assert tune.get_shapes_contract(template, "mk", "nk") == tune.ProblemSize(
+        tune.MatmulSize(2048, 1280, 1280),
+        tune.ShapedType([2048, 1280], tune.ElementType.f16),
+        tune.ShapedType([1280, 1280], tune.ElementType.f16),
+        tune.ShapedType([2048, 1280], tune.ElementType.f32),
+        tune.DispatchKind.contraction,
     )
 
 
@@ -118,25 +149,36 @@ def test_get_shapes_batch_matmul():
         "%11 = linalg.batch_matmul ins(%8, %9 : tensor<1x32x1024xf32>, tensor<1x1024x32xf32>) outs(%10 : tensor<1x32x32xf32>) -> tensor<1x32x32xf32>",
         "flow.dispatch.tensor.store %11, %2, offsets = [%arg0, %arg1, %arg2], sizes = [1, 32, 32], strides = [1, 1, 1] : tensor<1x32x32xf32> -> !flow.dispatch.tensor<writeonly:tensor<4x32x64xf32>>",
     ]
-    assert tune.get_shapes_batch_matmul(template) == (
-        [1, 32, 1024],
-        [1, 1024, 32],
-        [1, 32, 32],
+    assert tune.get_shapes_batch_matmul(template, "bmk", "bkn") == tune.ProblemSize(
+        tune.MatmulSize(32, 32, 1024, 1),
+        tune.ShapedType([1, 32, 1024], tune.ElementType.f32),
+        tune.ShapedType([1, 1024, 32], tune.ElementType.f32),
+        tune.ShapedType([1, 32, 32], tune.ElementType.f32),
+        tune.DispatchKind.batch_matmul,
     )
 
 
 def test_generate_solutions():
-    M, N, K = 2048, 3840, 1280
-    problem_size = tune.ProblemSize(M, N, K, -1, 16, -1, tune.DispatchKind.mmt)
-    configs = None
+    matmul_size = tune.MatmulSize(2048, 3840, 1280)
+    lhs_type = tune.ShapedType([2048, 1280], tune.ElementType.f16)
+    rhs_type = tune.ShapedType([3840, 1280], tune.ElementType.f16)
+    res_type = tune.ShapedType([2048, 3840], tune.ElementType.f32)
+    problem_size = tune.ProblemSize(
+        matmul_size, lhs_type, rhs_type, res_type, tune.DispatchKind.mmt
+    )
     configs = tune.generate_solutions(problem_size)
     assert configs is not None
 
 
 def test_generate_constraints_valid_input():
+    matmul_size = tune.MatmulSize(1024, 1024, 1024)
+    lhs_type = tune.ShapedType([1024, 1024], tune.ElementType.f16)
+    rhs_type = tune.ShapedType([1024, 1024], tune.ElementType.f16)
+    res_type = tune.ShapedType([1024, 1024], tune.ElementType.f32)
+    problem_size = tune.ProblemSize(
+        matmul_size, lhs_type, rhs_type, res_type, tune.DispatchKind.mmt
+    )
     # Define input parameters as z3 Ints
-    M, N, K = 256, 384, 32
-    problem_size = tune.ProblemSize(M, N, K, -1, 16, -1, tune.DispatchKind.mmt)
     m, n, k = tune.z3.Int("m"), tune.z3.Int("n"), tune.z3.Int("k")
     subgroup_size = tune.z3.Int("subgroup_size")
     intrinsic_mn = tune.z3.Int("intrinsic_mn")
@@ -166,8 +208,13 @@ def test_generate_constraints_valid_input():
 
 def test_generate_constraints_invalid_input():
     # Define input parameters that should lead to unsatisfiable constraints
-    M, N, K = 256, 384, 32
-    problem_size = tune.ProblemSize(M, N, K, -1, 16, -1, tune.DispatchKind.mmt)
+    matmul_size = tune.MatmulSize(1024, 1024, 1024)
+    lhs_type = tune.ShapedType([1024, 1024], tune.ElementType.f16)
+    rhs_type = tune.ShapedType([1024, 1024], tune.ElementType.f16)
+    res_type = tune.ShapedType([1024, 1024], tune.ElementType.f32)
+    problem_size = tune.ProblemSize(
+        matmul_size, lhs_type, rhs_type, res_type, tune.DispatchKind.mmt
+    )
     m, n, k = tune.z3.Int("m"), tune.z3.Int("n"), tune.z3.Int("k")
     subgroup_size = tune.z3.Int("subgroup_size")
     intrinsic_mn = tune.z3.Int("intrinsic_mn")
@@ -216,7 +263,14 @@ def test_apply_params_mmt():
         waves_per_eu=8,
     )
 
-    modified, embeddable = tune.apply_params_mmt(M, N, K, mlir_template, config)
+    problem_size = tune.ProblemSize(
+        tune.MatmulSize(M, N, K),
+        tune.ShapedType([M, K], tune.ElementType.f16),
+        tune.ShapedType([N, K], tune.ElementType.f16),
+        tune.ShapedType([M, N], tune.ElementType.f32),
+        tune.DispatchKind.mmt,
+    )
+    modified, embeddable = tune.apply_params_mmt(problem_size, mlir_template, config)
 
     assert modified is not None
     assert embeddable is not None
@@ -252,9 +306,14 @@ def test_apply_params_conv():
         waves_per_eu=2,
     )
 
-    modified, embeddable = tune.apply_params_conv(
-        n, oh, ow, oc, fh, fw, ic, mlir_template, config
+    problem_size = tune.ProblemSize(
+        tune.MatmulSize(oh * ow, oc, fh * fw * ic),
+        tune.ShapedType([n, oh + 2, ow + 2, oc], tune.ElementType.f16),
+        tune.ShapedType([fh, fw, ic, oc], tune.ElementType.f16),
+        tune.ShapedType([n, oh, ow, oc], tune.ElementType.f32),
+        tune.DispatchKind.conv,
     )
+    modified, embeddable = tune.apply_params_conv(problem_size, mlir_template, config)
 
     assert modified is not None
     assert embeddable is not None
@@ -278,9 +337,14 @@ def test_apply_params_contract():
         '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}',
     ]
 
-    LHS, RHS, RES = ([2, 1024, 1280], [3, 20, 64, 1280], [3, 2, 20, 1024, 64])
     tile_dims = "*mnk"
-    M, N, K0, K1 = (2048, 3840, 1280, 1280)
+    problem_size = tune.ProblemSize(
+        tune.MatmulSize(2048, 3840, 1280),
+        tune.ShapedType([2, 1024, 1280], tune.ElementType.f16),
+        tune.ShapedType([3, 20, 64, 1280], tune.ElementType.f16),
+        tune.ShapedType([3, 2, 20, 1024, 64], tune.ElementType.f32),
+        tune.DispatchKind.contraction,
+    )
 
     config = tune.Configuration(
         subgroup_size=64,
@@ -293,7 +357,7 @@ def test_apply_params_contract():
     )
 
     new_mlir = tune.apply_params_contract(
-        LHS, RHS, RES, tile_dims, mlir_template, config
+        problem_size, tile_dims, mlir_template, config
     )
 
     assert new_mlir is not None
@@ -317,9 +381,14 @@ def test_apply_params_batch_matmul():
         '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}',
     ]
 
-    LHS, RHS, RES = ([64, 968, 640], [64, 640, 320], [64, 968, 320])
-    lhs_dims, rhs_dims, tile_dims = "bmk", "bkn", "*mnk"
-    B, B0, B1, M, N, K0, K1 = (64, 64, 64, 968, 320, 640, 640)
+    tile_dims = "bmnk"
+    problem_size = tune.ProblemSize(
+        tune.MatmulSize(968, 320, 640, 64),
+        tune.ShapedType([64, 968, 640], tune.ElementType.f16),
+        tune.ShapedType([64, 640, 320], tune.ElementType.f16),
+        tune.ShapedType([64, 968, 320], tune.ElementType.f32),
+        tune.DispatchKind.batch_matmul,
+    )
 
     config = tune.Configuration(
         subgroup_size=64,
@@ -332,7 +401,7 @@ def test_apply_params_batch_matmul():
     )
 
     modified, embeddable = tune.apply_params_batch_matmul(
-        LHS, RHS, RES, B, M, N, K0, tile_dims, mlir_template, config
+        problem_size, tile_dims, mlir_template, config
     )
 
     assert modified is not None
