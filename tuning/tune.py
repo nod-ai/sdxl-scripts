@@ -5,17 +5,19 @@
 
 import argparse
 import logging
+import math
+import pickle
 import re
 import z3
 from dataclasses import asdict, dataclass
-from os import mkdir, path, makedirs
-from textwrap import indent
-from iree.compiler import ir
-import iree.compiler as ireec
-from iree.compiler.dialects import _linalg_ops_gen, _util_ops_gen
 from enum import Enum
+from os import mkdir, path, makedirs
 from typing import Callable
-import pickle
+from textwrap import indent
+
+import iree.compiler as ireec
+from iree.compiler import ir
+from iree.compiler.dialects import _linalg_ops_gen, _util_ops_gen
 
 """
 Usage: ./tune.py 121.mlir -o "tuning/candidates" -l 1024 --lhs-dims=mk --rhs-dims=nk --tile-dims=mnk
@@ -593,10 +595,10 @@ def get_shapes_contract(template: list[str], lhs_dims: str, rhs_dims: str) -> Pr
         res_shaped_type = parse_tensor_type(res_tensor_type)
         assert res_shaped_type.rank() >= 2
 
-        M = product(val if dim == "m" else 1 for dim, val in zip(lhs_dims, lhs_shaped_type.shape))
-        N = product(val if dim == "n" else 1 for dim, val in zip(rhs_dims, rhs_shaped_type.shape))
-        K0 = product(val if dim == "k" else 1 for dim, val in zip(lhs_dims, lhs_shaped_type.shape))
-        K1 = product(val if dim == "k" else 1 for dim, val in zip(rhs_dims, rhs_shaped_type.shape))
+        M = math.prod(val if dim == "m" else 1 for dim, val in zip(lhs_dims, lhs_shaped_type.shape))
+        N = math.prod(val if dim == "n" else 1 for dim, val in zip(rhs_dims, rhs_shaped_type.shape))
+        K0 = math.prod(val if dim == "k" else 1 for dim, val in zip(lhs_dims, lhs_shaped_type.shape))
+        K1 = math.prod(val if dim == "k" else 1 for dim, val in zip(rhs_dims, rhs_shaped_type.shape))
         assert K0 == K1
 
         return ProblemSize(
@@ -637,13 +639,13 @@ def get_shapes_batch_matmul(template: list[str], lhs_dims: str, rhs_dims: str) -
         RHS = rhs_shaped_type.shape
         RES = res_shaped_type.shape
 
-        B = product(val if dim == "b" else 1 for dim, val in zip(lhs_dims, LHS))
-        B0 = product(val if dim == "b" else 1 for dim, val in zip(lhs_dims, RHS))
-        B1 = product(val if dim == "b" else 1 for dim, val in zip(lhs_dims, RES))
-        M = product(val if dim == "m" else 1 for dim, val in zip(lhs_dims, LHS))
-        N = product(val if dim == "n" else 1 for dim, val in zip(rhs_dims, RHS))
-        K0 = product(val if dim == "k" else 1 for dim, val in zip(lhs_dims, LHS))
-        K1 = product(val if dim == "k" else 1 for dim, val in zip(rhs_dims, RHS))
+        B = math.prod(val if dim == "b" else 1 for dim, val in zip(lhs_dims, LHS))
+        B0 = math.prod(val if dim == "b" else 1 for dim, val in zip(lhs_dims, RHS))
+        B1 = math.prod(val if dim == "b" else 1 for dim, val in zip(lhs_dims, RES))
+        M = math.prod(val if dim == "m" else 1 for dim, val in zip(lhs_dims, LHS))
+        N = math.prod(val if dim == "n" else 1 for dim, val in zip(rhs_dims, RHS))
+        K0 = math.prod(val if dim == "k" else 1 for dim, val in zip(lhs_dims, LHS))
+        K1 = math.prod(val if dim == "k" else 1 for dim, val in zip(rhs_dims, RHS))
         assert B == B0 and B == B1
         assert K0 == K1
         
@@ -811,16 +813,8 @@ def generate_solutions(problem_size: ProblemSize):
         yield config
 
 
-def product(vals):
-    res = 1
-    for val in vals:
-        res *= val
-    return res
-
-
 def get_default_output_dir() -> str:
     from datetime import datetime
-
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
 
