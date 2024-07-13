@@ -59,13 +59,15 @@ class ElementType(Enum):
 
     @property
     def bitwidth(self) -> int:
-        return {
-            ElementType.i8: 8,
-            ElementType.i32: 32,
-            ElementType.f8: 8,
-            ElementType.f16: 16,
-            ElementType.f32: 32,
-        }[self]
+        match self:
+            case ElementType.i8 | ElementType.f8:
+                return 8
+            case ElementType.f16:
+                return 16
+            case ElementType.i32 | ElementType.f32:
+                return 32
+            case _:
+                assert False, "unhandled case"
 
     def __str__(self) -> str:
         return self.name
@@ -460,13 +462,7 @@ def parse_tensor_type(tensor_type: str) -> ShapedType:
     dims_and_elem = shape_str.split("x")
     dims = [int(x) for x in dims_and_elem[:-1]]
     elem = dims_and_elem[-1]
-    str_to_elem_ty = {
-        "i8": ElementType.i8,
-        "i32": ElementType.i32,
-        "f8": ElementType.f8,
-        "f16": ElementType.f16,
-        "f32": ElementType.f32,
-    }
+    str_to_elem_ty = {x.name: x for x in ElementType}
     return ShapedType(dims, str_to_elem_ty[elem])
 
 
