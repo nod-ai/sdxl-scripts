@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Type, Optional, Callable, Iterable, Any
 import pickle
 from itertools import groupby
+import iree.runtime as ireert
 import random
 
 """
@@ -41,7 +42,7 @@ python autotune.py winograd 1286.mlir --num-candidates=64 --num-unet-candidates=
 
 # Default values for num_candidates and devices, change it as needed
 DEFAULT_NUM_CANDIDATES = 2048
-DEFAULT_DEVICE_LIST = [0]
+DEFAULT_DEVICE_LIST = ["hip://0"]
 
 # Default values for max number of workers
 DEFAULT_MAX_CPU_WORKERS = (
@@ -72,6 +73,7 @@ class CandidateTracker:
     unet_benchmark_device_id: Optional[int] = None
     baseline_benchmark_time: Optional[float] = None
     calibrated_benchmark_diff: Optional[float] = None
+
 
 
 @dataclass(frozen=True)
@@ -288,18 +290,64 @@ class UnetBenchmarkResult:
         return f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}\nBM_run_forward/process_time/real_time_median\t    {t1:.3g} ms\t    {(t1+1):.3g} ms\t      5 items_per_second={t1/200:5f}/s\n\n"
 
 
-def parse_devices(devices_str: str) -> list[int]:
-    """Parse a comma-separated list of device IDs (e.g., "1,3,5" -> [1, 3, 5])."""
-    devices = []
-    try:
-        devices = [int(device.strip()) for device in devices_str.split(",")]
-    except ValueError as e:
-        handle_error(
-            condition=True,
-            msg=f"Invalid device list: {devices_str}. Error: {e}",
-            error_type=argparse.ArgumentTypeError,
-        )
+def extract_driver_names(user_devices: list[str]) -> set[str]:
+    """Extract driver names from the user devices"""
+    return {device.split("://")[0] for device in user_devices}
+
+
+def fetch_available_devices(drivers: list[str]) -> list[str]:
+    """
+    Extract all available devices on the user's machine for the provided drivers
+    Only the user provided drivers will be queried
+    """
+    all_device_ids = []
+
+    for driver_name in drivers:
+        try:
+            driver = ireert.get_driver(driver_name)
+            devices = driver.query_available_devices()
+            all_device_ids.extend(
+                f"{driver_name}://{device['path']}" for device in devices
+            )
+        except ValueError as e:
+            handle_error(
+                condition=True,
+                msg=f"Could not initialize driver {driver_name}: {e}",
+                error_type=ValueError,
+                exit_program=True,
+            )
+
+    return all_device_ids
+
+def parse_devices(devices_str: str) -> list[str]:
+    """
+    Parse a comma-separated list of device IDs e.g.:
+    --devices=hip://0,local-sync://default -> ["hip://0", "local-sync://default"]).
+    """
+    devices = [device.strip() for device in devices_str.split(",")]
+    for device in devices:
+        if "://" not in device or not device:
+            handle_error(
+                condition=True,
+                msg=f"Invalid device list: {devices_str}. Error: {ValueError()}",
+                error_type=argparse.ArgumentTypeError,
+            )
     return devices
+
+
+def validate_devices(user_devices: list[str]) -> None:
+    """Validates the user provided devices against the devices extracted by the IREE Runtime"""
+    user_drivers = extract_driver_names(user_devices)
+
+    available_devices = fetch_available_devices(user_drivers)
+
+    for device in user_devices:
+        handle_error(
+            condition=(device not in available_devices),
+            msg=f"Invalid device specified: {device}",
+            error_type=argparse.ArgumentError,
+            exit_program=True,
+        )
 
 
 class ExecutionPhases(str, Enum):
@@ -330,7 +378,7 @@ def parse_arguments() -> argparse.Namespace:
         "--devices",
         type=parse_devices,
         default=DEFAULT_DEVICE_LIST,
-        help="Comma-separated list of device IDs (e.g., --devices=0,1). Default: [0]",
+        help="Comma-separated list of device IDs (e.g., --devices=hip://,hip://GPU-UUID).",
     )
     parser.add_argument(
         "--max-cpu-workers",
@@ -1239,6 +1287,10 @@ def autotune(args: argparse.Namespace) -> None:
     print("Setup logging")
     setup_logging(args, path_config)
     print(path_config.log_file_path, end="\n\n")
+
+    print("Validating devices")
+    validate_devices(args.devices)
+    print("Validation successful!")
 
     print("Generating candidates...")
     candidates = generate_candidates(args, path_config, candidate_trackers)

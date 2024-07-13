@@ -1,4 +1,6 @@
+import argparse
 import pytest
+from unittest.mock import call, patch, MagicMock
 import autotune
 
 """
@@ -363,3 +365,112 @@ def test_parse_grouped_benchmark_results():
     assert (
         dump_list == expect_dump_list
     ), "fail to parse incomplete baseline and candidates"
+def test_extract_driver_names():
+    user_devices = ["hip://0", "local-sync://default", "cuda://default"]
+    expected_output = {"hip", "local-sync", "cuda"}
+
+    assert autotune.extract_driver_names(user_devices) == expected_output
+
+def test_fetch_available_devices_success():
+    drivers = ["hip", "local-sync", "cuda"]
+    mock_devices = {
+        "hip": [{"path": "0"}],
+        "local-sync": [{"path": "default"}],
+        "cuda": [{"path": "default"}]
+    }
+    
+    with patch("autotune.ireert.get_driver") as mock_get_driver:
+        mock_driver = MagicMock()
+        
+        def get_mock_driver(name):
+            mock_driver.query_available_devices.side_effect = lambda: mock_devices[name]
+            return mock_driver
+        
+        mock_get_driver.side_effect = get_mock_driver
+        
+        actual_output = autotune.fetch_available_devices(drivers)
+        expected_output = ["hip://0", "local-sync://default", "cuda://default"]
+        
+        assert actual_output == expected_output
+
+def test_fetch_available_devices_failure():
+    drivers = ["hip", "local-sync", "cuda"]
+    mock_devices = {
+        "hip": [{"path": "0"}],
+        "local-sync": ValueError("Failed to initialize"),
+        "cuda": [{"path": "default"}]
+    }
+    
+    with patch("autotune.ireert.get_driver") as mock_get_driver:
+        with patch("autotune.handle_error") as mock_handle_error:
+            mock_driver = MagicMock()
+            
+            def get_mock_driver(name):
+                if isinstance(mock_devices[name], list):
+                    mock_driver.query_available_devices.side_effect = lambda: mock_devices[name]
+                else:
+                    mock_driver.query_available_devices.side_effect = lambda: (_ for _ in ()).throw(mock_devices[name])
+                return mock_driver
+            
+            mock_get_driver.side_effect = get_mock_driver
+            
+            actual_output = autotune.fetch_available_devices(drivers)
+            expected_output = ["hip://0", "cuda://default"]
+            
+            assert actual_output == expected_output
+            mock_handle_error.assert_called_once_with(
+                condition=True,
+                msg="Could not initialize driver local-sync: Failed to initialize",
+                error_type=ValueError,
+                exit_program=True,
+            )
+
+def test_parse_devices():
+    user_devices_str = "hip://0, local-sync://default, cuda://default"
+    expected_output = ["hip://0", "local-sync://default", "cuda://default"]
+    
+    with patch("autotune.handle_error") as mock_handle_error:
+        actual_output = autotune.parse_devices(user_devices_str)
+        assert actual_output == expected_output
+        
+        mock_handle_error.assert_not_called()
+
+def test_parse_devices_with_invalid_input():
+    user_devices_str = "hip://0, local-sync://default, invalid_device, cuda://default"
+    expected_output = ["hip://0", "local-sync://default", "invalid_device", "cuda://default"]
+    
+    with patch("autotune.handle_error") as mock_handle_error:
+        actual_output = autotune.parse_devices(user_devices_str)
+        assert actual_output == expected_output
+        
+        mock_handle_error.assert_called_once_with(
+            condition=True,
+            msg=f"Invalid device list: {user_devices_str}. Error: {ValueError()}",
+            error_type=argparse.ArgumentTypeError,
+        )
+
+def test_validate_devices():
+    user_devices = ["hip://0", "local-sync://default"]
+    user_drivers = {"hip", "local-sync"}
+
+    with patch('autotune.extract_driver_names', return_value=user_drivers):
+        with patch('autotune.fetch_available_devices', return_value=["hip://0", "local-sync://default"]):
+            with patch('autotune.handle_error') as mock_handle_error:
+                autotune.validate_devices(user_devices)
+                assert all(call[1]['condition'] is False for call in mock_handle_error.call_args_list)
+
+def test_validate_devices_with_invalid_device():
+    user_devices = ["hip://0", "local-sync://default", "cuda://default"]
+    user_drivers = {"hip", "local-sync", "cuda"}
+
+    with patch("autotune.extract_driver_names", return_value=user_drivers):
+        with patch("autotune.fetch_available_devices", return_value=["hip://0", "local-sync://default"]):
+            with patch("autotune.handle_error") as mock_handle_error:
+                autotune.validate_devices(user_devices)
+                expected_call = call(
+                    condition=True,
+                    msg=f"Invalid device specified: cuda://default",
+                    error_type=argparse.ArgumentError,
+                    exit_program=True,
+                )
+                assert expected_call in mock_handle_error.call_args_list
