@@ -215,9 +215,9 @@ module attributes { transform.with_named_sequence } {
 
   transform.named_sequence @match_attention(%attention: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
     transform.match.operation_name %attention ["iree_linalg_ext.attention"] : !transform.any_op
-    %in0 = transform.get_operand %attention[0] : (!transform.any_op) -> !transform.any_value
-    transform.iree.match.cast_compatible_type %in0 = tensor<?x?x?x?xf16> : !transform.any_value
-    transform.iree.match.dim_is_multiple_of %in0[3], 64 : !transform.any_value
+    %in1 = transform.get_operand %attention[2] : (!transform.any_op) -> !transform.any_value
+    transform.iree.match.cast_compatible_type %in1 = tensor<?x?x?x?xf16> : !transform.any_value
+    transform.iree.match.dim_is_multiple_of %in1[2], 64 : !transform.any_value
     transform.yield %attention : !transform.any_op
   }
 
