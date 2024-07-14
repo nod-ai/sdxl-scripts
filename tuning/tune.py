@@ -277,51 +277,10 @@ transform.named_sequence @{functionName}(%batch_matmul: !transform.any_op {{tran
 """
 
 
-def apply_params_mmt(
-    problem_size: ProblemSize, template: list[str], configuration: Configuration
-) -> tuple[str, str]:
-    tune_logger.info(f"{configuration}")
-    expr0 = re.compile(
-        r"<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>"
-    )
-    expr1 = re.compile(
-        r"LLVMGPUVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),"
-    )
-    expr2 = re.compile(r"tile_sizes = \[\[([0-9]+), ([0-9]+), ([0-9]+)\]\]")
-    expr3 = re.compile(r"\"amdgpu-waves-per-eu\" = \"([0-9])\"")
-    repl0 = f"<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>"
-    repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
-    repl2 = f'tile_sizes = [[{", ".join(map(str, get_mmt_tile_sizes(configuration)))}]]'
-    repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
-
-    M, N, K = problem_size.MNK
-    modified = indent(
-        get_transform_function_mmt(
-            problem_size, f"match_mmt_{M}x{N}x{K}", configuration
-        ),
-        "//   ",
-    )
-    for line in template:
-        if "intrinsic =" in line:
-            line = re.sub(expr0, repl0, line)
-        if "LLVMGPUVectorDistribute " in line:
-            line = re.sub(expr1, repl1, line)
-        if "tile_sizes" in line:
-            line = re.sub(expr2, repl2, line)
-        if "amdgpu-waves-per-eu" in line:
-            line = re.sub(expr3, repl3, line)
-        modified += line
-
-    embeddable = indent(
-        get_transform_function_mmt(problem_size, f"match_op", configuration), "  "
-    )
-    return modified, embeddable
-
-
-def apply_params_conv(
-    problem_size: ProblemSize, template: list[str], configuration: Configuration
-) -> tuple[str, str]:
-    tune_logger.info(f"{configuration}")
+def apply_configuration(
+    template: list[str], configuration: Configuration, tile_sizes: list[int]
+) -> str:
+    tune_logger.info(f"Applying: {configuration}")
     expr0 = re.compile(
         r"<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>"
     )
@@ -332,22 +291,10 @@ def apply_params_conv(
     expr3 = re.compile(r"\"amdgpu-waves-per-eu\" = \"([0-9])\"")
     repl0 = f"<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>"
     repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
-    repl2 = (
-        f'tile_sizes = [[{", ".join(map(str, get_conv_tile_sizes(configuration)))}]]'
-    )
+    repl2 = f'tile_sizes = [[{", ".join(map(str, tile_sizes))}]]'
     repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
 
-    N, OH, OW, OC = problem_size.res_type.shape
-    FH, FW, IC, _ = problem_size.rhs_type.shape
-
-    modified = indent(
-        get_transform_function_conv(
-            problem_size,
-            f"match_conv_2d_nhwc_hwcf_{N}x{OH}x{OW}x{OC}x{FH}x{FW}x{IC}",
-            configuration,
-        ),
-        "//   ",
-    )
+    new_mlir = ""
     for line in template:
         if "intrinsic =" in line:
             line = re.sub(expr0, repl0, line)
@@ -357,8 +304,46 @@ def apply_params_conv(
             line = re.sub(expr2, repl2, line)
         if "amdgpu-waves-per-eu" in line:
             line = re.sub(expr3, repl3, line)
-        modified += line
+        new_mlir += line
 
+    return new_mlir
+
+
+def apply_params_mmt(
+    problem_size: ProblemSize, template: list[str], configuration: Configuration
+) -> tuple[str, str]:
+    M, N, K = problem_size.MNK
+    modified = indent(
+        get_transform_function_mmt(
+            problem_size, f"match_mmt_{M}x{N}x{K}", configuration
+        ),
+        "//   ",
+    )
+    modified += apply_configuration(
+        template, configuration, get_mmt_tile_sizes(configuration)
+    )
+    embeddable = indent(
+        get_transform_function_mmt(problem_size, f"match_op", configuration), "  "
+    )
+    return modified, embeddable
+
+
+def apply_params_conv(
+    problem_size: ProblemSize, template: list[str], configuration: Configuration
+) -> tuple[str, str]:
+    N, OH, OW, OC = problem_size.res_type.shape
+    FH, FW, IC, _ = problem_size.rhs_type.shape
+    modified = indent(
+        get_transform_function_conv(
+            problem_size,
+            f"match_conv_2d_nhwc_hwcf_{N}x{OH}x{OW}x{OC}x{FH}x{FW}x{IC}",
+            configuration,
+        ),
+        "//   ",
+    )
+    modified += apply_configuration(
+        template, configuration, get_conv_tile_sizes(configuration)
+    )
     embeddable = indent(
         get_transform_function_conv(problem_size, f"match_op", configuration),
         "  ",
@@ -372,35 +357,10 @@ def apply_params_contract(
     template: list[str],
     configuration: Configuration,
 ) -> str:
-    tune_logger.info(f"{configuration}")
-    extra_config = get_pipeline_config(configuration)
-    expr0 = re.compile(
-        r"<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>"
-    )
-    expr1 = re.compile(
-        r"LLVMGPUVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),"
-    )
-    expr2 = re.compile(r"tile_sizes = \[\[(([0-9]+), )+([0-9]+)\]\]")
-    expr3 = re.compile(r"\"amdgpu-waves-per-eu\" = \"([0-9])\"")
-    repl0 = f"<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}"
-    repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
-    repl2 = f'tile_sizes = [[{", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))}]]'
-    repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
-
     # TODO: Generate transform function.
-    modified = ""
-    for line in template:
-        if "intrinsic =" in line:
-            line = re.sub(expr0, repl0, line)
-        if "LLVMGPUVectorDistribute " in line:
-            line = re.sub(expr1, repl1, line)
-        if "tile_sizes" in line:
-            line = re.sub(expr2, repl2, line)
-        if "amdgpu-waves-per-eu" in line:
-            line = re.sub(expr3, repl3, line)
-        modified += line
-
-    return modified
+    return apply_configuration(
+        template, configuration, get_contract_tile_sizes(configuration, tile_dims)
+    )
 
 
 def apply_params_batch_matmul(
@@ -410,20 +370,6 @@ def apply_params_batch_matmul(
     configuration: Configuration,
 ) -> tuple[str, str]:
     tune_logger.info(f"{configuration}")
-    extra_config = get_pipeline_config(configuration)
-    expr0 = re.compile(
-        r"<intrinsic = #iree_gpu.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>"
-    )
-    expr1 = re.compile(
-        r"LLVMGPUPandAndVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),"
-    )
-    expr2 = re.compile(r"tile_sizes = \[\[(([0-9]+), )+([0-9]+)\]\]")
-    expr3 = re.compile(r"\"amdgpu-waves-per-eu\" = \"([0-9])\"")
-    repl0 = f"<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>{extra_config}"
-    repl1 = f'LLVMGPUPadAndVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
-    repl2 = f'tile_sizes = [[{", ".join(map(str, get_contract_tile_sizes(configuration, tile_dims)))}]]'
-    repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
-
     M, N, K = problem_size.MNK
     modified = indent(
         get_transform_function_batch_matmul(
@@ -434,16 +380,9 @@ def apply_params_batch_matmul(
         ),
         "//   ",
     )
-    for line in template:
-        if "intrinsic =" in line:
-            line = re.sub(expr0, repl0, line)
-        if "LLVMGPUPadAndVectorDistribute " in line:
-            line = re.sub(expr1, repl1, line)
-        if "tile_sizes" in line:
-            line = re.sub(expr2, repl2, line)
-        if "amdgpu-waves-per-eu" in line:
-            line = re.sub(expr3, repl3, line)
-        modified += line
+    modified += apply_configuration(
+        template, configuration, get_contract_tile_sizes(configuration, tile_dims)
+    )
 
     embeddable = indent(
         get_transform_function_batch_matmul(
@@ -513,7 +452,7 @@ def get_shapes_mmt(template: list[str]) -> ProblemSize:
     assert False, "Shape not found"
 
 
-def get_shapes_conv(template: list[str]):
+def get_shapes_conv(template: list[str]) -> ProblemSize:
     for line in template:
         if "linalg.conv_2d_nhwc_hwcf" not in line:
             continue

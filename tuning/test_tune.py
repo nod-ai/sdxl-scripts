@@ -452,7 +452,7 @@ def test_apply_params_batch_matmul():
         in modified
     )
     assert (
-        "LLVMGPUVectorDistribute workgroup_size = [64, 4, 1] subgroup_size = 64"
+        "LLVMGPUVectorDistribute workgroup_size = [128, 1, 1] subgroup_size = 64"
         in modified
     )
     assert "tile_sizes = [[1, 416, 320, 128]]" in modified
