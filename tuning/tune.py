@@ -664,12 +664,68 @@ def get_shapes_batch_matmul(
     assert False, "Shape not found"
 
 
-def is_pow2(x, min, max):
-    return z3.Or(list(x == 2**i for i in range(min, max + 1)))
+@dataclass
+class MfmaIntrinsic:
+    input_type: ElementType
+    m: int
+    n: int
+    k: int
+    output_type: ElementType
+
+    @staticmethod
+    def mfma_f16_16x16x16_f32():
+        return MfmaIntrinsic(ElementType.f16, 16, 16, 16, ElementType.f32)
+
+    @staticmethod
+    def mfma_f16_32x32x8_f32():
+        return MfmaIntrinsic(ElementType.f16, 32, 32, 8, ElementType.f32)
+
+    @staticmethod
+    def mfma_i8_16x16x32_i32():
+        return MfmaIntrinsic(ElementType.i8, 16, 16, 32, ElementType.i32)
+
+    @staticmethod
+    def mfma_i8_32x32x16_i32():
+        return MfmaIntrinsic(ElementType.i8, 32, 32, 16, ElementType.i32)
+
+    @staticmethod
+    def all():
+        return [
+            MfmaIntrinsic.mfma_f16_16x16x16_f32(),
+            MfmaIntrinsic.mfma_f16_32x32x8_f32(),
+            MfmaIntrinsic.mfma_i8_16x16x32_i32(),
+            MfmaIntrinsic.mfma_i8_32x32x16_i32(),
+        ]
 
 
-def is_not_pow2(x, min, max):
-    return z3.And(list(x != 2**i for i in range(min, max + 1)))
+def get_compatible_mfma_intrinsics(problem_size: ProblemSize) -> list[MfmaIntrinsic]:
+    def is_compatible(intrinsic: MfmaIntrinsic) -> bool:
+        if problem_size.res_type.element_type != intrinsic.output_type:
+            return False
+        if problem_size.dispatch_kind != DispatchKind.batch_matmul:
+            if problem_size.lhs_type.element_type != intrinsic.input_type:
+                return False
+            if problem_size.rhs_type.element_type != intrinsic.input_type:
+                return False
+        return True
+
+    return list(filter(is_compatible, MfmaIntrinsic.all()))
+
+
+def get_mfma_intrinsic_constraints(
+    problem_size: ProblemSize,
+    intrinsic_m: z3.ArithRef,
+    intrinsic_n: z3.ArithRef,
+    intrinsic_k: z3.ArithRef,
+):
+    compatible_intrinsics = get_compatible_mfma_intrinsics(problem_size)
+    assert len(compatible_intrinsics) > 0, "No compatible intrinsics found"
+    return z3.Or(
+        *(
+            z3.And(intrinsic_m == mfma.m, intrinsic_n == mfma.n, intrinsic_k == mfma.k)
+            for mfma in compatible_intrinsics
+        )
+    )
 
 
 def generate_constraints(
@@ -692,9 +748,8 @@ def generate_constraints(
     wg_x, wg_y, wg_z = workgroup_size
     constraints = [subgroup_size == 64, wg_x * wg_y * wg_z <= 1024]
     constraints += [
-        z3.Or(
-            z3.And(intrinsic_mn == 16, intrinsic_k == 16),
-            z3.And(intrinsic_mn == 32, intrinsic_k == 8),
+        get_mfma_intrinsic_constraints(
+            problem_size, intrinsic_mn, intrinsic_mn, intrinsic_k
         )
     ]
     subgroup_k_count = 1

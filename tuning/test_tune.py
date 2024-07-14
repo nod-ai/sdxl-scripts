@@ -157,6 +157,46 @@ def test_get_shapes_batch_matmul():
         tune.DispatchKind.batch_matmul,
     )
 
+def test_get_compatible_mfma_intrinsics():
+    assert tune.get_compatible_mfma_intrinsics(
+        tune.ProblemSize(
+            tune.MatmulSize(2048, 1280, 1280),
+            tune.ShapedType([2048, 1280], tune.ElementType.f16),
+            tune.ShapedType([1280, 1280], tune.ElementType.f16),
+            tune.ShapedType([2048, 1280], tune.ElementType.f32),
+            tune.DispatchKind.mmt,
+        )
+    ) == [
+        tune.MfmaIntrinsic.mfma_f16_16x16x16_f32(),
+        tune.MfmaIntrinsic.mfma_f16_32x32x8_f32(),
+    ]
+
+    assert tune.get_compatible_mfma_intrinsics(
+        tune.ProblemSize(
+            tune.MatmulSize(2048, 1280, 1280),
+            tune.ShapedType([2048, 1280], tune.ElementType.i8),
+            tune.ShapedType([1280, 1280], tune.ElementType.i8),
+            tune.ShapedType([2048, 1280], tune.ElementType.i32),
+            tune.DispatchKind.mmt,
+        )
+    ) == [
+        tune.MfmaIntrinsic.mfma_i8_16x16x32_i32(),
+        tune.MfmaIntrinsic.mfma_i8_32x32x16_i32(),
+    ]
+
+    assert tune.get_compatible_mfma_intrinsics(
+        tune.ProblemSize(
+            tune.MatmulSize(968, 320, 640, 64),
+            tune.ShapedType([64, 968, 640], tune.ElementType.f32),
+            tune.ShapedType([64, 640, 320], tune.ElementType.f32),
+            tune.ShapedType([64, 968, 320], tune.ElementType.f32),
+            tune.DispatchKind.batch_matmul,
+        )
+    ) == [
+        tune.MfmaIntrinsic.mfma_f16_16x16x16_f32(),
+        tune.MfmaIntrinsic.mfma_f16_32x32x8_f32(),
+    ]
+
 
 def test_generate_solutions():
     matmul_size = tune.MatmulSize(2048, 3840, 1280)
