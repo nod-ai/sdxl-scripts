@@ -157,6 +157,7 @@ def test_get_shapes_batch_matmul():
         tune.DispatchKind.batch_matmul,
     )
 
+
 def test_get_compatible_mfma_intrinsics():
     assert tune.get_compatible_mfma_intrinsics(
         tune.ProblemSize(

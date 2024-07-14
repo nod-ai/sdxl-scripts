@@ -47,7 +47,7 @@ class DispatchKind(Enum):
 @dataclass
 class OpWalkResult:
     was_interrupted: bool = False
-    dispatch_kind: DispatchKind = None
+    dispatch_kind: DispatchKind | None = None
 
 
 class ElementType(Enum):
@@ -148,7 +148,7 @@ def get_conv_tile_sizes(configuration: Configuration):
     return batch, oh, ow, oc, fh, fw, ic
 
 
-def get_contract_tile_sizes(configuration: Configuration, tile_dims):
+def get_contract_tile_sizes(configuration: Configuration, tile_dims: str) -> list[int]:
     m, n, k = configuration.tile_sizes
     tile_size = [1] * len(tile_dims)
     for idx, dim in enumerate(tile_dims):
@@ -241,7 +241,7 @@ transform.named_sequence @{functionName}(%conv: !transform.any_op {{transform.re
 
 def get_transform_function_batch_matmul(
     problem_size: ProblemSize,
-    tile_dims: list[int],
+    tile_dims: str,
     functionName: str,
     configuration: Configuration,
 ) -> str:
@@ -717,7 +717,7 @@ def get_mfma_intrinsic_constraints(
     intrinsic_m: z3.ArithRef,
     intrinsic_n: z3.ArithRef,
     intrinsic_k: z3.ArithRef,
-):
+) -> z3.BoolRef:
     compatible_intrinsics = get_compatible_mfma_intrinsics(problem_size)
     assert len(compatible_intrinsics) > 0, "No compatible intrinsics found"
     return z3.Or(
@@ -935,7 +935,7 @@ def walk_mlir_op(mlir_module: str) -> OpWalkResult:
 
 def tune(
     input: str,
-    output: str = None,
+    output: str = "",
     limit: int = 4096,
     lhs_dims: str = "mk",
     rhs_dims: str = "nk",
@@ -943,7 +943,7 @@ def tune(
 ):
     input_file = str(input)
 
-    if output is None:
+    if not output:
         output = get_default_output_dir()
 
     # Create the directory if it does not exist
@@ -962,10 +962,10 @@ def tune(
     with open(path.join(output, f"0.mlir"), "w") as f:
         f.write(mlir_text)
 
-    get_shapes_fn: Callable[[list[str]], ProblemSize] = None
-    apply_params_fn: Callable[
-        [ProblemSize, list[str], Configuration], tuple[str, str]
-    ] = None
+    get_shapes_fn: Callable[[list[str]], ProblemSize] | None = None
+    apply_params_fn: (
+        Callable[[ProblemSize, list[str], Configuration], tuple[str, str]] | None
+    ) = None
     if walk_result.dispatch_kind == DispatchKind.conv:
         get_shapes_fn = get_shapes_conv
         apply_params_fn = apply_params_conv
@@ -984,8 +984,8 @@ def tune(
         get_shapes_fn = lambda template: get_shapes_batch_matmul(
             template, lhs_dims, rhs_dims
         )
-        apply_params_fn = lambda _ps, template, config: apply_params_batch_matmul(
-            template, lhs_dims, rhs_dims, config
+        apply_params_fn = lambda ps, template, config: apply_params_batch_matmul(
+            ps, tile_dims, template, config
         )
     else:
         assert False, f"Unhandled dispatch kind: {walk_result.dispatch_kind}"
