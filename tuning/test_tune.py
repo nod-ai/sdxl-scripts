@@ -158,6 +158,21 @@ def test_get_shapes_batch_matmul():
     )
 
 
+def test_get_shapes_batch_mmt():
+    template = [
+        r"%19 = linalg.fill {lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 64, 128, 128]]>} ins(%c0_i32 : i32) outs(%18 : tensor<2x4096x640xi32>) -> tensor<2x4096x640xi32>",
+        r'%20 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>, affine_map<(d0, d1, d2, d3) -> (d0, d2, d3)>, affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>], iterator_types = ["parallel", "parallel", "parallel", "reduction"]} ins(%11, %12 : tensor<2x4096x640xi8>, tensor<2x640x640xi8>) outs(%19 : tensor<2x4096x640xi32>) attrs =  {lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 64, 128, 128]]>} {',
+        r"flow.dispatch.tensor.store %21, %10, offsets = [0, 0, 0], sizes = [2, 4096, 640], strides = [1, 1, 1] : tensor<2x4096x640xf16> -> !flow.dispatch.tensor<writeonly:tensor<2x4096x640xf16>>",
+    ]
+    assert tune.get_shapes_batch_mmt(template) == tune.ProblemSize(
+        tune.MatmulSize(4096, 640, 640, 2),
+        tune.ShapedType([2, 4096, 640], tune.ElementType.i8),
+        tune.ShapedType([2, 640, 640], tune.ElementType.i8),
+        tune.ShapedType([2, 4096, 640], tune.ElementType.i32),
+        tune.DispatchKind.batch_mmt,
+    )
+
+
 def test_get_compatible_mfma_intrinsics():
     assert tune.get_compatible_mfma_intrinsics(
         tune.ProblemSize(
@@ -397,7 +412,7 @@ def test_apply_params_contract():
         waves_per_eu=2,
     )
 
-    new_mlir = tune.apply_params_contract(
+    new_mlir, _embeddable = tune.apply_params_contract(
         problem_size, tile_dims, mlir_template, config
     )
 
@@ -433,7 +448,7 @@ def test_apply_params_batch_matmul():
 
     config = tune.Configuration(
         subgroup_size=64,
-        workgroup_size=[128, 1, 1],
+        workgroup_size=[128, 2, 1],
         intrinsic="#iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>",
         tile_sizes=[416, 320, 128],
         subgroup_m_count=2,
@@ -452,10 +467,53 @@ def test_apply_params_batch_matmul():
         in modified
     )
     assert (
-        "LLVMGPUVectorDistribute workgroup_size = [128, 1, 1] subgroup_size = 64"
+        "LLVMGPUVectorDistribute workgroup_size = [128, 2, 1] subgroup_size = 64"
         in modified
     )
     assert "tile_sizes = [[1, 416, 320, 128]]" in modified
+    assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}' in modified
+
+
+def test_apply_params_batch_mmt():
+    mlir_template = [
+        "<intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>, subgroup_m_count = 4, subgroup_n_count = 1>}>",
+        "<LLVMGPUVectorDistribute workgroup_size = [64, 4, 1] subgroup_size = 64,",
+        "<tile_sizes = [[1, 128, 128, 64]]>",
+        '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "1"}',
+    ]
+
+    problem_size = tune.ProblemSize(
+        tune.MatmulSize(4096, 640, 640, 2),
+        tune.ShapedType([2, 4096, 640], tune.ElementType.f16),
+        tune.ShapedType([2, 640, 640], tune.ElementType.f16),
+        tune.ShapedType([2, 4096, 640], tune.ElementType.f32),
+        tune.DispatchKind.batch_mmt,
+    )
+
+    config = tune.Configuration(
+        subgroup_size=64,
+        workgroup_size=[128, 2, 1],
+        intrinsic="#iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>",
+        tile_sizes=[128, 64, 128],
+        subgroup_m_count=2,
+        subgroup_n_count=2,
+        waves_per_eu=2,
+    )
+
+    modified, _embeddable = tune.apply_params_batch_mmt(
+        problem_size, mlir_template, config
+    )
+
+    assert modified is not None
+    assert (
+        "intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>, subgroup_m_count = 2, subgroup_n_count = 2"
+        in modified
+    )
+    assert (
+        "LLVMGPUVectorDistribute workgroup_size = [128, 2, 1] subgroup_size = 64"
+        in modified
+    )
+    assert "tile_sizes = [[1, 128, 64, 128]]" in modified
     assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}' in modified
 
 
@@ -498,3 +556,7 @@ def test_walk_mlir_op():
     walk_result = detect_mlir_type("./test-data/batch_matmul.mlir")
     assert walk_result.was_interrupted
     assert walk_result.dispatch_kind == tune.DispatchKind.batch_matmul
+
+    walk_result = detect_mlir_type("./test-data/batch_mmt.mlir")
+    assert walk_result.was_interrupted
+    assert walk_result.dispatch_kind == tune.DispatchKind.batch_mmt
