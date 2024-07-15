@@ -225,6 +225,16 @@ def test_generate_solutions():
     configs = tune.generate_solutions(problem_size)
     assert configs is not None
 
+def test_calculate_shared_memory_usage():
+    matmul_size = tune.MatmulSize(1024, 1024, 1024)
+    lhs_type = tune.ShapedType([1024, 1024], tune.ElementType.f16)
+    rhs_type = tune.ShapedType([1024, 1024], tune.ElementType.f16)
+    res_type = tune.ShapedType([1024, 1024], tune.ElementType.f32)
+    problem_size = tune.ProblemSize(
+        matmul_size, lhs_type, rhs_type, res_type, tune.DispatchKind.mmt
+    )
+    assert tune.calculate_shared_memory_usage(problem_size, 512, 64, 128) == 147456
+
 
 def test_generate_constraints_valid_input():
     matmul_size = tune.MatmulSize(1024, 1024, 1024)
