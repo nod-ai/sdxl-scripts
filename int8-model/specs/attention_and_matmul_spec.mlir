@@ -474,15 +474,45 @@ module attributes { transform.with_named_sequence } {
 // Batch matmul tuning
 //===----------------------------------------------------------------------===//
 
+//===----------------------------------------------------------------------===//
+// Batch mmt tuning
+//===----------------------------------------------------------------------===//
+
+  transform.named_sequence @match_batch_mmt_i8_i8_i32(%root: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+    transform.match.operation_name %root ["linalg.generic"] : !transform.any_op
+    // transform.print %root {name = "Generic"} : !transform.any_op
+    %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %root {
+      ^bb0(%lhs: tensor<?x?x?xi8>, %rhs: tensor<?x?x?xi8>, %out: tensor<?x?x?xi32>):
+      %20 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>,
+                                             affine_map<(d0, d1, d2, d3) -> (d0, d2, d3)>,
+                                             affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>],
+                            iterator_types = ["parallel", "parallel", "parallel", "reduction"]}
+          ins(%lhs, %rhs : tensor<?x?x?xi8>, tensor<?x?x?xi8>) outs(%out : tensor<?x?x?xi32>) {
+        ^bb0(%in: i8, %in_0: i8, %acc: i32):
+          %22 = arith.extsi %in : i8 to i32
+          %23 = arith.extsi %in_0 : i8 to i32
+          %24 = arith.muli %22, %23 : i32
+          %25 = arith.addi %acc, %24 : i32
+          linalg.yield %25 : i32
+        } -> tensor<?x?x?xi32>
+    } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+    transform.yield %root : !transform.any_op
+  }
 
 //===----------------------------------------------------------------------===//
 // Contraction tuning
 //===----------------------------------------------------------------------===//
 
-
 //===----------------------------------------------------------------------===//
 // Entry point
 //===----------------------------------------------------------------------===//
+
+  transform.named_sequence @apply_op_config(%op: !transform.any_op {transform.readonly},
+                                            %config: !transform.any_param {transform.readonly}) {
+    transform.annotate %op "compilation_info" = %config : !transform.any_op, !transform.any_param
+    // transform.print %op {name = "Applied"} : !transform.any_op
+    transform.yield
+  }
 
   transform.named_sequence @__kernel_config(%variant_op: !transform.any_op {transform.consumed}) {
     transform.foreach_match in %variant_op
@@ -495,6 +525,8 @@ module attributes { transform.with_named_sequence } {
         // Convolution.
 
         // Batch matmul.
+
+        // Batch mmt.
 
         // Contration.
       : (!transform.any_op) -> (!transform.any_op)

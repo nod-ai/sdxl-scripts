@@ -333,8 +333,8 @@ def test_apply_params_mmt():
     )
     modified, embeddable = tune.apply_params_mmt(problem_size, mlir_template, config)
 
-    assert modified is not None
-    assert embeddable is not None
+    assert modified
+    assert embeddable
     assert (
         "intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>, subgroup_m_count = 16, subgroup_n_count = 16"
         in modified
@@ -376,8 +376,8 @@ def test_apply_params_conv():
     )
     modified, embeddable = tune.apply_params_conv(problem_size, mlir_template, config)
 
-    assert modified is not None
-    assert embeddable is not None
+    assert modified
+    assert embeddable
     assert (
         "intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>, subgroup_m_count = 1, subgroup_n_count = 4"
         in modified
@@ -421,7 +421,7 @@ def test_apply_params_contract():
         problem_size, tile_dims, mlir_template, config
     )
 
-    assert new_mlir is not None
+    assert new_mlir
     assert (
         "intrinsic = #iree_gpu.mma_layout<MFMA_F16_32x32x8_F32>, subgroup_m_count = 1, subgroup_n_count = 4"
         in new_mlir
@@ -465,8 +465,8 @@ def test_apply_params_batch_matmul():
         problem_size, tile_dims, mlir_template, config
     )
 
-    assert modified is not None
-    assert embeddable is not None
+    assert modified
+    assert embeddable
     assert (
         "intrinsic = #iree_gpu.mma_layout<MFMA_F16_32x32x8_F32>, subgroup_m_count = 2, subgroup_n_count = 2"
         in modified
@@ -505,11 +505,12 @@ def test_apply_params_batch_mmt_float():
         waves_per_eu=2,
     )
 
-    modified, _embeddable = tune.apply_params_batch_mmt(
+    modified, embeddable = tune.apply_params_batch_mmt(
         problem_size, mlir_template, config
     )
 
-    assert modified is not None
+    assert embeddable
+    assert modified
     assert (
         "intrinsic = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>, subgroup_m_count = 2, subgroup_n_count = 2"
         in modified
@@ -545,14 +546,15 @@ def test_apply_params_batch_mmt_int():
         tile_sizes=[128, 64, 128],
         subgroup_m_count=2,
         subgroup_n_count=2,
-        waves_per_eu=2,
+        waves_per_eu=4,
     )
 
-    modified, _embeddable = tune.apply_params_batch_mmt(
+    modified, embeddable = tune.apply_params_batch_mmt(
         problem_size, mlir_template, config
     )
 
-    assert modified is not None
+    assert modified
+    assert "//   transform.named_sequence @match_batch_mmt_2x4096x640x640(" in modified
     assert (
         "intrinsic = #iree_gpu.mma_layout<MFMA_I8_32x32x16_I32>, subgroup_m_count = 2, subgroup_n_count = 2"
         in modified
@@ -562,7 +564,28 @@ def test_apply_params_batch_mmt_int():
         in modified
     )
     assert "tile_sizes = [[1, 128, 64, 128]]" in modified
-    assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}' in modified
+    assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}' in modified
+
+    assert embeddable
+    assert "transform.named_sequence @match_op(" in embeddable
+    assert (
+        "transform.include @match_batch_mmt_i8_i8_i32 failures(propagate)" in embeddable
+    )
+    assert (
+        "transform.iree.match.cast_compatible_type %lhs = tensor<2x4096x640xi8> : !transform.any_value"
+        in embeddable
+    )
+    assert (
+        "transform.iree.match.cast_compatible_type %rhs = tensor<2x640x640xi8> : !transform.any_value"
+        in embeddable
+    )
+    assert (
+        "%config = transform.param.constant #iree_codegen.compilation_info<"
+        in embeddable
+    )
+    assert "tile_sizes = [[1, 128, 64, 128]]" in embeddable
+    assert 'llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}' in embeddable
+    assert "workgroup_size = [128, 2, 1] subgroup_size = 64" in embeddable
 
 
 def test_parse_mlir():
