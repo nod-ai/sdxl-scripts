@@ -810,7 +810,7 @@ def generate_constraints(
     ]
     constraints += [wg_threads == wg_x * wg_y * wg_z]
     constraints += [
-        z3.And(
+        z3.Or(
             z3.Or(
                 (inner_lhs_dim_size / elems_per_thread) % wg_threads == 0,
                 wg_threads % (inner_lhs_dim_size / elems_per_thread) == 0,
