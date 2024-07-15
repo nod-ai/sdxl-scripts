@@ -257,6 +257,8 @@ def run_command(
         logging.error(f"Command '{command_str}' failed with error: {e.stderr}")
         if check:
             raise
+    except KeyboardInterrupt:
+        print("Ctrl+C detected, terminating child processes...")
 
 
 def run_command_wrapper(
@@ -282,10 +284,16 @@ def multiprocess_progress_wrapper(
     ) as worker_pool:
         # Use tqdm to create a progress bar
         with tqdm(total=len(task_list)) as pbar:
-            # Use imap_unordered to asynchronously execute the worker function on each task
-            for result in worker_pool.imap_unordered(function, task_list):
-                pbar.update(1)  # Update progress bar
-                results.append(result)
+            try:
+                # Use imap_unordered to asynchronously execute the worker function on each task
+                for result in worker_pool.imap_unordered(function, task_list):
+                    pbar.update(1)  # Update progress bar
+                    results.append(result)
+            except KeyboardInterrupt:
+                # If Ctrl+C is pressed, terminate all child processes
+                worker_pool.terminate()
+                worker_pool.join()
+                sys.exit(1)  # Exit the script
     return results
 
 
@@ -411,9 +419,9 @@ def generate_candidates(
             )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
-                mlir
-            )
+            candidate_trackers[
+                int(mlir.stem.split("_config")[0])
+            ].mlir_config_path = mlir
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
@@ -663,7 +671,7 @@ def benchmark_unet(
     return unet_result_log
 
 
-def main():
+def autotune() -> None:
     args = parse_arguments()
 
     base_dir = Path(f"tuning_{datetime.now().strftime('%Y_%m_%d_%H_%M')}")
@@ -715,6 +723,10 @@ def main():
         logging.debug(candidate)
         if args.verbose:
             print(candidate)
+
+
+def main():
+    autotune()
 
 
 if __name__ == "__main__":
