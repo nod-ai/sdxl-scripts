@@ -788,25 +788,27 @@ def generate_constraints(
 
     constraints += [z3.Or(waves_per_eu == 1, waves_per_eu == 2, waves_per_eu == 4)]
 
-    wg_n = z3.Int("wg_n")
-    wg_k = z3.Int("wg_k")
+    # Constraint to ensure tile_sizes is distributable by workgroup_size.
+    # such that we can distribute to it's corresponding vector.transfer_read.
     inner_lhs_dim_size = z3.Int("inner_lhs_dim_size")
     inner_rhs_dim_size = z3.Int("inner_rhs_dim_size")
     kMaxVectorLoadBitWidth = z3.Int("kMaxVectorLoadBitWidth")
     elems_per_thread = z3.Int("elems_per_thread")
     wg_threads = z3.Int("wg_threads")
-    constraints += [wg_n == intrinsic_mn * subgroup_n_tile_count * subgroup_n_count]
-    constraints += [wg_k == intrinsic_k * subgroup_k_tile_count]
-    constraints += [inner_lhs_dim_size == wg_k]
+    constraints += [inner_lhs_dim_size == k]
     if problem_size.dispatch_kind == DispatchKind.mmt:
-        constraints += [inner_rhs_dim_size == wg_k]
+        constraints += [inner_rhs_dim_size == k]
     else:
-        constraints += [inner_rhs_dim_size == wg_n]
+        constraints += [inner_rhs_dim_size == n]
     constraints += [kMaxVectorLoadBitWidth == 128]
 
-    rhs_bitwidth = problem_size.rhs_type.bitwidth
-    constraints += [elems_per_thread == kMaxVectorLoadBitWidth / rhs_bitwidth]
-    constraints += [wg_threads == subgroup_m_count * subgroup_n_count * subgroup_size]
+    constraints += [
+        z3.Or(
+                elems_per_thread == kMaxVectorLoadBitWidth / problem_size.rhs_type.bitwidth,
+                elems_per_thread == 1, elems_per_thread == 2, elems_per_thread == 4, elems_per_thread == 8,
+            )
+    ]
+    constraints += [wg_threads == wg_x * wg_y * wg_z]
     constraints += [
         z3.And(
             z3.Or(
@@ -819,6 +821,13 @@ def generate_constraints(
             ),
         )
     ]
+
+    # The shared memory constraint is best compatible with mmt.
+    # For other dispatch types, there are cases where the shared memory size 
+    # may not align with the tile size.
+    if problem_size.dispatch_kind == DispatchKind.mmt:
+        shared_memory = (m * k * (problem_size.lhs_type.bitwidth / 8)) + (k * n * (problem_size.rhs_type.bitwidth / 8))
+        constraints += [shared_memory <= 65536]
 
     return constraints
 
