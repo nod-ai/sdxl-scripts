@@ -90,7 +90,7 @@ set -x
     --iree-llvmgpu-enable-prefetch \
     --iree-codegen-gpu-native-math-precision=true \
     --iree-flow-enable-aggressive-fusion \
-    --iree-global-opt-enable-fuse-horizontal-contractions=true \
+    --iree-flow-enable-fuse-horizontal-contractions=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-execution-model=async-external \
     --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
