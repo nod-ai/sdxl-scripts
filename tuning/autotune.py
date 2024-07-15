@@ -481,7 +481,7 @@ def compile_candidates(
     return compiled_files, compiled_dir
 
 
-def benchmark_top_candidates(
+def benchmark_compiled_candidates(
     args: argparse.Namespace,
     base_dir: Path,
     candidates_dir: Path,
@@ -685,8 +685,8 @@ def main():
     )
     print(f"Compiled [{len(compiled_files)}] files in {compiled_dir}\n")
 
-    print("Benchmarking top candidates...")
-    best_log = benchmark_top_candidates(
+    print("Benchmarking compiled candidates...")
+    best_log = benchmark_compiled_candidates(
         args, base_dir, candidates_dir, compiled_files, candidate_trackers
     )
     print(f"Top candidates results are stored in {best_log}\n")

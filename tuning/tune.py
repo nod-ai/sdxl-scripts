@@ -174,7 +174,28 @@ def get_mmt_tile_sizes(configuration: Configuration):
     return configuration.tile_sizes
 
 
-def get_conv_tile_sizes(configuration: Configuration):
+@dataclass
+class ConvDimInfo:
+    n: int
+    oh: int
+    ow: int
+    oc: int
+    fh: int
+    fw: int
+    ic: int
+
+    @staticmethod
+    def from_rhs_res(rhs_shaped_type: ShapedType, res_shaped_type: ShapedType):
+        n, oh, ow, oc = res_shaped_type.shape
+        fh, fw, ic, _ = rhs_shaped_type.shape
+        return ConvDimInfo(n, oh, ow, oc, fh, fw, ic)
+
+    @staticmethod
+    def from_problem_size(problem_size: ProblemSize):
+        return ConvDimInfo.from_rhs_res(problem_size.rhs_type, problem_size.res_type)
+
+
+def get_conv_tile_sizes(configuration: Configuration) -> list[int]:
     m, n, k = configuration.tile_sizes
     batch = 1
     fh = 1
@@ -185,7 +206,7 @@ def get_conv_tile_sizes(configuration: Configuration):
     oc = n
     ow = m
     ic = k
-    return batch, oh, ow, oc, fh, fw, ic
+    return [batch, oh, ow, oc, fh, fw, ic]
 
 
 def get_contract_tile_sizes(configuration: Configuration, tile_dims: str) -> list[int]:
@@ -406,12 +427,11 @@ def apply_params_mmt(
 def apply_params_conv(
     problem_size: ProblemSize, template: list[str], configuration: Configuration
 ) -> tuple[str, str]:
-    N, OH, OW, OC = problem_size.res_type.shape
-    FH, FW, IC, _ = problem_size.rhs_type.shape
+    conv_dims = ConvDimInfo.from_problem_size(problem_size)
     modified = indent(
         get_transform_function_conv(
             problem_size,
-            f"match_conv_2d_nhwc_hwcf_{N}x{OH}x{OW}x{OC}x{FH}x{FW}x{IC}",
+            f"match_conv_2d_nhwc_hwcf_{conv_dims.n}x{conv_dims.oh}x{conv_dims.ow}x{conv_dims.oc}x{conv_dims.fh}x{conv_dims.fw}x{conv_dims.ic}",
             configuration,
         ),
         "//   ",
@@ -582,10 +602,14 @@ def get_shapes_conv(template: list[str]) -> ProblemSize:
         # int64_t fh = filterShape[0];
         # int64_t fw = filterShape[1];
         # int64_t ic = filterShape[2];
-        _n, oh, ow, oc = res_shaped_type.shape
-        fh, fw, ic, _ = rhs_shaped_type.shape
+        dim_info = ConvDimInfo.from_rhs_res(rhs_shaped_type, res_shaped_type)
         return ProblemSize(
-            MatmulSize(M=oh * ow, N=oc, K=fh * fw * ic, B=1),
+            MatmulSize(
+                M=dim_info.oh * dim_info.ow,
+                N=dim_info.oc,
+                K=dim_info.fh * dim_info.fw * dim_info.ic,
+                B=dim_info.n,
+            ),
             lhs_shaped_type,
             rhs_shaped_type,
             res_shaped_type,
@@ -779,6 +803,24 @@ def get_mfma_intrinsic_constraints(
     )
 
 
+def get_dispatch_constraints(
+    problem_size: ProblemSize,
+    tile_m: z3.ArithRef,
+    tile_n: z3.ArithRef,
+    tile_k: z3.ArithRef,
+) -> list[z3.BoolRef]:
+    if problem_size.dispatch_kind != DispatchKind.conv:
+        return []
+
+    dim_info = ConvDimInfo.from_problem_size(problem_size)
+    conv_constraints = []
+    # This makes the constraints UNSAT for some reason.
+    # conv_constraints += [tile_m <= dim_info.ow]
+    conv_constraints += [tile_n <= dim_info.oc]
+    conv_constraints += [tile_k <= dim_info.ic]
+    return conv_constraints
+
+
 def calculate_shared_memory_usage_in_bytes(
     problem_size: ProblemSize,
     m: int | z3.ArithRef,
@@ -839,16 +881,18 @@ def generate_constraints(
     constraints += [wg_x == subgroup_size * subgroup_n_count]
     constraints += [wg_y == subgroup_m_count]
     constraints += [wg_z == subgroup_k_count]
-    constraints += [wg_x <= m, wg_x <= n]
+    constraints += [z3.Or(wg_x <= n, wg_x <= m)]
     constraints += [k % intrinsic_mn == 0]
-    constraints += [k * n % (wg_x * wg_y * wg_z) == 0]
-    constraints += [k * m % (wg_x * wg_y * wg_z) == 0]
+    constraints += [(k * n) % wg_threads == 0]
+    constraints += [(k * m) % wg_threads == 0]
     constraints += [subgroup_m_count * subgroup_n_count == 4]
 
     constraints += [z3.Or(waves_per_eu == 1, waves_per_eu == 2, waves_per_eu == 4)]
 
     shared_memory = calculate_shared_memory_usage_in_bytes(problem_size, m, n, k)
     constraints += [shared_memory <= 65536]
+
+    constraints += get_dispatch_constraints(problem_size, m, n, k)
 
     return constraints
 
@@ -1057,6 +1101,8 @@ def tune(
 
     with open(path.join(output, "configs.pkl"), "wb") as file:
         pickle.dump(configs, file)
+
+    tune_logger.info(f"Generated {len(configs)} candidates")
     tune_logger.info(f"Configurations .pkl is stored in {output}/configs.pkl")
 
 
