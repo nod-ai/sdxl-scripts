@@ -785,8 +785,8 @@ def calculate_shared_memory_usage_in_bytes(
     n: int | z3.ArithRef,
     k: int | z3.ArithRef,
 ) -> int | z3.ArithRef:
-    lhs_memory = m * k * (problem_size.lhs_type.bitwidth / 8)
-    rhs_memory = k * n * (problem_size.rhs_type.bitwidth / 8)
+    lhs_memory = m * k * (problem_size.lhs_type.bitwidth // 8)
+    rhs_memory = k * n * (problem_size.rhs_type.bitwidth // 8)
     return lhs_memory + rhs_memory
 
 
