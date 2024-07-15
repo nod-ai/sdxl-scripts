@@ -804,9 +804,12 @@ def generate_constraints(
 
     constraints += [
         z3.Or(
-                elems_per_thread == kMaxVectorLoadBitWidth / problem_size.rhs_type.bitwidth,
-                elems_per_thread == 1, elems_per_thread == 2, elems_per_thread == 4, elems_per_thread == 8,
-            )
+            elems_per_thread == kMaxVectorLoadBitWidth / problem_size.rhs_type.bitwidth,
+            elems_per_thread == 1,
+            elems_per_thread == 2,
+            elems_per_thread == 4,
+            elems_per_thread == 8,
+        )
     ]
     constraints += [wg_threads == wg_x * wg_y * wg_z]
     constraints += [
@@ -823,10 +826,12 @@ def generate_constraints(
     ]
 
     # The shared memory constraint is best compatible with mmt.
-    # For other dispatch types, there are cases where the shared memory size 
+    # For other dispatch types, there are cases where the shared memory size
     # may not align with the tile size.
     if problem_size.dispatch_kind == DispatchKind.mmt:
-        shared_memory = (m * k * (problem_size.lhs_type.bitwidth / 8)) + (k * n * (problem_size.rhs_type.bitwidth / 8))
+        shared_memory = (m * k * (problem_size.lhs_type.bitwidth / 8)) + (
+            k * n * (problem_size.rhs_type.bitwidth / 8)
+        )
         constraints += [shared_memory <= 65536]
 
     return constraints
