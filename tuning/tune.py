@@ -26,17 +26,6 @@ Usage: ./tune.py 121.mlir -o "tuning/candidates" -l 1024 --lhs-dims=mk --rhs-dim
 tune_logger = logging.getLogger("tune")
 
 
-@dataclass
-class Configuration:
-    subgroup_size: int
-    workgroup_size: list[int]
-    intrinsic: str
-    tile_sizes: list[int]
-    subgroup_m_count: int
-    subgroup_n_count: int
-    waves_per_eu: int
-
-
 class DispatchKind(Enum):
     conv = 1
     mmt = 2
@@ -109,6 +98,56 @@ class ProblemSize:
     @property
     def MNK(self) -> tuple[int, int, int]:
         return (self.matmul_size.M, self.matmul_size.N, self.matmul_size.K)
+
+
+@dataclass
+class MfmaIntrinsic:
+    input_type: ElementType
+    m: int
+    n: int
+    k: int
+    output_type: ElementType
+
+    def __str__(self) -> str:
+        input = str(self.input_type).upper()
+        output = str(self.output_type).upper()
+        return f"MFMA_{input}_{self.m}x{self.n}x{self.k}_{output}"
+
+    @staticmethod
+    def mfma_f16_16x16x16_f32():
+        return MfmaIntrinsic(ElementType.f16, 16, 16, 16, ElementType.f32)
+
+    @staticmethod
+    def mfma_f16_32x32x8_f32():
+        return MfmaIntrinsic(ElementType.f16, 32, 32, 8, ElementType.f32)
+
+    @staticmethod
+    def mfma_i8_16x16x32_i32():
+        return MfmaIntrinsic(ElementType.i8, 16, 16, 32, ElementType.i32)
+
+    @staticmethod
+    def mfma_i8_32x32x16_i32():
+        return MfmaIntrinsic(ElementType.i8, 32, 32, 16, ElementType.i32)
+
+    @staticmethod
+    def all():
+        return [
+            MfmaIntrinsic.mfma_f16_16x16x16_f32(),
+            MfmaIntrinsic.mfma_f16_32x32x8_f32(),
+            MfmaIntrinsic.mfma_i8_16x16x32_i32(),
+            MfmaIntrinsic.mfma_i8_32x32x16_i32(),
+        ]
+
+
+@dataclass
+class Configuration:
+    subgroup_size: int
+    workgroup_size: list[int]
+    intrinsic: MfmaIntrinsic
+    tile_sizes: list[int]
+    subgroup_m_count: int
+    subgroup_n_count: int
+    waves_per_eu: int
 
 
 class MlirRegex(str, Enum):
@@ -193,7 +232,7 @@ transform.named_sequence @{functionName}(%matmul: !transform.any_op {{transform.
     translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
       workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
       {{mma_schedule = #iree_gpu.mma_schedule<
-         intrinsic = {configuration.intrinsic},
+         intrinsic = #iree_gpu.mma_layout<{configuration.intrinsic}>,
          subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>
        {extra_config}}}>
     > -> !transform.any_param
@@ -235,7 +274,7 @@ transform.named_sequence @{functionName}(%conv: !transform.any_op {{transform.re
       translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
        workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
         {{mma_schedule = #iree_gpu.mma_schedule<
-            intrinsic = {configuration.intrinsic},
+            intrinsic = #iree_gpu.mma_layout<{configuration.intrinsic}>,
             subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>
         {extra_config}}}>
     > -> !transform.any_param
@@ -273,7 +312,7 @@ transform.named_sequence @{functionName}(%batch_matmul: !transform.any_op {{tran
       translation_info = #iree_codegen.translation_info<LLVMGPUPadAndVectorDistribute
        workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
         {{mma_schedule = #iree_gpu.mma_schedule<
-            intrinsic = {configuration.intrinsic},
+            intrinsic = #iree_gpu.mma_layout<{configuration.intrinsic}>,
             subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>
         {extra_config}}}>
     > -> !transform.any_param
@@ -294,7 +333,7 @@ def apply_configuration(
     )
     expr2 = re.compile(r"tile_sizes = \[\[([0-9]+)(, ([0-9]+))+\]\]")
     expr3 = re.compile(r"\"amdgpu-waves-per-eu\" = \"([0-9])\"")
-    repl0 = f"<intrinsic = {configuration.intrinsic}, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>"
+    repl0 = f"<intrinsic = #iree_gpu.mma_layout<{configuration.intrinsic}>, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>"
     repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
     repl2 = f'tile_sizes = [[{", ".join(map(str, tile_sizes))}]]'
     repl3 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
@@ -669,40 +708,6 @@ def get_shapes_batch_mmt(template: list[str]) -> ProblemSize:
     assert False, "Shape not found"
 
 
-@dataclass
-class MfmaIntrinsic:
-    input_type: ElementType
-    m: int
-    n: int
-    k: int
-    output_type: ElementType
-
-    @staticmethod
-    def mfma_f16_16x16x16_f32():
-        return MfmaIntrinsic(ElementType.f16, 16, 16, 16, ElementType.f32)
-
-    @staticmethod
-    def mfma_f16_32x32x8_f32():
-        return MfmaIntrinsic(ElementType.f16, 32, 32, 8, ElementType.f32)
-
-    @staticmethod
-    def mfma_i8_16x16x32_i32():
-        return MfmaIntrinsic(ElementType.i8, 16, 16, 32, ElementType.i32)
-
-    @staticmethod
-    def mfma_i8_32x32x16_i32():
-        return MfmaIntrinsic(ElementType.i8, 32, 32, 16, ElementType.i32)
-
-    @staticmethod
-    def all():
-        return [
-            MfmaIntrinsic.mfma_f16_16x16x16_f32(),
-            MfmaIntrinsic.mfma_f16_32x32x8_f32(),
-            MfmaIntrinsic.mfma_i8_16x16x32_i32(),
-            MfmaIntrinsic.mfma_i8_32x32x16_i32(),
-        ]
-
-
 def get_compatible_mfma_intrinsics(problem_size: ProblemSize) -> list[MfmaIntrinsic]:
     def is_compatible(intrinsic: MfmaIntrinsic) -> bool:
         if problem_size.res_type.element_type != intrinsic.output_type:
@@ -870,7 +875,13 @@ def generate_solutions(problem_size: ProblemSize):
         config = Configuration(
             lookup(subgroup_size),
             [lookup(wg_x), lookup(wg_y), lookup(wg_z)],
-            f"#iree_gpu.mma_layout<MFMA_F16_{lookup(intrinsic_mn)}x{lookup(intrinsic_mn)}x{lookup(intrinsic_k)}_F32>",
+            MfmaIntrinsic(
+                problem_size.lhs_type.element_type,
+                lookup(intrinsic_mn),
+                lookup(intrinsic_mn),
+                lookup(intrinsic_k),
+                problem_size.res_type.element_type,
+            ),
             [lookup(m), lookup(n), lookup(k)],
             lookup(sg_m_cnt),
             lookup(sg_n_cnt),
