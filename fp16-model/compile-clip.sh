@@ -20,7 +20,7 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_fp16_prompt_encoder.ml
     --iree-rocm-waves-per-eu=2 \
     --iree-llvmgpu-enable-prefetch \
     --iree-flow-enable-aggressive-fusion \
-    --iree-global-opt-enable-fuse-horizontal-contractions=true \
+    --iree-flow-enable-fuse-horizontal-contractions=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-codegen-llvmgpu-use-vector-distribution=true \
     --iree-execution-model=async-external \
