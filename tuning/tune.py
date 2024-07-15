@@ -779,6 +779,17 @@ def get_mfma_intrinsic_constraints(
     )
 
 
+def calculate_shared_memory_usage_in_bytes(
+    problem_size: ProblemSize,
+    m: int | z3.ArithRef,
+    n: int | z3.ArithRef,
+    k: int | z3.ArithRef,
+) -> int | z3.ArithRef:
+    lhs_memory = m * k * (problem_size.lhs_type.bitwidth / 8)
+    rhs_memory = k * n * (problem_size.rhs_type.bitwidth / 8)
+    return lhs_memory + rhs_memory
+
+
 def generate_constraints(
     problem_size: ProblemSize,
     tile_sizes,
@@ -797,7 +808,9 @@ def generate_constraints(
     m, n, k = tile_sizes
     intrinsic_mn, intrinsic_k = intrinsic_size
     wg_x, wg_y, wg_z = workgroup_size
-    constraints = [subgroup_size == 64, wg_x * wg_y * wg_z <= 1024]
+    wg_threads = z3.Int("wg_threads")
+    constraints = [wg_threads == wg_x * wg_y * wg_z]
+    constraints += [subgroup_size == 64, wg_threads <= 1024]
     constraints += [
         get_mfma_intrinsic_constraints(
             problem_size, intrinsic_mn, intrinsic_mn, intrinsic_k
@@ -808,7 +821,7 @@ def generate_constraints(
         m >= intrinsic_mn,
         m <= 512,
         m <= M,
-    ]  # , M == m * z3.FreshInt()]
+    ]
     constraints += [n >= intrinsic_mn, n <= 512, n <= N, N == n * z3.FreshInt()]
     constraints += [k >= intrinsic_k, k <= 512, k <= K, K == k * z3.FreshInt()]
     for x in (subgroup_m_count, subgroup_n_count):
@@ -834,37 +847,8 @@ def generate_constraints(
 
     constraints += [z3.Or(waves_per_eu == 1, waves_per_eu == 2, waves_per_eu == 4)]
 
-    wg_n = z3.Int("wg_n")
-    wg_k = z3.Int("wg_k")
-    inner_lhs_dim_size = z3.Int("inner_lhs_dim_size")
-    inner_rhs_dim_size = z3.Int("inner_rhs_dim_size")
-    kMaxVectorLoadBitWidth = z3.Int("kMaxVectorLoadBitWidth")
-    elems_per_thread = z3.Int("elems_per_thread")
-    wg_threads = z3.Int("wg_threads")
-    constraints += [wg_n == intrinsic_mn * subgroup_n_tile_count * subgroup_n_count]
-    constraints += [wg_k == intrinsic_k * subgroup_k_tile_count]
-    constraints += [inner_lhs_dim_size == wg_k]
-    if problem_size.dispatch_kind == DispatchKind.mmt:
-        constraints += [inner_rhs_dim_size == wg_k]
-    else:
-        constraints += [inner_rhs_dim_size == wg_n]
-    constraints += [kMaxVectorLoadBitWidth == 128]
-
-    rhs_bitwidth = problem_size.rhs_type.bitwidth
-    constraints += [elems_per_thread == kMaxVectorLoadBitWidth / rhs_bitwidth]
-    constraints += [wg_threads == subgroup_m_count * subgroup_n_count * subgroup_size]
-    constraints += [
-        z3.And(
-            z3.Or(
-                (inner_lhs_dim_size / elems_per_thread) % wg_threads == 0,
-                wg_threads % (inner_lhs_dim_size / elems_per_thread) == 0,
-            ),
-            z3.Or(
-                (inner_rhs_dim_size / elems_per_thread) % wg_threads == 0,
-                wg_threads % (inner_rhs_dim_size / elems_per_thread) == 0,
-            ),
-        )
-    ]
+    shared_memory = calculate_shared_memory_usage_in_bytes(problem_size, m, n, k)
+    constraints += [shared_memory <= 65536]
 
     return constraints
 
