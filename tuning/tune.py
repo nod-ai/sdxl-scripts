@@ -733,7 +733,7 @@ def get_mfma_intrinsic_constraints(
     )
 
 
-def calculate_shared_memory_usage(
+def calculate_shared_memory_usage_in_bytes(
     problem_size: ProblemSize,
     m: Union[int, z3.ArithRef],
     n: Union[int, z3.ArithRef],
