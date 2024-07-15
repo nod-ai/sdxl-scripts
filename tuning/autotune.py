@@ -9,12 +9,13 @@ from datetime import datetime
 from pathlib import Path
 import time
 import multiprocessing
+import queue
 import tune
 from tqdm import tqdm
 import re
 import hashlib
 from dataclasses import dataclass
-from typing import Literal, Type
+from typing import Type, Optional, Callable, Iterable, Any
 import pickle
 
 """
@@ -39,28 +40,29 @@ DEFAULT_MAX_CPU_WORKERS = (
 @dataclass
 class CandidateTracker:
     candidate_id: int
-    mlir_path: str = None
-    mlir_config_path: str = None
-    configuration: tune.Configuration = None
-    compilation_successful: bool = None
-    compiled_vmfb_path: str = None
-    first_benchmark_time: float = None
-    unet_candidate_path: str = None
-    unet_vmfb_hash: str = None
-    unet_benchmark_time: float = None
+    mlir_path: Optional[Path] = None
+    mlir_config_path: Optional[Path] = None
+    configuration: Optional[tune.Configuration] = None
+    compilation_successful: Optional[bool] = None
+    compiled_vmfb_path: Optional[Path] = None
+    first_benchmark_time: Optional[float] = None
+    unet_candidate_path: Optional[Path] = None
+    unet_vmfb_hash: Optional[str] = None
+    unet_benchmark_time: Optional[float] = None
 
 
 def parse_devices(devices_str: str) -> list[int]:
     """Parse a comma-separated list of device IDs (e.g., "1,3,5" -> [1, 3, 5])."""
+    devices = []
     try:
         devices = [int(device.strip()) for device in devices_str.split(",")]
-        return devices
     except ValueError as e:
         handle_error(
             condition=True,
             msg=f"Invalid device list: {devices_str}. Error: {e}",
             error_type=argparse.ArgumentTypeError,
         )
+    return devices
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -206,7 +208,7 @@ def init_worker_context(queue: multiprocessing.Queue) -> None:
     worker_id, device_id = queue.get()
 
 
-def create_worker_context_queue(device_ids: list[int]) -> multiprocessing.Queue:
+def create_worker_context_queue(device_ids: list[int]) -> queue.Queue[tuple[int, int]]:
     """Create queue contains Worker ID and Device ID for worker initialization"""
     worker_contexts_queue = multiprocessing.Manager().Queue()
     for worker_id, device_id in enumerate(device_ids):
@@ -216,7 +218,7 @@ def create_worker_context_queue(device_ids: list[int]) -> multiprocessing.Queue:
 
 
 def worker_run_command_with_device_id(
-    task_tuple: tuple[argparse.Namespace, str, bool]
+    task_tuple: tuple[argparse.Namespace, list[str], bool]
 ) -> subprocess.CompletedProcess:
     """worker add its device_id to the command for ./compile_unet_candidate.sh, return the run_command() result"""
     args, command, check = task_tuple
@@ -237,6 +239,7 @@ def run_command(
     Returns:
         subprocess.CompletedProcess: The result of the command execution.
     """
+    result = None
     try:
         # Convert the command list to a command string for logging
         command_str = " ".join(command)
@@ -246,7 +249,6 @@ def run_command(
             logging.info(f"stdout: {result.stdout}")
         if result.stderr:
             logging.error(f"stderr: {result.stderr}")
-        return result
     except subprocess.CalledProcessError as e:
         print(f"Command '{e.cmd}' returned non-zero exit status {e.returncode}.")
         print(e.output)
@@ -262,7 +264,7 @@ def run_command(
 
 
 def run_command_wrapper(
-    task_tuple: tuple[argparse.Namespace, str, bool]
+    task_tuple: tuple[argparse.Namespace, list[str], bool]
 ) -> subprocess.CompletedProcess:
     """pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments"""
     args, command, check = task_tuple
@@ -272,9 +274,9 @@ def run_command_wrapper(
 def multiprocess_progress_wrapper(
     num_worker: int,
     task_list: list,
-    function: callable,
-    initializer: callable = None,
-    initializer_inputs=None,
+    function: Callable,
+    initializer: Optional[Callable] = None,
+    initializer_inputs: Optional[Iterable[Any]] = None,
 ) -> list[subprocess.CompletedProcess]:
     """Wrapper of multiprocessing pool and progress bar"""
     results = []
@@ -297,7 +299,7 @@ def multiprocess_progress_wrapper(
     return results
 
 
-def numerical_sort_key(path: Path) -> tuple[int, str]:
+def numerical_sort_key(path: Path) -> tuple[int | float, str]:
     """
     Define a sort key function that splits the filename into a numeric and a string part.
     Order: 0 | 0_a | 0_b | 1 | 1_a | 2
@@ -314,7 +316,7 @@ def numerical_sort_key(path: Path) -> tuple[int, str]:
     return (numeric_part, remaining_part)
 
 
-def calculate_md5(file_path: str) -> str:
+def calculate_md5(file_path: Path) -> str:
     md5 = hashlib.md5()
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
@@ -348,7 +350,7 @@ def find_collisions(
     return collisions_exist, hash_values
 
 
-def load_pickle(file_path: Path) -> list[any]:
+def load_pickle(file_path: Path) -> list[Any]:
     handle_error(
         condition=(not file_path.exists()),
         msg=f"Configuration file not found: {file_path}",
@@ -360,7 +362,7 @@ def load_pickle(file_path: Path) -> list[any]:
 
 
 def generate_candidates(
-    args: argparse.Namespace, base_dir: Path, candidate_trackers: CandidateTracker
+    args: argparse.Namespace, base_dir: Path, candidate_trackers: list[CandidateTracker]
 ) -> tuple[list[Path], Path]:
     """Generate candidate files for tuning. Returns the list of candidate files and the candidates directory."""
     logging.info("generate_candidates()")
@@ -413,15 +415,13 @@ def generate_candidates(
         if "_config.mlir" not in mlir.name:
             candidates.append(mlir)
             new_candidate = CandidateTracker(
-                candidate_id=mlir.stem,
+                candidate_id=int(mlir.stem),
                 mlir_path=mlir,
                 configuration=candidate_configs[int(mlir.stem)],
             )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
-                mlir
-            )
+            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = mlir
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
@@ -435,7 +435,7 @@ def compile_candidates(
     base_dir: Path,
     candidates: list[Path],
     candidate_dir: Path,
-    candidate_trackers: CandidateTracker,
+    candidate_trackers: list[CandidateTracker],
 ) -> tuple[list[Path], Path]:
     """Compile candidate files for tuning and record in candidate_vmfbs.txt. Returns the list of compiled files and the compiled files directory."""
     logging.info("compile_candidates()")
@@ -494,7 +494,7 @@ def benchmark_compiled_candidates(
     base_dir: Path,
     candidates_dir: Path,
     compiled_files: list[Path],
-    candidate_trackers: CandidateTracker,
+    candidate_trackers: list[CandidateTracker],
 ) -> Path:
     """Benchmark the candidate files and store the top20 results in file (best.log). Return the log file"""
     logging.info("benchmark_top_candidates()")
@@ -569,7 +569,7 @@ def compile_unet_candidates(
     args: argparse.Namespace,
     base_dir: Path,
     best_log: Path,
-    candidate_trackers: CandidateTracker,
+    candidate_trackers: list[CandidateTracker],
 ) -> list[str]:
     """Compile U-Net candidates stored in best.log. Return the list of U-Net candidate files."""
     logging.info("compile_unet_candidates()")
@@ -625,14 +625,14 @@ def benchmark_unet(
     args: argparse.Namespace,
     base_dir: Path,
     unet_candidates: list[str],
-    candidate_trackers: CandidateTracker,
-) -> None:
+    candidate_trackers: list[CandidateTracker],
+) -> Path:
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
     logging.info("benchmark_unet()")
 
     unet_candidates = ["unet_baseline.vmfb"] + unet_candidates + ["unet_baseline.vmfb"]
     # Update candidate tracker
-    candidate_trackers[0].unet_candidate_path = "unet_baseline.vmfb"
+    candidate_trackers[0].unet_candidate_path = Path("./unet_baseline.vmfb")
 
     unet_result_log = base_dir / "unet_results.log"
 
@@ -677,7 +677,7 @@ def autotune() -> None:
     base_dir = Path(f"tuning_{datetime.now().strftime('%Y_%m_%d_%H_%M')}")
     base_dir.mkdir(parents=True, exist_ok=True)
 
-    candidate_trackers: list[CandidateTracker] = []
+    candidate_trackers = []
 
     print("Setup logging")
     log_file_path = setup_logging(args, log_dir=base_dir)
