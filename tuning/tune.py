@@ -735,10 +735,10 @@ def get_mfma_intrinsic_constraints(
 
 def calculate_shared_memory_usage_in_bytes(
     problem_size: ProblemSize,
-    m: Union[int, z3.ArithRef],
-    n: Union[int, z3.ArithRef],
-    k: Union[int, z3.ArithRef],
-) -> Union[int, z3.ArithRef]:
+    m: int | z3.ArithRef,
+    n: int | z3.ArithRef,
+    k: int | z3.ArithRef,
+) -> int | z3.ArithRef:
     lhs_memory = m * k * (problem_size.lhs_type.bitwidth / 8)
     rhs_memory = k * n * (problem_size.rhs_type.bitwidth / 8)
     return lhs_memory + rhs_memory
@@ -801,7 +801,7 @@ def generate_constraints(
 
     constraints += [z3.Or(waves_per_eu == 1, waves_per_eu == 2, waves_per_eu == 4)]
 
-    shared_memory = calculate_shared_memory_usage(problem_size, m, n, k)
+    shared_memory = calculate_shared_memory_usage_in_bytes(problem_size, m, n, k)
     constraints += [shared_memory <= 65536]
 
     return constraints
