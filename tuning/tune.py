@@ -12,7 +12,7 @@ import z3
 from dataclasses import asdict, dataclass
 from enum import Enum
 from os import mkdir, path, makedirs
-from typing import Callable, Union
+from typing import Callable
 from textwrap import indent
 
 import iree.compiler as ireec
