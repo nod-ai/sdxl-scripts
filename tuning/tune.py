@@ -822,8 +822,8 @@ def generate_constraints(
         m <= 512,
         m <= M,
     ]
-    constraints += [n >= intrinsic_mn, n <= 512, n <= N, N == n * z3.FreshInt()]
-    constraints += [k >= intrinsic_k, k <= 512, k <= K, K == k * z3.FreshInt()]
+    constraints += [n >= intrinsic_mn, n <= 512, n <= N, N % n == 0]
+    constraints += [k >= intrinsic_k, k <= 512, k <= K, K % k == 0]
     for x in (subgroup_m_count, subgroup_n_count):
         constraints += [x >= 1, x <= 32]
 
@@ -840,7 +840,7 @@ def generate_constraints(
     constraints += [wg_y == subgroup_m_count]
     constraints += [wg_z == subgroup_k_count]
     constraints += [wg_x <= m, wg_x <= n]
-    constraints += [k == intrinsic_mn * z3.FreshInt()]
+    constraints += [k % intrinsic_mn == 0]
     constraints += [k * n % (wg_x * wg_y * wg_z) == 0]
     constraints += [k * m % (wg_x * wg_y * wg_z) == 0]
     constraints += [subgroup_m_count * subgroup_n_count == 4]
