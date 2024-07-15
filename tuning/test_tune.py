@@ -230,6 +230,7 @@ def test_generate_solutions():
     configs = tune.generate_solutions(problem_size)
     assert configs is not None
 
+
 def test_calculate_shared_memory_usage_in_bytes():
     matmul_size = tune.MatmulSize(1024, 1024, 1024)
     lhs_type = tune.ShapedType([1024, 1024], tune.ElementType.f16)
@@ -238,19 +239,26 @@ def test_calculate_shared_memory_usage_in_bytes():
     problem_size = tune.ProblemSize(
         matmul_size, lhs_type, rhs_type, res_type, tune.DispatchKind.mmt
     )
-    assert tune.calculate_shared_memory_usage_in_bytes(problem_size, 512, 64, 128) == 147456
+    assert (
+        tune.calculate_shared_memory_usage_in_bytes(problem_size, 512, 64, 128)
+        == 147456
+    )
 
     lhs_type = tune.ShapedType([1024, 1024], tune.ElementType.i8)
     problem_size = tune.ProblemSize(
         matmul_size, lhs_type, rhs_type, res_type, tune.DispatchKind.mmt
     )
-    assert tune.calculate_shared_memory_usage_in_bytes(problem_size, 512, 64, 128) == 81920
+    assert (
+        tune.calculate_shared_memory_usage_in_bytes(problem_size, 512, 64, 128) == 81920
+    )
 
     rhs_type = tune.ShapedType([1024, 1024], tune.ElementType.i32)
     problem_size = tune.ProblemSize(
         matmul_size, lhs_type, rhs_type, res_type, tune.DispatchKind.mmt
     )
-    assert tune.calculate_shared_memory_usage_in_bytes(problem_size, 128, 64, 32) == 12288
+    assert (
+        tune.calculate_shared_memory_usage_in_bytes(problem_size, 128, 64, 32) == 12288
+    )
 
 
 def test_generate_constraints_valid_input():
