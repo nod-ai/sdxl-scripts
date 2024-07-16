@@ -419,9 +419,9 @@ def generate_candidates(
             )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[
-                int(mlir.stem.split("_config")[0])
-            ].mlir_config_path = mlir
+            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
+                mlir
+            )
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
