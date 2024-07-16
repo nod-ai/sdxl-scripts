@@ -262,6 +262,8 @@ def run_command(
     except KeyboardInterrupt:
         print("Ctrl+C detected, terminating child processes...")
 
+    return result
+
 
 def run_command_wrapper(
     task_tuple: tuple[argparse.Namespace, list[str], bool]
@@ -556,7 +558,7 @@ def benchmark_compiled_candidates(
         msg="Failed to benchmark all candidate .vmfb files",
     )
 
-    best_results = sorted(best_results, key=lambda x: x[0])[:20]
+    best_results = sorted(best_results, key=lambda x: float(x[0]))[:20]
     best_log = base_dir / "best.log"
     with best_log.open("w") as log_file:
         for result in best_results:
