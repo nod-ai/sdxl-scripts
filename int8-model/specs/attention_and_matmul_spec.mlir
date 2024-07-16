@@ -475,19 +475,20 @@ module attributes { transform.with_named_sequence } {
 //===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
-// Batch mmt tuning
+// Broadcast lhs mmt tuning
 //===----------------------------------------------------------------------===//
 
-  transform.named_sequence @match_batch_mmt_i8_i8_i32(%root: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+  transform.named_sequence @match_broadcast_lhs_mmt_i8_i8_i32(
+    %root: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
     transform.match.operation_name %root ["linalg.generic"] : !transform.any_op
     // transform.print %root {name = "Generic"} : !transform.any_op
     %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %root {
-      ^bb0(%lhs: tensor<?x?x?xi8>, %rhs: tensor<?x?x?xi8>, %out: tensor<?x?x?xi32>):
+      ^bb0(%lhs: tensor<?x?x?xi8>, %rhs: tensor<?x?xi8>, %out: tensor<?x?x?xi32>):
       %20 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>,
-                                             affine_map<(d0, d1, d2, d3) -> (d0, d2, d3)>,
+                                             affine_map<(d0, d1, d2, d3) -> (d2, d3)>,
                                              affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>],
                             iterator_types = ["parallel", "parallel", "parallel", "reduction"]}
-          ins(%lhs, %rhs : tensor<?x?x?xi8>, tensor<?x?x?xi8>) outs(%out : tensor<?x?x?xi32>) {
+          ins(%lhs, %rhs : tensor<?x?x?xi8>, tensor<?x?xi8>) outs(%out : tensor<?x?x?xi32>) {
         ^bb0(%in: i8, %in_0: i8, %acc: i32):
           %22 = arith.extsi %in : i8 to i32
           %23 = arith.extsi %in_0 : i8 to i32
@@ -497,6 +498,24 @@ module attributes { transform.with_named_sequence } {
         } -> tensor<?x?x?xi32>
     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
     transform.yield %root : !transform.any_op
+  }
+
+  transform.named_sequence @match_broadcast_lhs_mmt_2x1024x10240x1280(%generic: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+    %mmt = transform.include @match_broadcast_lhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
+    %lhs = transform.get_operand %generic[0] : (!transform.any_op) -> !transform.any_value
+    %rhs = transform.get_operand %generic[1] : (!transform.any_op) -> !transform.any_value
+    transform.iree.match.cast_compatible_type %lhs = tensor<2x1024x1280xi8> : !transform.any_value
+    transform.iree.match.cast_compatible_type %rhs = tensor<10240x1280xi8> : !transform.any_value
+    %config = transform.param.constant #iree_codegen.compilation_info<
+      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 256, 160, 128]]>,
+      translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
+        workgroup_size = [64, 4, 1] subgroup_size = 64,
+        {mma_schedule = #iree_gpu.mma_schedule<
+           intrinsic = #iree_gpu.mma_layout<MFMA_I8_32x32x16_I32>,
+           subgroup_m_count = 4, subgroup_n_count = 1>
+         , prefetch_shared_memory}>
+      > -> !transform.any_param
+    transform.yield %generic, %config : !transform.any_op, !transform.any_param
   }
 
 //===----------------------------------------------------------------------===//
@@ -526,7 +545,8 @@ module attributes { transform.with_named_sequence } {
 
         // Batch matmul.
 
-        // Batch mmt.
+        // Broadcast lhs mmt.
+        , @match_broadcast_lhs_mmt_2x1024x10240x1280 -> @apply_op_config
 
         // Contration.
       : (!transform.any_op) -> (!transform.any_op)
