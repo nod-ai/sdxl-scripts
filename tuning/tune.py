@@ -77,7 +77,8 @@ class ShapedType:
         return self.element_type.bitwidth
 
     def __str__(self) -> str:
-        return "x".join(map(str, self.shape)) + "x" + str(self.element_type)
+        dim_to_str = lambda dim: str(dim) if dim != -1 else "?"
+        return "x".join(map(dim_to_str, self.shape)) + "x" + str(self.element_type)
 
 
 @dataclass
@@ -384,12 +385,16 @@ def get_transform_function_broadcast_rhs_mmt(
     wg_x, wg_y, wg_z = configuration.workgroup_size
     extra_config = get_pipeline_config(configuration)
 
+    lhs_dynamic_batch = problem_size.lhs_type
+    lhs_dynamic_batch.shape = lhs_dynamic_batch.shape.copy()
+    lhs_dynamic_batch.shape[0] = -1
+
     return f"""
 transform.named_sequence @{functionName}(%generic: !transform.any_op {{transform.readonly}}) -> (!transform.any_op, !transform.any_param) {{
   %mmt = transform.include @match_broadcast_rhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
   %lhs = transform.get_operand %generic[0] : (!transform.any_op) -> !transform.any_value
   %rhs = transform.get_operand %generic[1] : (!transform.any_op) -> !transform.any_value
-  transform.iree.match.cast_compatible_type %lhs = tensor<{problem_size.lhs_type}> : !transform.any_value
+  transform.iree.match.cast_compatible_type %lhs = tensor<{lhs_dynamic_batch}> : !transform.any_value
   transform.iree.match.cast_compatible_type %rhs = tensor<{problem_size.rhs_type}> : !transform.any_value
   %config = transform.param.constant #iree_codegen.compilation_info<
     lowering_config = #iree_codegen.lowering_config<tile_sizes = [[{tile_sizes}]]>,
@@ -549,10 +554,9 @@ def apply_params_broadcast_rhs_mmt(
     problem_size: ProblemSize, template: list[str], configuration: Configuration
 ) -> tuple[str, str]:
     M, N, K = problem_size.MNK
-    B = problem_size.matmul_size.B
     modified = indent(
         get_transform_function_broadcast_rhs_mmt(
-            problem_size, f"match_broadcast_rhs_mmt_{B}x{M}x{N}x{K}", configuration
+            problem_size, f"match_broadcast_rhs_mmt_Bx{M}x{N}x{K}", configuration
         ),
         "//   ",
     )

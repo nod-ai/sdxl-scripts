@@ -17,6 +17,7 @@ def test_get_shaped_type_to_str():
     assert str(tune.ShapedType([1024, 2048], tune.ElementType.i8)) == "1024x2048xi8"
     assert str(tune.ShapedType([1024], tune.ElementType.f32)) == "1024xf32"
     assert str(tune.ShapedType([1, 2, 3], tune.ElementType.f16)) == "1x2x3xf16"
+    assert str(tune.ShapedType([-1, 2, 3], tune.ElementType.f16)) == "?x2x3xf16"
 
 
 def test_parse_tensor_type():
