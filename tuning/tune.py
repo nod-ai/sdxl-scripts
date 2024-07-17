@@ -1130,7 +1130,7 @@ def walk_callback_detect_type(
     return ir.WalkResult.ADVANCE
 
 
-def walk_mlir_op(mlir_module: str) -> OpWalkResult:
+def walk_mlir_op(mlir_module: ir.Module) -> OpWalkResult:
     walk_result = OpWalkResult()
     for op in mlir_module.body.operations:
         op.walk(

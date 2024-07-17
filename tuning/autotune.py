@@ -67,6 +67,7 @@ def parse_devices(devices_str: str) -> list[int]:
 
 
 class ExecutionPhases(str, Enum):
+    dont_stop = ""
     generate_candidates = "generate-candidates"
     compile_candidates = "compile-candidates"
     benchmark_candidates = "benchmark-candidates"
@@ -104,6 +105,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--stop-after",
         choices=[x.value for x in ExecutionPhases],
+        default=ExecutionPhases.dont_stop,
         help="Stop execution after specified phase",
     )
 
