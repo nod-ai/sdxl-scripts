@@ -6,19 +6,20 @@ set -xeu
 
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
 
-if (( $# != 1 )); then
-  echo "usage: $0 <target-chip>"
+if (( $# != 2 )); then
+  echo "usage: $0 <target-chip> <batch-size>"
   exit 1
 fi
 
-CHIP=$1; shift
+CHIP=$1;       shift
+BATCH_SIZE=$1; shift
 
 readonly PREPROCESSING_FLAGS=(
 "--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics), util.func(iree-preprocessing-generalize-linalg-matmul-experimental))"
 )
 declare -a FLAGS=("${PREPROCESSING_FLAGS[*]}")
 
-iree-compile ${SCRIPT_DIR}/base_ir/vae_decomp_attn_bs1.mlir \
+iree-compile ${SCRIPT_DIR}/base_ir/vae_decomp_attn_bs${BATCH_SIZE}.mlir \
     --iree-hal-target-backends=rocm \
     --iree-rocm-target-chip=${CHIP} \
     --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
