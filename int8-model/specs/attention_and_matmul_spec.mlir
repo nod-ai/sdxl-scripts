@@ -478,7 +478,7 @@ module attributes { transform.with_named_sequence } {
 // Broadcast lhs mmt tuning
 //===----------------------------------------------------------------------===//
 
-  transform.named_sequence @match_broadcast_lhs_mmt_i8_i8_i32(
+  transform.named_sequence @match_broadcast_rhs_mmt_i8_i8_i32(
     %root: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
     transform.match.operation_name %root ["linalg.generic"] : !transform.any_op
     // transform.print %root {name = "Generic"} : !transform.any_op
@@ -500,8 +500,8 @@ module attributes { transform.with_named_sequence } {
     transform.yield %root : !transform.any_op
   }
 
-  transform.named_sequence @match_broadcast_lhs_mmt_2x1024x10240x1280(%generic: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
-    %mmt = transform.include @match_broadcast_lhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
+  transform.named_sequence @match_broadcast_rhs_mmt_2x1024x10240x1280(%generic: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+    %mmt = transform.include @match_broadcast_rhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
     %lhs = transform.get_operand %generic[0] : (!transform.any_op) -> !transform.any_value
     %rhs = transform.get_operand %generic[1] : (!transform.any_op) -> !transform.any_value
     transform.iree.match.cast_compatible_type %lhs = tensor<2x1024x1280xi8> : !transform.any_value
@@ -518,8 +518,8 @@ module attributes { transform.with_named_sequence } {
     transform.yield %generic, %config : !transform.any_op, !transform.any_param
   }
 
-  transform.named_sequence @match_broadcast_lhs_mmt_2x1024x1280x5120(%generic: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
-    %mmt = transform.include @match_broadcast_lhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
+  transform.named_sequence @match_broadcast_rhs_mmt_2x1024x1280x5120(%generic: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+    %mmt = transform.include @match_broadcast_rhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
     %lhs = transform.get_operand %generic[0] : (!transform.any_op) -> !transform.any_value
     %rhs = transform.get_operand %generic[1] : (!transform.any_op) -> !transform.any_value
     transform.iree.match.cast_compatible_type %lhs = tensor<2x1024x5120xi8> : !transform.any_value
@@ -564,8 +564,8 @@ module attributes { transform.with_named_sequence } {
         // Batch matmul.
 
         // Broadcast lhs mmt.
-        , @match_broadcast_lhs_mmt_2x1024x10240x1280 -> @apply_op_config
-        , @match_broadcast_lhs_mmt_2x1024x1280x5120 -> @apply_op_config
+        , @match_broadcast_rhs_mmt_2x1024x10240x1280 -> @apply_op_config
+        , @match_broadcast_rhs_mmt_2x1024x1280x5120 -> @apply_op_config
 
         // Contration.
       : (!transform.any_op) -> (!transform.any_op)
