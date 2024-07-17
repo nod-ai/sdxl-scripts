@@ -32,7 +32,7 @@ class DispatchKind(Enum):
     contraction = 3
     batch_mmt = 4
     batch_matmul = 5
-    broadcast_lhs_mmt = 6
+    broadcast_rhs_mmt = 6
 
 
 @dataclass
@@ -374,7 +374,7 @@ transform.named_sequence @{functionName}(%generic: !transform.any_op {{transform
 """
 
 
-def get_transform_function_broadcast_lhs_mmt(
+def get_transform_function_broadcast_rhs_mmt(
     problem_size: ProblemSize,
     functionName: str,
     configuration: Configuration,
@@ -386,7 +386,7 @@ def get_transform_function_broadcast_lhs_mmt(
 
     return f"""
 transform.named_sequence @{functionName}(%generic: !transform.any_op {{transform.readonly}}) -> (!transform.any_op, !transform.any_param) {{
-  %mmt = transform.include @match_broadcast_lhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
+  %mmt = transform.include @match_broadcast_rhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
   %lhs = transform.get_operand %generic[0] : (!transform.any_op) -> !transform.any_value
   %rhs = transform.get_operand %generic[1] : (!transform.any_op) -> !transform.any_value
   transform.iree.match.cast_compatible_type %lhs = tensor<{problem_size.lhs_type}> : !transform.any_value
@@ -545,14 +545,14 @@ def apply_params_batch_mmt(
     return modified, embeddable
 
 
-def apply_params_broadcast_lhs_mmt(
+def apply_params_broadcast_rhs_mmt(
     problem_size: ProblemSize, template: list[str], configuration: Configuration
 ) -> tuple[str, str]:
     M, N, K = problem_size.MNK
     B = problem_size.matmul_size.B
     modified = indent(
-        get_transform_function_broadcast_lhs_mmt(
-            problem_size, f"match_broadcast_lhs_mmt_{B}x{M}x{N}x{K}", configuration
+        get_transform_function_broadcast_rhs_mmt(
+            problem_size, f"match_broadcast_rhs_mmt_{B}x{M}x{N}x{K}", configuration
         ),
         "//   ",
     )
@@ -561,7 +561,7 @@ def apply_params_broadcast_lhs_mmt(
     )
 
     embeddable = indent(
-        get_transform_function_broadcast_lhs_mmt(
+        get_transform_function_broadcast_rhs_mmt(
             problem_size, f"match_op", configuration
         ),
         "  ",
@@ -829,7 +829,7 @@ def get_shapes_batch_mmt(template: list[str]) -> ProblemSize:
     assert False, "Shape not found"
 
 
-def is_broadcast_lhs_mmt_op(line: str) -> bool:
+def is_broadcast_rhs_mmt_op(line: str) -> bool:
     if "linalg.generic" not in line:
         return False
     if (
@@ -845,13 +845,13 @@ def is_broadcast_lhs_mmt_op(line: str) -> bool:
     return True
 
 
-def is_broadcast_lhs_mmt(template: list[str]) -> bool:
-    return any(is_broadcast_lhs_mmt_op(line) for line in template)
+def is_broadcast_rhs_mmt(template: list[str]) -> bool:
+    return any(is_broadcast_rhs_mmt_op(line) for line in template)
 
 
-def get_shapes_broadcast_lhs_mmt(template: list[str]) -> ProblemSize:
+def get_shapes_broadcast_rhs_mmt(template: list[str]) -> ProblemSize:
     for line in template:
-        if not is_broadcast_lhs_mmt_op(line):
+        if not is_broadcast_rhs_mmt_op(line):
             continue
 
         # ins(%11, %12 : tensor<2x1024x1280xi8>, tensor<10240x1280xi8>) outs(%19 : tensor<2x1024x10240xi32>)
@@ -884,7 +884,7 @@ def get_shapes_broadcast_lhs_mmt(template: list[str]) -> ProblemSize:
             lhs_shaped_type,
             rhs_shaped_type,
             res_shaped_type,
-            DispatchKind.broadcast_lhs_mmt,
+            DispatchKind.broadcast_rhs_mmt,
         )
 
     assert False, "Shape not found"
@@ -1179,9 +1179,9 @@ def tune(
         get_shapes_fn = get_shapes_mmt
         apply_params_fn = apply_params_mmt
     elif walk_result.dispatch_kind == DispatchKind.contraction:
-        if is_broadcast_lhs_mmt(mlir_template):
-            get_shapes_fn = get_shapes_broadcast_lhs_mmt
-            apply_params_fn = apply_params_broadcast_lhs_mmt
+        if is_broadcast_rhs_mmt(mlir_template):
+            get_shapes_fn = get_shapes_broadcast_rhs_mmt
+            apply_params_fn = apply_params_broadcast_rhs_mmt
         else:
             get_shapes_fn = lambda template: get_shapes_contract(
                 template, lhs_dims, rhs_dims

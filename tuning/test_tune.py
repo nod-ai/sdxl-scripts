@@ -618,7 +618,7 @@ def test_apply_params_batch_mmt_int():
     assert "workgroup_size = [128, 2, 1] subgroup_size = 64" in embeddable
 
 
-def test_apply_params_broadcast_lhs_mmt():
+def test_apply_params_broadcast_rhs_mmt():
     mlir_template = [
         "<intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>, subgroup_m_count = 4, subgroup_n_count = 1>}>",
         "<LLVMGPUVectorDistribute workgroup_size = [64, 4, 1] subgroup_size = 64,",
@@ -631,7 +631,7 @@ def test_apply_params_broadcast_lhs_mmt():
         tune.ShapedType([2, 4096, 640], tune.ElementType.i8),
         tune.ShapedType([640, 640], tune.ElementType.i8),
         tune.ShapedType([2, 4096, 640], tune.ElementType.i32),
-        tune.DispatchKind.broadcast_lhs_mmt,
+        tune.DispatchKind.broadcast_rhs_mmt,
     )
 
     config = tune.Configuration(
@@ -644,13 +644,13 @@ def test_apply_params_broadcast_lhs_mmt():
         waves_per_eu=4,
     )
 
-    modified, embeddable = tune.apply_params_broadcast_lhs_mmt(
+    modified, embeddable = tune.apply_params_broadcast_rhs_mmt(
         problem_size, mlir_template, config
     )
 
     assert modified
     assert (
-        "//   transform.named_sequence @match_broadcast_lhs_mmt_2x4096x640x640("
+        "//   transform.named_sequence @match_broadcast_rhs_mmt_2x4096x640x640("
         in modified
     )
     assert (
@@ -667,7 +667,7 @@ def test_apply_params_broadcast_lhs_mmt():
     assert embeddable
     assert "transform.named_sequence @match_op(" in embeddable
     assert (
-        "transform.include @match_broadcast_lhs_mmt_i8_i8_i32 failures(propagate)"
+        "transform.include @match_broadcast_rhs_mmt_i8_i8_i32 failures(propagate)"
         in embeddable
     )
     assert (
@@ -687,13 +687,13 @@ def test_apply_params_broadcast_lhs_mmt():
     assert "workgroup_size = [128, 2, 1] subgroup_size = 64" in embeddable
 
 
-def test_detect_broadcast_lhs_mmt():
+def test_detect_broadcast_rhs_mmt():
     mlir_lines = [
         r"%18 = tensor.empty() : tensor<2x1024x10240xi32>",
         r"%19 = linalg.fill {lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 64, 128, 128]]>} ins(%c0_i32 : i32) outs(%18 : tensor<2x1024x10240xi32>) -> tensor<2x1024x10240xi32>",
         r'%20 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>, affine_map<(d0, d1, d2, d3) -> (d2, d3)>, affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>], iterator_types = ["parallel", "parallel", "parallel", "reduction"]} ins(%11, %12 : tensor<2x1024x1280xi8>, tensor<10240x1280xi8>) outs(%19 : tensor<2x1024x10240xi32>) attrs =  {lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 64, 128, 128]]>} {',
     ]
-    assert tune.is_broadcast_lhs_mmt(mlir_lines)
+    assert tune.is_broadcast_rhs_mmt(mlir_lines)
 
 
 def test_parse_mlir():
