@@ -6,6 +6,7 @@ import subprocess
 import logging
 import argparse
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 import time
 import multiprocessing
@@ -65,6 +66,14 @@ def parse_devices(devices_str: str) -> list[int]:
     return devices
 
 
+class ExecutionPhases(str, Enum):
+    generate_candidates = "generate-candidates"
+    compile_candidates = "compile-candidates"
+    benchmark_candidates = "benchmark-candidates"
+    compile_unet_candidates = "compile-unet-candidates"
+    benchmark_unet_candidates = "benchmark-unet-candidates"
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Autotune script")
 
@@ -91,6 +100,11 @@ def parse_arguments() -> argparse.Namespace:
         type=int,
         default=DEFAULT_MAX_CPU_WORKERS,
         help=f"Max number of workers for CPU-bounding tasks (default: {DEFAULT_MAX_CPU_WORKERS}, the number of CPUs in current system)",
+    )
+    parser.add_argument(
+        "--stop-after",
+        choices=[x.value for x in ExecutionPhases],
+        help="Stop execution after specified phase",
     )
 
     # tune.tune() options
@@ -423,7 +437,9 @@ def generate_candidates(
             )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = mlir
+            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
+                mlir
+            )
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
@@ -680,6 +696,7 @@ def autotune() -> None:
     base_dir.mkdir(parents=True, exist_ok=True)
 
     candidate_trackers = []
+    stop_after_phase: str = args.stop_after
 
     print("Setup logging")
     log_file_path = setup_logging(args, log_dir=base_dir)
@@ -688,30 +705,40 @@ def autotune() -> None:
     print("Generating candidates...")
     candidates, candidates_dir = generate_candidates(args, base_dir, candidate_trackers)
     print(f"Generated [{len(candidates)}] candidates in {candidates_dir}\n")
+    if stop_after_phase == ExecutionPhases.generate_candidates:
+        return
 
     print("Compiling candidates...")
     compiled_files, compiled_dir = compile_candidates(
         args, base_dir, candidates, candidates_dir, candidate_trackers
     )
     print(f"Compiled [{len(compiled_files)}] files in {compiled_dir}\n")
+    if stop_after_phase == ExecutionPhases.compile_candidates:
+        return
 
     print("Benchmarking compiled candidates...")
     best_log = benchmark_compiled_candidates(
         args, base_dir, candidates_dir, compiled_files, candidate_trackers
     )
     print(f"Top candidates results are stored in {best_log}\n")
+    if stop_after_phase == ExecutionPhases.benchmark_candidates:
+        return
 
     print("Compiling unet candidates...")
     unet_candidates = compile_unet_candidates(
         args, base_dir, best_log, candidate_trackers
     )
     print(f"Unet candidates compiled in {base_dir}\n")
+    if stop_after_phase == ExecutionPhases.compile_unet_candidates:
+        return
 
     print("Bnechmarking unet candidates...")
     unet_result_log = benchmark_unet(
         args, base_dir, unet_candidates, candidate_trackers
     )
     print(f"Done, stored unet result in {unet_result_log}\n")
+    if stop_after_phase == ExecutionPhases.benchmark_unet_candidates:
+        return
 
     candidate_trackers_file_path = base_dir / "candidate_trackers.pkl"
     with open(candidate_trackers_file_path, "wb") as file:
