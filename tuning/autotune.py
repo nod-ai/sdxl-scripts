@@ -80,11 +80,6 @@ class ExecutionPhases(str, Enum):
     compile_unet_candidates = "compile-unet-candidates"
     benchmark_unet_candidates = "benchmark-unet-candidates"
 
-class DryRunTests(str, Enum):
-    no_dry_run = ""
-    no_gpu = "no_gpu"
-    gpu_minimal = "gpu_minimal"
-
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Autotune script")
@@ -118,11 +113,6 @@ def parse_arguments() -> argparse.Namespace:
         choices=[x.value for x in ExecutionPhases],
         default=ExecutionPhases.dont_stop,
         help="Stop execution after specified phase",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Dry run testing",
     )
 
     # tune.tune() options
