@@ -26,7 +26,7 @@ rm -rf "${WORKING_DIR}/benchmarks/punet"
 
 "${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
   "${SCRIPT_DIR}/specs/${TRANSFORM_PREFIX}attention_and_matmul_spec.mlir" \
-  "${SCRIPT_DIR}/base_ir/punet_v3_07_15.mlir" \
+  "${SCRIPT_DIR}/base_ir/punet_07_18.mlir" \
   --iree-hal-dump-executable-configurations-to="${WORKING_DIR}/configurations/punet" \
   --iree-hal-dump-executable-sources-to="${WORKING_DIR}/sources/punet" \
   --iree-hal-dump-executable-binaries-to="${WORKING_DIR}/binaries/punet" \
