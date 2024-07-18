@@ -30,6 +30,11 @@ Recommended Trial Run:
 
 python autotune.py winograd 1286.mlir --num-candidates=1 
 
+
+Dry Run Test (no gpu requried):
+
+python autotune.py winograd 1286.mlir --num-candidates=100 --dry-run 
+
 """
 
 
