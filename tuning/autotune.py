@@ -445,9 +445,9 @@ def generate_candidates(
             )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
-                mlir
-            )
+            candidate_trackers[
+                int(mlir.stem.split("_config")[0])
+            ].mlir_config_path = mlir
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
@@ -532,18 +532,28 @@ def benchmark_compiled_candidates(
 
     if args.dry_run:
         # generate random top candidates list from compiled_files
-        benchmark_list_len = random.randint(20, len(compiled_files)) if len(compiled_files) > 20 else len(compiled_files)
-        random_candidate_indices  = set()
+        benchmark_list_len = (
+            random.randint(20, len(compiled_files))
+            if len(compiled_files) > 20
+            else len(compiled_files)
+        )
+        random_candidate_indices = set()
         while len(random_candidate_indices) < benchmark_list_len:
-            random_candidate_indices.add(random.randint(0, len(compiled_files)-1))
+            random_candidate_indices.add(random.randint(0, len(compiled_files) - 1))
         random_candidate_indices = list(random_candidate_indices)
 
         # genereate random benchmark time
         benchmark_results = ["" for _ in range(len(compiled_files))]
         with tqdm(total=benchmark_list_len) as pbar:
             for i in random_candidate_indices:
-                candidate_id = re.search(r'/(\d+)\.vmfb$', str(compiled_files[i])).group(1) # use compiled_file path string to extract candidate_id 
-                benchmark_results[i] = f"{candidate_id}\tMean Time: {random.randint(50, 500):.1f}\n"
+                candidate_id = re.search(
+                    r"/(\d+)\.vmfb$", str(compiled_files[i])
+                ).group(
+                    1
+                )  # use compiled_file path string to extract candidate_id
+                benchmark_results[
+                    i
+                ] = f"{candidate_id}\tMean Time: {random.randint(50, 500):.1f}\n"
                 pbar.update(1)
     else:
         task_list = []
@@ -564,7 +574,7 @@ def benchmark_compiled_candidates(
 
     with results_log.open("w") as log_file:
         log_file.writelines(benchmark_results)
-    
+
     benchmark_failed_count = 0
     for res in benchmark_results:
         if not res:
@@ -572,10 +582,8 @@ def benchmark_compiled_candidates(
             continue
         parts = res.split()
         # Update candidate tracker
-        candidate_trackers[int(parts[0])].first_benchmark_time = float(
-            parts[-1]
-        )
-        i+=1
+        candidate_trackers[int(parts[0])].first_benchmark_time = float(parts[-1])
+        i += 1
         best_results.append(
             (
                 parts[-1],
@@ -668,7 +676,9 @@ def benchmark_unet(
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
     logging.info("benchmark_unet()")
 
-    unet_candidates = ["./unet_baseline.vmfb"] + unet_candidates + ["./unet_baseline.vmfb"]
+    unet_candidates = (
+        ["./unet_baseline.vmfb"] + unet_candidates + ["./unet_baseline.vmfb"]
+    )
     # Update candidate tracker
     candidate_trackers[0].unet_candidate_path = Path("./unet_baseline.vmfb")
 
@@ -695,19 +705,20 @@ def benchmark_unet(
                     benchmark_unet_results.append(result.stdout)
                 time.sleep(10)
             pbar.update(1)
-    
+
     with unet_result_log.open("w") as log_file:
         log_file.writelines(benchmark_unet_results)
 
     # Update candidate tracker
     for res in benchmark_unet_results:
-        res = res.split() # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
+        res = (
+            res.split()
+        )  # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
         if "unet_baseline.vmfb" in res[1]:
             candidate_trackers[0].unet_benchmark_time = (
                 float(res[6])
                 if candidate_trackers[0].unet_benchmark_time is None
-                or float(res[6])
-                < candidate_trackers[0].unet_benchmark_time
+                or float(res[6]) < candidate_trackers[0].unet_benchmark_time
                 else candidate_trackers[0].unet_benchmark_time
             )
         else:
