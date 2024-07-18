@@ -439,9 +439,9 @@ def generate_candidates(
             )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
-                mlir
-            )
+            candidate_trackers[
+                int(mlir.stem.split("_config")[0])
+            ].mlir_config_path = mlir
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
@@ -613,7 +613,7 @@ def compile_unet_candidates(
     )
 
     unet_candidates_files = list(base_dir.glob("*.vmfb"))
-    
+
     unet_candidates_indexes = []
     unet_candidates_hash_list = []
 
@@ -638,11 +638,19 @@ def compile_unet_candidates(
                 )
             unique_unet_candidates_indexes.append(indices[0])
 
-    return unique_unet_candidates_indexes if collision_detected else unet_candidates_indexes
+    return (
+        unique_unet_candidates_indexes
+        if collision_detected
+        else unet_candidates_indexes
+    )
 
 
-def sort_candidates_by_first_benchmark_times(candidate_indexes: list[int], candidate_trackers: CandidateTracker) -> list[int]:
-    first_benchmark_times = [candidate_trackers[index].first_benchmark_time for index in candidate_indexes]
+def sort_candidates_by_first_benchmark_times(
+    candidate_indexes: list[int], candidate_trackers: CandidateTracker
+) -> list[int]:
+    first_benchmark_times = [
+        candidate_trackers[index].first_benchmark_time for index in candidate_indexes
+    ]
     combined = list(zip(candidate_indexes, first_benchmark_times))
     combined_sorted = sorted(combined, key=lambda x: x[1])
     sorted_indexes, _ = zip(*combined_sorted)
@@ -659,9 +667,15 @@ def benchmark_unet(
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
     logging.info("benchmark_unet()")
 
-    unet_candidates = sort_candidates_by_first_benchmark_times(unet_candidates, candidate_trackers)
-    unet_candidates_paths = [candidate_trackers[index].unet_candidate_path for index in unet_candidates]
-    unet_candidates = ["unet_baseline.vmfb"] + unet_candidates_paths + ["unet_baseline.vmfb"]
+    unet_candidates = sort_candidates_by_first_benchmark_times(
+        unet_candidates, candidate_trackers
+    )
+    unet_candidates_paths = [
+        candidate_trackers[index].unet_candidate_path for index in unet_candidates
+    ]
+    unet_candidates = (
+        ["unet_baseline.vmfb"] + unet_candidates_paths + ["unet_baseline.vmfb"]
+    )
 
     # Update candidate tracker
     candidate_trackers[0].unet_candidate_path = Path("./unet_baseline.vmfb")
@@ -747,7 +761,6 @@ def autotune() -> None:
         return
 
     print("Bnechmarking unet candidates...")
-    sortda(candidate_indexes, candidate_trackers)
     unet_result_log = benchmark_unet(
         args, base_dir, unet_candidates, candidate_trackers
     )
