@@ -47,9 +47,26 @@ class CandidateTracker:
     compilation_successful: Optional[bool] = None
     compiled_vmfb_path: Optional[Path] = None
     first_benchmark_time: Optional[float] = None
+    first_benchmark_device_id: int = None
     unet_candidate_path: Optional[Path] = None
     unet_vmfb_hash: Optional[str] = None
     unet_benchmark_time: Optional[float] = None
+    unet_benchmark_device_id: int = None
+
+
+@dataclass
+class TaskTuple:
+    args: argparse.Namespace
+    command: list[str]
+    check: bool = True
+    command_need_device_id: bool = False
+    cooling_time: int = 0
+    result_need_device_id: bool = False
+
+@dataclass
+class TaskResult:
+    result: subprocess.CompletedProcess
+    device_id: int = None
 
 
 def parse_devices(devices_str: str) -> list[int]:
@@ -245,15 +262,6 @@ def create_worker_context_queue(device_ids: list[int]) -> queue.Queue[tuple[int,
     return worker_contexts_queue
 
 
-def worker_run_command_with_device_id(
-    task_tuple: tuple[argparse.Namespace, list[str], bool]
-) -> subprocess.CompletedProcess:
-    """worker add its device_id to the command for ./compile_unet_candidate.sh, return the run_command() result"""
-    args, command, check = task_tuple
-    command.append(str(device_id))
-    return run_command(args, command, check)
-
-
 def run_command(
     args: argparse.Namespace, command: list[str], check: bool = True
 ) -> subprocess.CompletedProcess:
@@ -294,11 +302,19 @@ def run_command(
 
 
 def run_command_wrapper(
-    task_tuple: tuple[argparse.Namespace, list[str], bool]
-) -> subprocess.CompletedProcess:
+    task_tuple: TaskTuple
+) -> TaskResult:
     """pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments"""
-    args, command, check = task_tuple
-    return run_command(args, command, check)
+    if task_tuple.command_need_device_id:
+        # worker add its device_id to the end of command list
+        task_tuple.command.append(str(device_id))
+    if task_tuple.cooling_time != 0:
+        task_tuple.command = task_tuple.command + ["&&", "sleep", f"{task_tuple.cooling_time}s"]
+
+    task_result = TaskResult(run_command(task_tuple.args, task_tuple.command, task_tuple.check))
+    task_result.device_id = device_id if task_tuple.result_need_device_id else None
+    
+    return task_result
 
 
 def multiprocess_progress_wrapper(
@@ -476,8 +492,7 @@ def compile_candidates(
     task_list = []
     for candidate in candidates:
         command = ["./compile_candidate.sh", f"{args.mode}", f"{candidate}"]
-        check = False
-        task_list.append((args, command, check))
+        task_list.append(TaskTuple(args, command, check=False))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
     multiprocess_progress_wrapper(
@@ -535,19 +550,18 @@ def benchmark_compiled_candidates(
     task_list = []
     for compiled_file in compiled_files:
         command = ["./benchmark_dispatch.sh", f"{compiled_file}"]
-        check = False
-        task_list.append((args, command, check))
+        task_list.append(TaskTuple(args, command, check=False, command_need_device_id=True))
 
     worker_context_queue = create_worker_context_queue(args.devices)
-    results = multiprocess_progress_wrapper(
+    task_results = multiprocess_progress_wrapper(
         num_worker=len(args.devices),
         task_list=task_list,
-        function=worker_run_command_with_device_id,
+        function=run_command_wrapper,
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
     )
 
-    benchmark_results = [result.stdout for result in results]
+    benchmark_results = [task_result.result.stdout for task_result in task_results]
 
     results_log = base_dir / "results.log"
     with results_log.open("w") as log_file:
@@ -619,8 +633,7 @@ def compile_unet_candidates(
                     f"{args.mode}",
                     f"{input_file}",
                 ]
-                check = True
-                task_list.append((args, command, check))
+                task_list.append(TaskTuple(args, command))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
     multiprocess_progress_wrapper(
@@ -682,20 +695,44 @@ def benchmark_unet(
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
     logging.info("benchmark_unet()")
 
-    unet_candidates = sort_candidates_by_first_benchmark_times(
-        unet_candidates, candidate_trackers
-    )
-    unet_candidates_paths = [
-        candidate_trackers[index].unet_candidate_path for index in unet_candidates
-    ]
-    unet_candidates = (
-        ["unet_baseline.vmfb"] + unet_candidates_paths + ["unet_baseline.vmfb"]
-    )
-
+    unet_baseline_filepath = Path("./unet_baseline.vmfb")
+    unet_candidates = ["unet_baseline.vmfb"] + unet_candidates + ["unet_baseline.vmfb"]
     # Update candidate tracker
-    candidate_trackers[0].unet_candidate_path = Path("./unet_baseline.vmfb")
+    candidate_trackers[0].unet_candidate_path = unet_baseline_filepath
 
     unet_result_log = base_dir / "unet_results.log"
+
+
+    
+
+
+    # unet_candidate_paths = unet_candidates
+    # worker_context_queue = create_worker_context_queue(args.devices)
+
+    # benchmarking_task_list = []
+    # for unet_candidate_path in unet_candidate_paths:
+    #     command = ["./benchmark_unet_candidate.sh", f"{unet_candidate_path}"]
+    #     benchmarking_task_list.append(TaskTuple(args, command, check=False, command_need_device_id=True, cooling_time=10, result_need_device_id=True))
+    # benchmarking_results = multiprocess_progress_wrapper(
+    #     num_worker=len(args.devices),
+    #     task_list=benchmarking_task_list,
+    #     function=run_command_wrapper,
+    #     initializer=init_worker_context,
+    #     initializer_inputs=(worker_context_queue,),
+    # )
+
+    # baseline_task_list = [TaskTuple(args, command=["./benchmark_unet_candidate.sh", str(unet_baseline_filepath)], check=False, command_need_device_id=True, cooling_time=10, result_need_device_id=True)] * len(args.devices)
+    # baseline_results = multiprocess_progress_wrapper(
+    #     num_worker=len(args.devices),
+    #     task_list=baseline_task_list,
+    #     function=run_command_wrapper,
+    #     initializer=init_worker_context,
+    #     initializer_inputs=(worker_context_queue,),
+    # )
+
+    # benchmark_results = [result.stdout for result in results]
+
+
 
     with unet_result_log.open("w") as log_file:
         with tqdm(total=len(unet_candidates)) as pbar:
