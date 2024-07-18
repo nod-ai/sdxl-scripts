@@ -228,7 +228,7 @@ def test_generate_solutions():
     problem_size = tune.ProblemSize(
         matmul_size, lhs_type, rhs_type, res_type, tune.DispatchKind.mmt
     )
-    configs = tune.generate_solutions(problem_size)
+    configs = tune.generate_solutions(problem_size, 4)
     assert configs is not None
 
 
@@ -283,6 +283,7 @@ def test_generate_constraints_valid_input():
     constraints = tune.generate_constraints(
         problem_size,
         [m, n, k],
+        4,
         subgroup_size,
         [intrinsic_mn, intrinsic_k],
         [wg_x, wg_y, wg_z],
@@ -319,6 +320,7 @@ def test_generate_constraints_invalid_input():
     constraints = tune.generate_constraints(
         problem_size,
         [m, n, k],
+        4,
         subgroup_size,
         [intrinsic_mn, intrinsic_k],
         [wg_x, wg_y, wg_z],
@@ -651,7 +653,7 @@ def test_apply_params_broadcast_rhs_mmt():
 
     assert modified
     assert (
-        "//   transform.named_sequence @match_broadcast_rhs_mmt_2x4096x640x640("
+        "//   transform.named_sequence @match_broadcast_rhs_mmt_Bx4096x640x640("
         in modified
     )
     assert (
@@ -672,7 +674,7 @@ def test_apply_params_broadcast_rhs_mmt():
         in embeddable
     )
     assert (
-        "transform.iree.match.cast_compatible_type %lhs = tensor<2x4096x640xi8> : !transform.any_value"
+        "transform.iree.match.cast_compatible_type %lhs = tensor<?x4096x640xi8> : !transform.any_value"
         in embeddable
     )
     assert (

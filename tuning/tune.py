@@ -954,6 +954,7 @@ def calculate_shared_memory_usage_in_bytes(
 def generate_constraints(
     problem_size: ProblemSize,
     tile_sizes,
+    num_subgroups,
     subgroup_size,
     intrinsic_size,
     workgroup_size,
@@ -1004,7 +1005,7 @@ def generate_constraints(
     constraints += [k % intrinsic_mn == 0]
     constraints += [(k * n) % wg_threads == 0]
     constraints += [(k * m) % wg_threads == 0]
-    constraints += [subgroup_m_count * subgroup_n_count == 4]
+    constraints += [subgroup_m_count * subgroup_n_count == num_subgroups]
 
     constraints += [z3.Or(waves_per_eu == 2, waves_per_eu == 3, waves_per_eu == 4)]
 
@@ -1016,7 +1017,7 @@ def generate_constraints(
     return constraints
 
 
-def generate_solutions(problem_size: ProblemSize):
+def generate_solutions(problem_size: ProblemSize, num_subgrups: int):
     M, N, K = problem_size.MNK
     tune_logger.info(f"{M},{N},{K}")
     m, n, k = z3.Int("m"), z3.Int("n"), z3.Int("k")
@@ -1046,6 +1047,7 @@ def generate_solutions(problem_size: ProblemSize):
     constraints = generate_constraints(
         problem_size,
         [m, n, k],
+        num_subgrups,
         subgroup_size,
         [intrinsic_mn, intrinsic_k],
         [wg_x, wg_y, wg_z],
@@ -1145,6 +1147,7 @@ def tune(
     input: str,
     output: str = "",
     limit: int = 4096,
+    num_subgroups: int = 4,
     lhs_dims: str = "mk",
     rhs_dims: str = "nk",
     tile_dims: str = "mnk",
@@ -1208,7 +1211,7 @@ def tune(
     tune_logger.debug(str(problem_size))
 
     configs = []
-    for i, config in enumerate(generate_solutions(problem_size)):
+    for i, config in enumerate(generate_solutions(problem_size, num_subgroups)):
         if i >= limit:
             break
         tune_logger.info(f"Solution #{i+1}: {config}")
@@ -1243,6 +1246,12 @@ def main():
         default=4096,
     )
     parser.add_argument(
+        "--num-subgroups",
+        help="Number of subgroups per workgroup to use",
+        type=int,
+        default=4,
+    )
+    parser.add_argument(
         "--lhs-dims", help="Map of LHS matmul dims", type=str, default="mk"
     )
     parser.add_argument(
@@ -1275,6 +1284,7 @@ def main():
         args.input,
         args.output,
         args.limit,
+        args.num_subgroups,
         args.lhs_dims,
         args.rhs_dims,
         args.tile_dims,

@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 
-set -xeuo pipefail
+set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
 readonly MODE="$1"  # Unused for punet.
