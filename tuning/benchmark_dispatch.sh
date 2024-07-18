@@ -12,7 +12,7 @@ readonly NAME="$(basename "$INPUT" .mlir)"
 
 # printf "Benchmarking $(basename ${INPUT}) on ${DEVICE}\n"
 
-timeout 10s ./tools/iree-benchmark-module --device="rocm://${DEVICE}" --module="${INPUT}" \
+timeout 12s ./tools/iree-benchmark-module --device="rocm://${DEVICE}" --module="${INPUT}" \
   --batch_size=1000 --benchmark_repetitions=3 > "${DIR}/benchmark_log_${DEVICE}.out" 2>&1 || (mv "$INPUT" "${DIR}/benchmark_failed" && exit 0)
 
 MEAN_TIME="$(grep --text real_time_mean "${DIR}/benchmark_log_${DEVICE}.out" | awk '{print $2}')"

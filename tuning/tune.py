@@ -1007,7 +1007,8 @@ def generate_constraints(
     constraints += [(k * m) % wg_threads == 0]
     constraints += [subgroup_m_count * subgroup_n_count == num_subgroups]
 
-    constraints += [z3.Or(waves_per_eu == 2, waves_per_eu == 3, waves_per_eu == 4)]
+    constraints += [waves_per_eu == 2]
+    # constraints += [z3.Or(waves_per_eu == 2, waves_per_eu == 3, waves_per_eu == 4)]
 
     shared_memory = calculate_shared_memory_usage_in_bytes(problem_size, m, n, k)
     constraints += [shared_memory <= 65536]

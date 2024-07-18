@@ -20,6 +20,6 @@ timeout 50s tools/iree-benchmark-module \
   --input=2x1280xf16 \
   --input=2x6xf16 \
   --input=1xf16 \
-  --benchmark_repetitions=5 2>&1 | grep real_time_median
+  --benchmark_repetitions=3 2>&1 | grep real_time_median
 
 echo

@@ -10,7 +10,7 @@ shift 2
 readonly BASE_DIR="$(dirname "${INPUT}")"
 readonly CANDIDATE="$(basename "${INPUT}" _spec.mlir)"
 
-timeout 220s "${SCRIPT_DIR}/../int8-model/compile-punet-base.sh" "${SCRIPT_DIR}/tools/iree-compile" gfx942 \
+timeout 300s "${SCRIPT_DIR}/../int8-model/compile-punet-base.sh" "${SCRIPT_DIR}/tools/iree-compile" gfx942 \
   "$INPUT" \
   "${SCRIPT_DIR}/punet.mlir" \
   --mlir-disable-threading \
