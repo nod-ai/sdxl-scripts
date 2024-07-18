@@ -165,11 +165,9 @@ class MlirRegex(str, Enum):
         return rf"outs\({MlirRegex.ssa_value} : (?P<RES>{MlirRegex.tensor_type})\)"
 
 
-def read_input_mlir(filename):
-    template = f""
+def read_input_mlir(filename: str) -> list[str]:
     with open(filename, "r") as f:
-        template = f.readlines()
-    return template
+        return f.readlines()
 
 
 def get_mmt_tile_sizes(configuration: Configuration):
@@ -1008,7 +1006,7 @@ def generate_constraints(
     constraints += [(k * m) % wg_threads == 0]
     constraints += [subgroup_m_count * subgroup_n_count == 4]
 
-    constraints += [z3.Or(waves_per_eu == 1, waves_per_eu == 2, waves_per_eu == 4)]
+    constraints += [z3.Or(waves_per_eu == 2, waves_per_eu == 3, waves_per_eu == 4)]
 
     shared_memory = calculate_shared_memory_usage_in_bytes(problem_size, m, n, k)
     constraints += [shared_memory <= 65536]
