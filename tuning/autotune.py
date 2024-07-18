@@ -18,11 +18,17 @@ import hashlib
 from dataclasses import dataclass
 from typing import Type, Optional, Callable, Iterable, Any
 import pickle
+import random
 
 """
 Sample Usage:
 
 python autotune.py winograd 1286.mlir --lhs-dims=bmk --rhs-dims=bkn --tile-dims=*mnk --devices=1,3,5 --num-candidates=64
+
+
+Recommended Trial Run:
+
+python autotune.py winograd 1286.mlir --num-candidates=1 
 
 """
 
@@ -74,6 +80,11 @@ class ExecutionPhases(str, Enum):
     compile_unet_candidates = "compile-unet-candidates"
     benchmark_unet_candidates = "benchmark-unet-candidates"
 
+class DryRunTests(str, Enum):
+    no_dry_run = ""
+    no_gpu = "no_gpu"
+    gpu_minimal = "gpu_minimal"
+
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Autotune script")
@@ -107,6 +118,11 @@ def parse_arguments() -> argparse.Namespace:
         choices=[x.value for x in ExecutionPhases],
         default=ExecutionPhases.dont_stop,
         help="Stop execution after specified phase",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Dry run testing",
     )
 
     # tune.tune() options
@@ -519,56 +535,69 @@ def benchmark_compiled_candidates(
     """Benchmark the candidate files and store the top20 results in file (best.log). Return the log file"""
     logging.info("benchmark_top_candidates()")
 
-    task_list = []
-    for compiled_file in compiled_files:
-        command = ["./benchmark_dispatch.sh", f"{compiled_file}"]
-        check = False
-        task_list.append((args, command, check))
-
-    worker_context_queue = create_worker_context_queue(args.devices)
-    results = multiprocess_progress_wrapper(
-        num_worker=len(args.devices),
-        task_list=task_list,
-        function=worker_run_command_with_device_id,
-        initializer=init_worker_context,
-        initializer_inputs=(worker_context_queue,),
-    )
-
-    benchmark_results = [result.stdout for result in results]
-
     results_log = base_dir / "results.log"
+    best_log = base_dir / "best.log"
+    benchmark_results = []
+    best_results = []
+
+    if args.dry_run:
+        # generate random top candidates list from compiled_files
+        benchmark_list_len = random.randint(20, len(compiled_files)) if len(compiled_files) > 20 else len(compiled_files)
+        random_candidate_indices  = set()
+        while len(random_candidate_indices) < benchmark_list_len:
+            random_candidate_indices.add(random.randint(0, len(compiled_files)-1))
+        random_candidate_indices = list(random_candidate_indices)
+
+        # genereate random benchmark time
+        benchmark_results = ["" for _ in range(len(compiled_files))]
+        with tqdm(total=benchmark_list_len) as pbar:
+            for i in random_candidate_indices:
+                candidate_id = re.search(r'/(\d+)\.vmfb$', str(compiled_files[i])).group(1) # use compiled_file path string to extract candidate_id 
+                benchmark_results[i] = f"{candidate_id}\tMean Time: {random.randint(50, 500):.1f}\n"
+                pbar.update(1)
+    else:
+        task_list = []
+        for compiled_file in compiled_files:
+            command = ["./benchmark_dispatch.sh", f"{compiled_file}"]
+            check = False
+            task_list.append((args, command, check))
+
+        worker_context_queue = create_worker_context_queue(args.devices)
+        results = multiprocess_progress_wrapper(
+            num_worker=len(args.devices),
+            task_list=task_list,
+            function=worker_run_command_with_device_id,
+            initializer=init_worker_context,
+            initializer_inputs=(worker_context_queue,),
+        )
+        benchmark_results = [result.stdout for result in results]
+
     with results_log.open("w") as log_file:
         log_file.writelines(benchmark_results)
+    
+    benchmark_failed_count = 0
+    for res in benchmark_results:
+        if not res:
+            benchmark_failed_count += 1
+            continue
+        parts = res.split()
+        # Update candidate tracker
+        candidate_trackers[int(parts[0])].first_benchmark_time = float(
+            parts[-1]
+        )
+        i+=1
+        best_results.append(
+            (
+                parts[-1],
+                f"{candidates_dir}/{parts[0]}.mlir",
+                f"{candidates_dir}/configs/{parts[0]}_spec.mlir",
+            )
+        )
 
-    best_results = []
-    with results_log.open("r") as log_file:
-        for line in log_file:
-            if "failed" not in line:
-                parts = line.split()
-
-                # Update candidate tracker
-                candidate_trackers[int(parts[0])].first_benchmark_time = float(
-                    parts[-1]
-                )
-
-                best_results.append(
-                    (
-                        parts[-1],
-                        f"{candidates_dir}/{parts[0]}.mlir",
-                        f"{candidates_dir}/configs/{parts[0]}_spec.mlir",
-                    )
-                )
-
-    benchmarked_dir = candidates_dir / "compiled"
-    benchmarked_files = sorted(benchmarked_dir.glob("*.vmfb"), key=numerical_sort_key)
-    benchmark_failed_dir = benchmarked_dir / "benchmark_failed"
-    benchmark_failed_files = sorted(
-        benchmark_failed_dir.glob("*.vmfb"), key=numerical_sort_key
-    )
-
-    benchmarking_rate = (len(benchmarked_files) / len(benchmark_results)) * 100
+    benchmark_success_count = len(benchmark_results) - benchmark_failed_count
+    benchmarking_rate = (benchmark_success_count / len(benchmark_results)) * 100
     logging.critical(
-        f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)} | Benchmarking Rate: {benchmarking_rate:.1f}%"
+        f"Total: {len(benchmark_results)} | Benchmarked: {benchmark_success_count} | Failed: {benchmark_failed_count} | Benchmarking Rate: {benchmarking_rate:.1f}%"
     )
 
     handle_error(
@@ -577,7 +606,6 @@ def benchmark_compiled_candidates(
     )
 
     best_results = sorted(best_results, key=lambda x: float(x[0]))[:20]
-    best_log = base_dir / "best.log"
     with best_log.open("w") as log_file:
         for result in best_results:
             log_file.write(f"{result[0]}\t{result[1]}\t{result[2]}\n")
@@ -650,50 +678,57 @@ def benchmark_unet(
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
     logging.info("benchmark_unet()")
 
-    unet_candidates = ["unet_baseline.vmfb"] + unet_candidates + ["unet_baseline.vmfb"]
+    unet_candidates = ["./unet_baseline.vmfb"] + unet_candidates + ["./unet_baseline.vmfb"]
     # Update candidate tracker
     candidate_trackers[0].unet_candidate_path = Path("./unet_baseline.vmfb")
 
     unet_result_log = base_dir / "unet_results.log"
+    benchmark_unet_results = []
 
-    with unet_result_log.open("w") as log_file:
-        with tqdm(total=len(unet_candidates)) as pbar:
-            for unet_candidate in unet_candidates:
+    with tqdm(total=len(unet_candidates)) as pbar:
+        for unet_candidate in unet_candidates:
+            if args.dry_run:
+                random_time = random.randint(50, 500)
+                item_num = 5
+                res_string = f"Benchmarking: {unet_candidate} on device {args.devices[0]}\nBM_run_forward/process_time/real_time_median        {random_time:.1f} ms          {(random_time+1):.1f} ms            {item_num} items_per_second={random_time/item_num/100:5f}/s\n\n"
+                benchmark_unet_results.append(res_string)
+            else:
                 command = [
                     "./benchmark_unet_candidate.sh",
                     f"{unet_candidate}",
                     f"{args.devices[0]}",
                 ]  # Default use the first gpu from the user input --device list
                 result = run_command(args, command)
-                log_file.write(result.stdout)
-                log_file.write(result.stderr)
                 if result.returncode != 0:
                     logging.error(f"Failed: {command}")
                 else:
-                    # Update candidate tracker
-                    # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
-                    parts = result.stdout.split()
-                    if "unet_baseline.vmfb" in parts[1]:
-                        candidate_trackers[0].unet_benchmark_time = (
-                            float(parts[6])
-                            if candidate_trackers[0].unet_benchmark_time is None
-                            or float(parts[6])
-                            < candidate_trackers[0].unet_benchmark_time
-                            else candidate_trackers[0].unet_benchmark_time
-                        )
-                    else:
-                        candidate_trackers[
-                            int(parts[1].split("_")[-1].split(".")[0])
-                        ].unet_benchmark_time = float(parts[6])
+                    benchmark_unet_results.append(result.stdout)
                 time.sleep(10)
-                pbar.update(1)
+            pbar.update(1)
+    
+    with unet_result_log.open("w") as log_file:
+        log_file.writelines(benchmark_unet_results)
+
+    # Update candidate tracker
+    for res in benchmark_unet_results:
+        res = res.split() # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
+        if "unet_baseline.vmfb" in res[1]:
+            candidate_trackers[0].unet_benchmark_time = (
+                float(res[6])
+                if candidate_trackers[0].unet_benchmark_time is None
+                or float(res[6])
+                < candidate_trackers[0].unet_benchmark_time
+                else candidate_trackers[0].unet_benchmark_time
+            )
+        else:
+            candidate_trackers[
+                int(res[1].split("_")[-1].split(".")[0])
+            ].unet_benchmark_time = float(res[6])
 
     return unet_result_log
 
 
-def autotune() -> None:
-    args = parse_arguments()
-
+def autotune(args: argparse.Namespace = parse_arguments()) -> None:
     base_dir = Path(f"tuning_{datetime.now().strftime('%Y_%m_%d_%H_%M')}")
     base_dir.mkdir(parents=True, exist_ok=True)
 
