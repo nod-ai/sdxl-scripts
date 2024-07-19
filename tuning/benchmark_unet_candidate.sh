@@ -9,7 +9,9 @@ shift 2
 echo "Benchmarking: ${INPUT} on device ${DEVICE}"
 
 timeout 50s tools/iree-benchmark-module \
-  --device="rocm://${DEVICE}" \
+  --device="hip://${DEVICE}" \
+  --hip_use_streams=true \
+  --hip_allow_inline_execution=true \
   --device_allocator=caching \
   --module="${INPUT}" \
   --parameters=model=punet.irpa \
