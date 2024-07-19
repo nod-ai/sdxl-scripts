@@ -804,22 +804,19 @@ def parse_grouped_benchmark_results(
                 baseline_time = res.benchmark_time
                 dump_list.append(res.output_str)
                 continue
-            else:
-                candidate_trackers[
-                    res.candidate_id
-                ].unet_benchmark_time = res.benchmark_time
-                candidate_trackers[
-                    res.candidate_id
-                ].baseline_benchmark_time = baseline_time
-                candidate_trackers[
-                    res.candidate_id
-                ].unet_benchmark_device_id = res.device_id
-                candidate_trackers[res.candidate_id].calibrated_benchmark_diff = (
-                    res.benchmark_time - baseline_time
-                ) / baseline_time
-                dump_str = res.calibrated_output_str(
-                    candidate_trackers[res.candidate_id].calibrated_benchmark_diff
-                )
+            candidate_trackers[
+                res.candidate_id
+            ].unet_benchmark_time = res.benchmark_time
+            candidate_trackers[res.candidate_id].baseline_benchmark_time = baseline_time
+            candidate_trackers[
+                res.candidate_id
+            ].unet_benchmark_device_id = res.device_id
+            candidate_trackers[res.candidate_id].calibrated_benchmark_diff = (
+                res.benchmark_time - baseline_time
+            ) / baseline_time
+            dump_str = res.calibrated_output_str(
+                candidate_trackers[res.candidate_id].calibrated_benchmark_diff
+            )
 
             dump_list.append(dump_str)
 
