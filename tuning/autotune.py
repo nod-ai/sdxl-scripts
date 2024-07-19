@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from typing import Type, Optional, Callable, Iterable, Any, Dict, List
 import pickle
 from itertools import groupby
-from operator import attrgetter
 
 """
 Sample Usage:
