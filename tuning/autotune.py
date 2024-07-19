@@ -67,6 +67,7 @@ class TaskTuple:
     cooling_time: int = 0
     result_need_device_id: bool = False
 
+
 @dataclass
 class TaskResult:
     result: subprocess.CompletedProcess
@@ -76,7 +77,7 @@ class TaskResult:
 @dataclass
 class BenchmarkOutput:
     output_str: Optional[str] = None
-    
+
     @property
     def output_list(self) -> List[str]:
         # e.g. ['Benchmarking:', '/sdxl-scripts/tuning/tuning_2024_07_19_08_55/unet_candidate_12.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
@@ -125,18 +126,18 @@ class BenchmarkOutput:
         # Calculate the percentage change
         percentage_change = change * 100
         new_benchmark_time = benchmark_time + (benchmark_time * change)
-        
+
         # Format the change to be added to the string
         change_str = f"({percentage_change:+.3f}%)"
-        
+
         # Use regex to find and replace the old benchmark time with the new one
         new_output_str = re.sub(
-            r'(\d+(\.\d+)?)\s*ms',
+            r"(\d+(\.\d+)?)\s*ms",
             lambda m: f"{new_benchmark_time} ms {change_str}",
             self.output_str,
-            count=1
+            count=1,
         )
-        
+
         return new_output_str
 
 
@@ -372,19 +373,19 @@ def run_command(
     return result
 
 
-def run_command_wrapper(
-    task_tuple: TaskTuple
-) -> TaskResult:
+def run_command_wrapper(task_tuple: TaskTuple) -> TaskResult:
     """pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments"""
     if task_tuple.command_need_device_id:
         # worker add its device_id to the end of command list
         task_tuple.command.append(str(device_id))
-    
-    task_result = TaskResult(run_command(task_tuple.args, task_tuple.command, task_tuple.check))
+
+    task_result = TaskResult(
+        run_command(task_tuple.args, task_tuple.command, task_tuple.check)
+    )
     task_result.device_id = device_id if task_tuple.result_need_device_id else None
 
     time.sleep(task_tuple.cooling_time)
-    
+
     return task_result
 
 
@@ -623,7 +624,9 @@ def benchmark_compiled_candidates(
     task_list = []
     for compiled_file in compiled_files:
         command = ["./benchmark_dispatch.sh", f"{compiled_file}"]
-        task_list.append(TaskTuple(args, command, check=False, command_need_device_id=True))
+        task_list.append(
+            TaskTuple(args, command, check=False, command_need_device_id=True)
+        )
 
     worker_context_queue = create_worker_context_queue(args.devices)
     task_results = multiprocess_progress_wrapper(
@@ -760,7 +763,9 @@ def sort_candidates_by_first_benchmark_times(
     return sorted_indexes
 
 
-def group_benchmark_results_by_device_id(benchmark_results: list[TaskResult]) -> list[list[TaskResult]]:
+def group_benchmark_results_by_device_id(
+    benchmark_results: list[TaskResult],
+) -> list[list[TaskResult]]:
     """
     Groups benchmark results by device ID.
 
@@ -769,19 +774,27 @@ def group_benchmark_results_by_device_id(benchmark_results: list[TaskResult]) ->
     ----->
     [ [TaskResult(res1, device_1), TaskResult(res3, device_1)], [TaskResult(res2, device_2)] ]
     """
-    grouped_results = [list(group) for _, group in groupby(benchmark_results, key=lambda tr: tr.device_id)]
+    grouped_results = [
+        list(group)
+        for _, group in groupby(benchmark_results, key=lambda tr: tr.device_id)
+    ]
     grouped_results: Dict[int, List[TaskResult]] = {}
     for result in benchmark_results:
         if result.device_id not in grouped_results:
             grouped_results[result.device_id] = []
         grouped_results[result.device_id].append(result)
 
-    grouped_benchmark_results = [grouped_results[device_id] for device_id in sorted(grouped_results)]
+    grouped_benchmark_results = [
+        grouped_results[device_id] for device_id in sorted(grouped_results)
+    ]
 
     return grouped_benchmark_results
 
 
-def parse_grouped_benchmark_results(grouped_benchmark_results: list[list[TaskResult]], candidate_trackers: CandidateTracker) -> list[str]:
+def parse_grouped_benchmark_results(
+    grouped_benchmark_results: list[list[TaskResult]],
+    candidate_trackers: CandidateTracker,
+) -> list[str]:
     """Update candidate_trackers and and collect strings"""
     dump_list = []
 
@@ -792,11 +805,21 @@ def parse_grouped_benchmark_results(grouped_benchmark_results: list[list[TaskRes
                 baseline_time = res.benchmark_time
                 dump_str = res.output_str
             else:
-                candidate_trackers[res.candidate_id].unet_benchmark_time = res.benchmark_time
-                candidate_trackers[res.candidate_id].baseline_benchmark_time = baseline_time
-                candidate_trackers[res.candidate_id].unet_benchmark_device_id = res.device_id
-                candidate_trackers[res.candidate_id].calibrated_benchmark_diff = (res.benchmark_time - baseline_time) / baseline_time
-                dump_str = res.calibrated_output_str(candidate_trackers[res.candidate_id].calibrated_benchmark_diff)
+                candidate_trackers[
+                    res.candidate_id
+                ].unet_benchmark_time = res.benchmark_time
+                candidate_trackers[
+                    res.candidate_id
+                ].baseline_benchmark_time = baseline_time
+                candidate_trackers[
+                    res.candidate_id
+                ].unet_benchmark_device_id = res.device_id
+                candidate_trackers[res.candidate_id].calibrated_benchmark_diff = (
+                    res.benchmark_time - baseline_time
+                ) / baseline_time
+                dump_str = res.calibrated_output_str(
+                    candidate_trackers[res.candidate_id].calibrated_benchmark_diff
+                )
 
             dump_list.append(dump_str)
 
@@ -816,17 +839,28 @@ def benchmark_unet(
     unet_baseline_filepath = Path("./unet_baseline.vmfb")
     candidate_trackers[0].unet_candidate_path = unet_baseline_filepath
 
-
     unet_candidates = sort_candidates_by_first_benchmark_times(
         unet_candidates, candidate_trackers
     )
-    
+
     # Benchmarking unet candidates
     worker_context_queue = create_worker_context_queue(args.devices)
     benchmark_task_list = []
     for index in unet_candidates:
-        command = ["./benchmark_unet_candidate.sh", f"{candidate_trackers[index].unet_candidate_path}"]
-        benchmark_task_list.append(TaskTuple(args, command, check=False, command_need_device_id=True, cooling_time=10, result_need_device_id=True))
+        command = [
+            "./benchmark_unet_candidate.sh",
+            f"{candidate_trackers[index].unet_candidate_path}",
+        ]
+        benchmark_task_list.append(
+            TaskTuple(
+                args,
+                command,
+                check=False,
+                command_need_device_id=True,
+                cooling_time=10,
+                result_need_device_id=True,
+            )
+        )
     benchmark_results = multiprocess_progress_wrapper(
         num_worker=len(args.devices),
         task_list=benchmark_task_list,
@@ -839,7 +873,15 @@ def benchmark_unet(
 
     # Benchmarking baselines on each involved device
     worker_context_queue = create_worker_context_queue(args.devices)
-    baseline_task_list = [TaskTuple(args, command=["./benchmark_unet_candidate.sh", str(unet_baseline_filepath)], check=False, command_need_device_id=True, result_need_device_id=True)] * len(grouped_benchmark_results)
+    baseline_task_list = [
+        TaskTuple(
+            args,
+            command=["./benchmark_unet_candidate.sh", str(unet_baseline_filepath)],
+            check=False,
+            command_need_device_id=True,
+            result_need_device_id=True,
+        )
+    ] * len(grouped_benchmark_results)
     baseline_results = multiprocess_progress_wrapper(
         num_worker=len(args.devices),
         task_list=baseline_task_list,
@@ -850,10 +892,14 @@ def benchmark_unet(
     baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
 
     # Insert baseline results to the head of each list
-    grouped_benchmark_results = [[x] + y for x, y in zip(baseline_results, grouped_benchmark_results)]
+    grouped_benchmark_results = [
+        [x] + y for x, y in zip(baseline_results, grouped_benchmark_results)
+    ]
 
     # Update candidate_tracker and extract strings which will be stored in unet_result_log
-    dump_list = parse_grouped_benchmark_results(grouped_benchmark_results, candidate_trackers)
+    dump_list = parse_grouped_benchmark_results(
+        grouped_benchmark_results, candidate_trackers
+    )
 
     with unet_result_log.open("w") as log_file:
         for dump_str in dump_list:
