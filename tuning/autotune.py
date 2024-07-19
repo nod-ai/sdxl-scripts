@@ -775,7 +775,7 @@ def group_benchmark_results_by_device_id(
     """
     grouped_results = [
         list(group)
-        for _, group in groupby(benchmark_results, key=lambda tr: tr.device_id)
+        for _, group in groupby(benchmark_results, key=lambda br: br.device_id)
     ]
     grouped_results: dict[int, list[TaskResult]] = {}
     for result in benchmark_results:
@@ -865,7 +865,7 @@ def benchmark_unet(
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
     )
-    benchmark_results = sorted(benchmark_results, key=lambda tr: tr.device_id)
+    benchmark_results = sorted(benchmark_results, key=lambda br: br.device_id)
     grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
 
     # Benchmarking baselines on each involved device
