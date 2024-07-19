@@ -802,7 +802,8 @@ def parse_grouped_benchmark_results(
             res = BenchmarkOutput(unet_candidate_result.result.stdout)
             if "unet_baseline.vmfb" in res.unet_candidate_path:
                 baseline_time = res.benchmark_time
-                dump_str = res.output_str
+                dump_list.append(res.output_str)
+                continue
             else:
                 candidate_trackers[
                     res.candidate_id
