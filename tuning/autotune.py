@@ -310,11 +310,11 @@ def run_command_wrapper(
     if task_tuple.command_need_device_id:
         # worker add its device_id to the end of command list
         task_tuple.command.append(str(device_id))
-    if task_tuple.cooling_time != 0:
-        task_tuple.command = task_tuple.command + ["&&", "sleep", f"{task_tuple.cooling_time}s"]
-
+    
     task_result = TaskResult(run_command(task_tuple.args, task_tuple.command, task_tuple.check))
     task_result.device_id = device_id if task_tuple.result_need_device_id else None
+
+    time.sleep(task_tuple.cooling_time)
     
     return task_result
 
@@ -742,6 +742,8 @@ def benchmark_unet(
     )
     baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
 
+    # print(baseline_results)
+    # breakpoint()
     
     i = 0
     with unet_result_log.open("w") as log_file:
