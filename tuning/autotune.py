@@ -49,11 +49,13 @@ class CandidateTracker:
     compilation_successful: Optional[bool] = None
     compiled_vmfb_path: Optional[Path] = None
     first_benchmark_time: Optional[float] = None
-    first_benchmark_device_id: int = None
+    first_benchmark_device_id: Optional[int] = None
     unet_candidate_path: Optional[Path] = None
     unet_vmfb_hash: Optional[str] = None
     unet_benchmark_time: Optional[float] = None
-    unet_benchmark_device_id: int = None
+    unet_benchmark_device_id: Optional[int] = None
+    baseline_benchmark_time: Optional[float] = None
+    calibrated_benchmark_diff: Optional[float] = None
 
 
 @dataclass
@@ -69,6 +71,73 @@ class TaskTuple:
 class TaskResult:
     result: subprocess.CompletedProcess
     device_id: int = None
+
+
+@dataclass
+class BenchmarkOutput:
+    output_str: Optional[str] = None
+    
+    @property
+    def output_list(self) -> List[str]:
+        # e.g. ['Benchmarking:', '/sdxl-scripts/tuning/tuning_2024_07_19_08_55/unet_candidate_12.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
+        if self.output_str is None:
+            return []
+        return self.output_str.split()
+
+    @property
+    def unet_candidate_path(self) -> Optional[str]:
+        if not self.output_list or len(self.output_list) < 2:
+            return None
+        return self.output_list[1]
+
+    @property
+    def candidate_id(self) -> Optional[int]:
+        if self.unet_candidate_path:
+            try:
+                return int(self.unet_candidate_path.split("_")[-1].split(".")[0])
+            except ValueError:
+                return None
+        return None
+
+    @property
+    def device_id(self) -> Optional[str]:
+        if len(self.output_list) < 5:
+            return None
+        return self.output_list[4]
+
+    @property
+    def benchmark_time(self) -> Optional[float]:
+        if len(self.output_list) < 7:
+            return None
+        try:
+            return float(self.output_list[6])
+        except ValueError:
+            return None
+
+    def calibrated_output_str(self, change: float) -> str:
+        if self.output_str is None:
+            return self.output_str
+
+        benchmark_time = self.benchmark_time
+        if benchmark_time is None:
+            return self.output_str
+
+        # Calculate the percentage change
+        percentage_change = change * 100
+        new_benchmark_time = benchmark_time + (benchmark_time * change)
+        
+        # Format the change to be added to the string
+        change_str = f"({percentage_change:+.3f}%)"
+        
+        # Use regex to find and replace the old benchmark time with the new one
+        new_output_str = re.sub(
+            r'(\d+(\.\d+)?)\s*ms',
+            lambda m: f"{new_benchmark_time} ms {change_str}",
+            self.output_str,
+            count=1
+        )
+        
+        return new_output_str
 
 
 def parse_devices(devices_str: str) -> list[int]:
@@ -680,6 +749,7 @@ def compile_unet_candidates(
 def sort_candidates_by_first_benchmark_times(
     candidate_indexes: list[int], candidate_trackers: CandidateTracker
 ) -> list[int]:
+    """Sorts candidate indexes based on their first benchmark times in ascending order"""
     first_benchmark_times = [
         candidate_trackers[index].first_benchmark_time for index in candidate_indexes
     ]
@@ -688,6 +758,48 @@ def sort_candidates_by_first_benchmark_times(
     sorted_indexes, _ = zip(*combined_sorted)
     sorted_indexes = list(sorted_indexes)
     return sorted_indexes
+
+
+def group_benchmark_results_by_device_id(benchmark_results: list[TaskResult]) -> list[list[TaskResult]]:
+    """
+    Groups benchmark results by device ID.
+
+    e.g.
+    [TaskResult(res1, device_1), TaskResult(res2, device_2), TaskResult(res3, device_1)]
+    ----->
+    [ [TaskResult(res1, device_1), TaskResult(res3, device_1)], [TaskResult(res2, device_2)] ]
+    """
+    grouped_results = [list(group) for _, group in groupby(benchmark_results, key=lambda tr: tr.device_id)]
+    grouped_results: Dict[int, List[TaskResult]] = {}
+    for result in benchmark_results:
+        if result.device_id not in grouped_results:
+            grouped_results[result.device_id] = []
+        grouped_results[result.device_id].append(result)
+
+    sorted_benchmark_results = [grouped_results[device_id] for device_id in sorted(grouped_results)]
+
+    return sorted_benchmark_results
+
+
+def parse_grouped_benchmark_results(sorted_benchmark_results: list[TaskResult], candidate_trackers: CandidateTracker) -> list[str]:
+    dump_list = []
+
+    for same_device_results in sorted_benchmark_results:
+        for unet_candidate_result in same_device_results:
+            res = BenchmarkOutput(unet_candidate_result.result.stdout)
+            if "unet_baseline.vmfb" in res.unet_candidate_path:
+                baseline_time = res.benchmark_time
+                dump_str = res.output_str
+            else:
+                candidate_trackers[res.candidate_id].unet_benchmark_time = res.benchmark_time
+                candidate_trackers[res.candidate_id].baseline_benchmark_time = baseline_time
+                candidate_trackers[res.candidate_id].unet_benchmark_device_id = res.device_id
+                candidate_trackers[res.candidate_id].calibrated_benchmark_diff = (res.benchmark_time - baseline_time) / baseline_time
+                dump_str = res.calibrated_output_str(candidate_trackers[res.candidate_id].calibrated_benchmark_diff)
+
+            dump_list.append(dump_str)
+
+    return dump_list
 
 
 def benchmark_unet(
@@ -699,49 +811,32 @@ def benchmark_unet(
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
     logging.info("benchmark_unet()")
 
+    unet_result_log = base_dir / "unet_results.log"
+    unet_baseline_filepath = Path("./unet_baseline.vmfb")
+    candidate_trackers[0].unet_candidate_path = unet_baseline_filepath
+
+
     unet_candidates = sort_candidates_by_first_benchmark_times(
         unet_candidates, candidate_trackers
     )
-    unet_candidates_paths = [
-        candidate_trackers[index].unet_candidate_path for index in unet_candidates
-    ]
-    unet_candidates = (
-        ["unet_baseline.vmfb"] + unet_candidates_paths + ["unet_baseline.vmfb"]
-    )
-
-    # Update candidate tracker
-    candidate_trackers[0].unet_candidate_path = unet_baseline_filepath
-
-    unet_result_log = base_dir / "unet_results.log"
-
-    unet_candidate_paths = unet_candidates
+    
     worker_context_queue = create_worker_context_queue(args.devices)
-
-    benchmarking_task_list = []
-    for unet_candidate_path in unet_candidate_paths:
-        command = ["./benchmark_unet_candidate.sh", f"{unet_candidate_path}"]
-        benchmarking_task_list.append(TaskTuple(args, command, check=False, command_need_device_id=True, cooling_time=10, result_need_device_id=True))
-    benchmarking_results = multiprocess_progress_wrapper(
+    benchmark_task_list = []
+    for index in unet_candidates:
+        command = ["./benchmark_unet_candidate.sh", f"{candidate_trackers[index].unet_candidate_path}"]
+        benchmark_task_list.append(TaskTuple(args, command, check=False, command_need_device_id=True, cooling_time=10, result_need_device_id=True))
+    benchmark_results = multiprocess_progress_wrapper(
         num_worker=len(args.devices),
-        task_list=benchmarking_task_list,
+        task_list=benchmark_task_list,
         function=run_command_wrapper,
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
     )
-    benchmarking_results = sorted(benchmarking_results, key=lambda tr: tr.device_id)
-
-    grouped_results = [list(group) for _, group in groupby(benchmarking_results, key=lambda tr: tr.device_id)] # TODO: sort results that has same device_id by firt_benchmark_time
-    grouped_results: Dict[int, List[TaskResult]] = {}
-    for result in benchmarking_results:
-        if result.device_id not in grouped_results:
-            grouped_results[result.device_id] = []
-        grouped_results[result.device_id].append(result)
-
-    sorted_benchmarking_results = [grouped_results[device_id] for device_id in sorted(grouped_results)]
+    benchmark_results = sorted(benchmark_results, key=lambda tr: tr.device_id)
+    grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
 
     worker_context_queue = create_worker_context_queue(args.devices)
-    baseline_task_list = [TaskTuple(args, command=["./benchmark_unet_candidate.sh", str(unet_baseline_filepath)], check=False, command_need_device_id=True, result_need_device_id=True)] * len(sorted_benchmarking_results)
-
+    baseline_task_list = [TaskTuple(args, command=["./benchmark_unet_candidate.sh", str(unet_baseline_filepath)], check=False, command_need_device_id=True, result_need_device_id=True)] * len(grouped_benchmark_results)
     baseline_results = multiprocess_progress_wrapper(
         num_worker=len(args.devices),
         task_list=baseline_task_list,
@@ -752,50 +847,13 @@ def benchmark_unet(
     baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
 
 
-    baseline_times = [bl.result.stdout.split()[6] for bl in baseline_results]
-    candidate_times_list = [[ct.result.stdout.split()[6] for ct in same_device_results] for same_device_results in sorted_benchmarking_results]
+    grouped_benchmark_results = [[x] + y for x, y in zip(baseline_results, grouped_benchmark_results)]
 
-    
-    i = 0
+    dump_list = parse_grouped_benchmark_results(grouped_benchmark_results, candidate_trackers)
+
     with unet_result_log.open("w") as log_file:
-        for same_device_results in sorted_benchmarking_results:
-            log_file.write(baseline_results[i].result.stdout)
-            i += 1
-            for res in same_device_results:
-                log_file.write(res.result.stdout)
-
-
-    # with unet_result_log.open("w") as log_file:
-    #     with tqdm(total=len(unet_candidates)) as pbar:
-    #         for unet_candidate in unet_candidates:
-    #             command = [
-    #                 "./benchmark_unet_candidate.sh",
-    #                 f"{unet_candidate}",
-    #                 f"{args.devices[0]}",
-    #             ]  # Default use the first gpu from the user input --device list
-    #             result = run_command(args, command)
-    #             log_file.write(result.stdout)
-    #             log_file.write(result.stderr)
-    #             if result.returncode != 0:
-    #                 logging.error(f"Failed: {command}")
-    #             else:
-    #                 # Update candidate tracker
-    #                 # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
-    #                 parts = result.stdout.split()
-    #                 if "unet_baseline.vmfb" in parts[1]:
-    #                     candidate_trackers[0].unet_benchmark_time = (
-    #                         float(parts[6])
-    #                         if candidate_trackers[0].unet_benchmark_time is None
-    #                         or float(parts[6])
-    #                         < candidate_trackers[0].unet_benchmark_time
-    #                         else candidate_trackers[0].unet_benchmark_time
-    #                     )
-    #                 else:
-    #                     candidate_trackers[
-    #                         int(parts[1].split("_")[-1].split(".")[0])
-    #                     ].unet_benchmark_time = float(parts[6])
-    #             time.sleep(10)
-    #             pbar.update(1)
+        for dump_str in dump_list:
+            log_file.write(dump_str)
 
     return unet_result_log
 
