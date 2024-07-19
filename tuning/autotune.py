@@ -776,15 +776,16 @@ def group_benchmark_results_by_device_id(benchmark_results: list[TaskResult]) ->
             grouped_results[result.device_id] = []
         grouped_results[result.device_id].append(result)
 
-    sorted_benchmark_results = [grouped_results[device_id] for device_id in sorted(grouped_results)]
+    grouped_benchmark_results = [grouped_results[device_id] for device_id in sorted(grouped_results)]
 
-    return sorted_benchmark_results
+    return grouped_benchmark_results
 
 
-def parse_grouped_benchmark_results(sorted_benchmark_results: list[TaskResult], candidate_trackers: CandidateTracker) -> list[str]:
+def parse_grouped_benchmark_results(grouped_benchmark_results: list[list[TaskResult]], candidate_trackers: CandidateTracker) -> list[str]:
+    """Update candidate_trackers and and collect strings"""
     dump_list = []
 
-    for same_device_results in sorted_benchmark_results:
+    for same_device_results in grouped_benchmark_results:
         for unet_candidate_result in same_device_results:
             res = BenchmarkOutput(unet_candidate_result.result.stdout)
             if "unet_baseline.vmfb" in res.unet_candidate_path:
@@ -820,6 +821,7 @@ def benchmark_unet(
         unet_candidates, candidate_trackers
     )
     
+    # Benchmarking unet candidates
     worker_context_queue = create_worker_context_queue(args.devices)
     benchmark_task_list = []
     for index in unet_candidates:
@@ -835,6 +837,7 @@ def benchmark_unet(
     benchmark_results = sorted(benchmark_results, key=lambda tr: tr.device_id)
     grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
 
+    # Benchmarking baselines on each involved device
     worker_context_queue = create_worker_context_queue(args.devices)
     baseline_task_list = [TaskTuple(args, command=["./benchmark_unet_candidate.sh", str(unet_baseline_filepath)], check=False, command_need_device_id=True, result_need_device_id=True)] * len(grouped_benchmark_results)
     baseline_results = multiprocess_progress_wrapper(
@@ -846,9 +849,10 @@ def benchmark_unet(
     )
     baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
 
-
+    # Insert baseline results to the head of each list
     grouped_benchmark_results = [[x] + y for x, y in zip(baseline_results, grouped_benchmark_results)]
 
+    # Update candidate_tracker and extract strings which will be stored in unet_result_log
     dump_list = parse_grouped_benchmark_results(grouped_benchmark_results, candidate_trackers)
 
     with unet_result_log.open("w") as log_file:
