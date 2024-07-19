@@ -794,7 +794,7 @@ def parse_grouped_benchmark_results(
     grouped_benchmark_results: list[list[TaskResult]],
     candidate_trackers: CandidateTracker,
 ) -> list[str]:
-    """Update candidate_trackers and and collect strings"""
+    """Update candidate_trackers and collect strings"""
     dump_list = []
 
     for same_device_results in grouped_benchmark_results:
