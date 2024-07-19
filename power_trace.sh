@@ -18,10 +18,18 @@ if [ -z "$real_iree" ]; then
     exit 1
 fi
 
+cat << EOF > "$tmpdir/doas-root"
+set -xe
+rm -rf /var/tmp/smutraceTmpFiles
+mkdir -p /var/tmp/smutraceTmpFiles
+ulimit -n 100000
+LD_LIBRARY_PATH=/usr/local/lib runTracer.sh "$real_iree" "\$@"
+EOF
+
 cat << EOF > "$tmpdir/iree-benchmark-module"
 #!/bin/bash
 set -xe
-sudo LD_LIBRARY_PATH=/usr/local/lib runTracer.sh "$real_iree" "\$@"
+sudo bash "$tmpdir/doas-root" "\$@"
 ret=$?
 python3 "$script_dir/corellator.py" trace.rpd || echo "Returned $?"
 exit $ret
@@ -31,4 +39,4 @@ chmod a+x "$tmpdir/iree-benchmark-module"
 
 export PATH="$tmpdir:$PATH"
 
-source "$@"
+"$@"
