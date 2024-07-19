@@ -699,7 +699,16 @@ def benchmark_unet(
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
     logging.info("benchmark_unet()")
 
-    unet_baseline_filepath = Path("./unet_baseline.vmfb")
+    unet_candidates = sort_candidates_by_first_benchmark_times(
+        unet_candidates, candidate_trackers
+    )
+    unet_candidates_paths = [
+        candidate_trackers[index].unet_candidate_path for index in unet_candidates
+    ]
+    unet_candidates = (
+        ["unet_baseline.vmfb"] + unet_candidates_paths + ["unet_baseline.vmfb"]
+    )
+
     # Update candidate tracker
     candidate_trackers[0].unet_candidate_path = unet_baseline_filepath
 
