@@ -72,6 +72,10 @@ class TaskResult:
     result: subprocess.CompletedProcess
     device_id: int = None
 
+@dataclass
+class DispatchBenchmarkResult:
+    result_str = Optional[str] = None
+
 
 @dataclass
 class BenchmarkOutput:
@@ -482,8 +486,8 @@ def load_pickle(file_path: Path) -> list[Any]:
 
 def generate_candidates(
     args: argparse.Namespace, base_dir: Path, candidate_trackers: list[CandidateTracker]
-) -> tuple[list[Path], Path]:
-    """Generate candidate files for tuning. Returns the list of candidate files and the candidates directory."""
+) -> tuple[list[int], Path]:
+    """Generate candidate files for tuning. Returns the list of candidate indexes and the candidates directory."""
     logging.info("generate_candidates()")
 
     try:
@@ -533,7 +537,7 @@ def generate_candidates(
     candidates = []
     for mlir in mlirs:
         if "_config.mlir" not in mlir.name:
-            candidates.append(mlir)
+            candidates.append(int(mlir.stem))
             new_candidate = CandidateTracker(
                 candidate_id=int(mlir.stem),
                 mlir_path=mlir,
@@ -555,16 +559,16 @@ def generate_candidates(
 def compile_candidates(
     args: argparse.Namespace,
     base_dir: Path,
-    candidates: list[Path],
+    candidates: list[int],
     candidate_dir: Path,
     candidate_trackers: list[CandidateTracker],
-) -> tuple[list[Path], Path]:
-    """Compile candidate files for tuning and record in candidate_vmfbs.txt. Returns the list of compiled files and the compiled files directory."""
+) -> tuple[list[int], Path]:
+    """Compile candidate files for tuning and record in candidate_vmfbs.txt. Returns the list of compiled candidate indexes and the compiled files directory."""
     logging.info("compile_candidates()")
 
     task_list = []
-    for candidate in candidates:
-        command = ["./compile_candidate.sh", f"{args.mode}", f"{candidate}"]
+    for candidate_index in candidates:
+        command = ["./compile_candidate.sh", f"{args.mode}", f"{candidate_trackers[candidate_index].mlir_path}"]
         task_list.append(TaskTuple(args, command, check=False))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
@@ -593,8 +597,10 @@ def compile_candidates(
     for failed_file in failed_files:
         index = int(failed_file.stem)
         candidate_trackers[index].compilation_successful = False
+    compiled_candidates = []
     for compiled_file in compiled_files:
         index = int(compiled_file.stem)
+        compiled_candidates.append(index)
         candidate_trackers[index].compilation_successful = True
         candidate_trackers[index].compiled_vmfb_path = compiled_file
 
@@ -607,22 +613,22 @@ def compile_candidates(
         level=logging.WARNING,
     )
 
-    return compiled_files, compiled_dir
+    return compiled_candidates, compiled_dir
 
 
 def benchmark_compiled_candidates(
     args: argparse.Namespace,
     base_dir: Path,
     candidates_dir: Path,
-    compiled_files: list[Path],
+    compiled_candidates: list[int],
     candidate_trackers: list[CandidateTracker],
 ) -> Path:
     """Benchmark the candidate files and store the topN results in file (best.log). Return the log file"""
     logging.info("benchmark_top_candidates()")
 
     task_list = []
-    for compiled_file in compiled_files:
-        command = ["./benchmark_dispatch.sh", f"{compiled_file}"]
+    for index in compiled_candidates:
+        command = ["./benchmark_dispatch.sh", f"{candidate_trackers[index].compiled_vmfb_path}"]
         task_list.append(
             TaskTuple(args, command, check=False, command_need_device_id=True)
         )
@@ -925,16 +931,16 @@ def autotune() -> None:
         return
 
     print("Compiling candidates...")
-    compiled_files, compiled_dir = compile_candidates(
+    compiled_candidates, compiled_dir = compile_candidates(
         args, base_dir, candidates, candidates_dir, candidate_trackers
     )
-    print(f"Compiled [{len(compiled_files)}] files in {compiled_dir}\n")
+    print(f"Compiled [{len(compiled_candidates)}] files in {compiled_dir}\n")
     if stop_after_phase == ExecutionPhases.compile_candidates:
         return
 
     print("Benchmarking compiled candidates...")
     best_log = benchmark_compiled_candidates(
-        args, base_dir, candidates_dir, compiled_files, candidate_trackers
+        args, base_dir, candidates_dir, compiled_candidates, candidate_trackers
     )
     print(f"Top candidates results are stored in {best_log}\n")
     if stop_after_phase == ExecutionPhases.benchmark_candidates:
