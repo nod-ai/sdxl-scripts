@@ -16,8 +16,10 @@ from tqdm import tqdm
 import re
 import hashlib
 from dataclasses import dataclass
-from typing import Type, Optional, Callable, Iterable, Any
+from typing import Type, Optional, Callable, Iterable, Any, Dict, List
 import pickle
+from itertools import groupby
+from operator import attrgetter
 
 """
 Sample Usage:
@@ -342,6 +344,8 @@ def multiprocess_progress_wrapper(
                 worker_pool.terminate()
                 worker_pool.join()
                 sys.exit(1)  # Exit the script
+            except:
+                assert False
     return results
 
 
@@ -696,75 +700,89 @@ def benchmark_unet(
     logging.info("benchmark_unet()")
 
     unet_baseline_filepath = Path("./unet_baseline.vmfb")
-    unet_candidates = ["unet_baseline.vmfb"] + unet_candidates + ["unet_baseline.vmfb"]
     # Update candidate tracker
     candidate_trackers[0].unet_candidate_path = unet_baseline_filepath
 
     unet_result_log = base_dir / "unet_results.log"
 
+    unet_candidate_paths = unet_candidates
+    worker_context_queue = create_worker_context_queue(args.devices)
+
+    benchmarking_task_list = []
+    for unet_candidate_path in unet_candidate_paths:
+        command = ["./benchmark_unet_candidate.sh", f"{unet_candidate_path}"]
+        benchmarking_task_list.append(TaskTuple(args, command, check=False, command_need_device_id=True, cooling_time=10, result_need_device_id=True))
+    benchmarking_results = multiprocess_progress_wrapper(
+        num_worker=len(args.devices),
+        task_list=benchmarking_task_list,
+        function=run_command_wrapper,
+        initializer=init_worker_context,
+        initializer_inputs=(worker_context_queue,),
+    )
+    benchmarking_results = sorted(benchmarking_results, key=lambda tr: tr.device_id)
+
+    grouped_results = [list(group) for _, group in groupby(benchmarking_results, key=lambda tr: tr.device_id)] # TODO: sort results that has same device_id by firt_benchmark_time
+    grouped_results: Dict[int, List[TaskResult]] = {}
+    for result in benchmarking_results:
+        if result.device_id not in grouped_results:
+            grouped_results[result.device_id] = []
+        grouped_results[result.device_id].append(result)
+
+    sorted_benchmarking_results = [grouped_results[device_id] for device_id in sorted(grouped_results)]
+
+    worker_context_queue = create_worker_context_queue(args.devices)
+    baseline_task_list = [TaskTuple(args, command=["./benchmark_unet_candidate.sh", str(unet_baseline_filepath)], check=False, command_need_device_id=True, result_need_device_id=True)] * len(sorted_benchmarking_results)
+
+    baseline_results = multiprocess_progress_wrapper(
+        num_worker=len(args.devices),
+        task_list=baseline_task_list,
+        function=run_command_wrapper,
+        initializer=init_worker_context,
+        initializer_inputs=(worker_context_queue,),
+    )
+    baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
 
     
-
-
-    # unet_candidate_paths = unet_candidates
-    # worker_context_queue = create_worker_context_queue(args.devices)
-
-    # benchmarking_task_list = []
-    # for unet_candidate_path in unet_candidate_paths:
-    #     command = ["./benchmark_unet_candidate.sh", f"{unet_candidate_path}"]
-    #     benchmarking_task_list.append(TaskTuple(args, command, check=False, command_need_device_id=True, cooling_time=10, result_need_device_id=True))
-    # benchmarking_results = multiprocess_progress_wrapper(
-    #     num_worker=len(args.devices),
-    #     task_list=benchmarking_task_list,
-    #     function=run_command_wrapper,
-    #     initializer=init_worker_context,
-    #     initializer_inputs=(worker_context_queue,),
-    # )
-
-    # baseline_task_list = [TaskTuple(args, command=["./benchmark_unet_candidate.sh", str(unet_baseline_filepath)], check=False, command_need_device_id=True, cooling_time=10, result_need_device_id=True)] * len(args.devices)
-    # baseline_results = multiprocess_progress_wrapper(
-    #     num_worker=len(args.devices),
-    #     task_list=baseline_task_list,
-    #     function=run_command_wrapper,
-    #     initializer=init_worker_context,
-    #     initializer_inputs=(worker_context_queue,),
-    # )
-
-    # benchmark_results = [result.stdout for result in results]
-
-
-
+    i = 0
     with unet_result_log.open("w") as log_file:
-        with tqdm(total=len(unet_candidates)) as pbar:
-            for unet_candidate in unet_candidates:
-                command = [
-                    "./benchmark_unet_candidate.sh",
-                    f"{unet_candidate}",
-                    f"{args.devices[0]}",
-                ]  # Default use the first gpu from the user input --device list
-                result = run_command(args, command)
-                log_file.write(result.stdout)
-                log_file.write(result.stderr)
-                if result.returncode != 0:
-                    logging.error(f"Failed: {command}")
-                else:
-                    # Update candidate tracker
-                    # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
-                    parts = result.stdout.split()
-                    if "unet_baseline.vmfb" in parts[1]:
-                        candidate_trackers[0].unet_benchmark_time = (
-                            float(parts[6])
-                            if candidate_trackers[0].unet_benchmark_time is None
-                            or float(parts[6])
-                            < candidate_trackers[0].unet_benchmark_time
-                            else candidate_trackers[0].unet_benchmark_time
-                        )
-                    else:
-                        candidate_trackers[
-                            int(parts[1].split("_")[-1].split(".")[0])
-                        ].unet_benchmark_time = float(parts[6])
-                time.sleep(10)
-                pbar.update(1)
+        for same_device_results in sorted_benchmarking_results:
+            log_file.write(baseline_results[i].result.stdout)
+            i += 1
+            for res in same_device_results:
+                log_file.write(res.result.stdout)
+
+
+    # with unet_result_log.open("w") as log_file:
+    #     with tqdm(total=len(unet_candidates)) as pbar:
+    #         for unet_candidate in unet_candidates:
+    #             command = [
+    #                 "./benchmark_unet_candidate.sh",
+    #                 f"{unet_candidate}",
+    #                 f"{args.devices[0]}",
+    #             ]  # Default use the first gpu from the user input --device list
+    #             result = run_command(args, command)
+    #             log_file.write(result.stdout)
+    #             log_file.write(result.stderr)
+    #             if result.returncode != 0:
+    #                 logging.error(f"Failed: {command}")
+    #             else:
+    #                 # Update candidate tracker
+    #                 # ex. ['Benchmarking:', '/sdxl-scripts/tuning/unet_baseline.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
+    #                 parts = result.stdout.split()
+    #                 if "unet_baseline.vmfb" in parts[1]:
+    #                     candidate_trackers[0].unet_benchmark_time = (
+    #                         float(parts[6])
+    #                         if candidate_trackers[0].unet_benchmark_time is None
+    #                         or float(parts[6])
+    #                         < candidate_trackers[0].unet_benchmark_time
+    #                         else candidate_trackers[0].unet_benchmark_time
+    #                     )
+    #                 else:
+    #                     candidate_trackers[
+    #                         int(parts[1].split("_")[-1].split(".")[0])
+    #                     ].unet_benchmark_time = float(parts[6])
+    #             time.sleep(10)
+    #             pbar.update(1)
 
     return unet_result_log
 
