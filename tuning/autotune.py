@@ -16,7 +16,7 @@ from tqdm import tqdm
 import re
 import hashlib
 from dataclasses import dataclass
-from typing import Type, Optional, Callable, Iterable, Any, Dict
+from typing import Type, Optional, Callable, Iterable, Any
 import pickle
 from itertools import groupby
 
@@ -777,7 +777,7 @@ def group_benchmark_results_by_device_id(
         list(group)
         for _, group in groupby(benchmark_results, key=lambda tr: tr.device_id)
     ]
-    grouped_results: Dict[int, list[TaskResult]] = {}
+    grouped_results: dict[int, list[TaskResult]] = {}
     for result in benchmark_results:
         if result.device_id not in grouped_results:
             grouped_results[result.device_id] = []
