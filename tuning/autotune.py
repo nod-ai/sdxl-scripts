@@ -452,9 +452,9 @@ def generate_candidates(
             )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
-                mlir
-            )
+            candidate_trackers[
+                int(mlir.stem.split("_config")[0])
+            ].mlir_config_path = mlir
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
@@ -605,7 +605,7 @@ def compile_unet_candidates(
     base_dir: Path,
     best_log: Path,
     candidate_trackers: list[CandidateTracker],
-) -> list[str]:
+) -> list[int]:
     """Compile U-Net candidates stored in best.log. Return the list of U-Net candidate files."""
     logging.info("compile_unet_candidates()")
 
@@ -627,45 +627,71 @@ def compile_unet_candidates(
         num_worker=num_worker, task_list=task_list, function=run_command_wrapper
     )
 
-    unet_candidates = list(base_dir.glob("*.vmfb"))
+    unet_candidates_files = list(base_dir.glob("*.vmfb"))
 
+    unet_candidates_indexes = []
     unet_candidates_hash_list = []
 
     # Update candidate tracker
-    for unet_candidate in unet_candidates:
+    for unet_candidate in unet_candidates_files:
         index = int(unet_candidate.stem.split("_")[-1])
         candidate_trackers[index].unet_candidate_path = unet_candidate
         hash_val = calculate_md5(candidate_trackers[index].unet_candidate_path)
         candidate_trackers[index].unet_vmfb_hash = hash_val
         unet_candidates_hash_list.append((index, hash_val))
+        unet_candidates_indexes.append(index)
 
     # Check if unet candidate produces tbe same .vmfb
     collision_detected, hash_list = find_collisions(unet_candidates_hash_list)
     if collision_detected:
-        unique_unet_candidates = []
+        unique_unet_candidates_indexes = []
         logging.warning("Collisions detected")
         for hash_val, indices in hash_list:
             if len(indices) != 1:
                 logging.warning(
                     f"Hash value '{hash_val}' collided at candidate {indices}."
                 )
-            unique_unet_candidates.append(
-                candidate_trackers[indices[0]].unet_candidate_path
-            )
+            unique_unet_candidates_indexes.append(indices[0])
 
-    return unique_unet_candidates if collision_detected else unet_candidates
+    return (
+        unique_unet_candidates_indexes
+        if collision_detected
+        else unet_candidates_indexes
+    )
+
+
+def sort_candidates_by_first_benchmark_times(
+    candidate_indexes: list[int], candidate_trackers: CandidateTracker
+) -> list[int]:
+    first_benchmark_times = [
+        candidate_trackers[index].first_benchmark_time for index in candidate_indexes
+    ]
+    combined = list(zip(candidate_indexes, first_benchmark_times))
+    combined_sorted = sorted(combined, key=lambda x: x[1])
+    sorted_indexes, _ = zip(*combined_sorted)
+    sorted_indexes = list(sorted_indexes)
+    return sorted_indexes
 
 
 def benchmark_unet(
     args: argparse.Namespace,
     base_dir: Path,
-    unet_candidates: list[str],
+    unet_candidates: list[int],
     candidate_trackers: list[CandidateTracker],
 ) -> Path:
     """Benchmark U-Net candidate files and log the results. Return the file path of unet_results.log"""
     logging.info("benchmark_unet()")
 
-    unet_candidates = ["unet_baseline.vmfb"] + unet_candidates + ["unet_baseline.vmfb"]
+    unet_candidates = sort_candidates_by_first_benchmark_times(
+        unet_candidates, candidate_trackers
+    )
+    unet_candidates_paths = [
+        candidate_trackers[index].unet_candidate_path for index in unet_candidates
+    ]
+    unet_candidates = (
+        ["unet_baseline.vmfb"] + unet_candidates_paths + ["unet_baseline.vmfb"]
+    )
+
     # Update candidate tracker
     candidate_trackers[0].unet_candidate_path = Path("./unet_baseline.vmfb")
 
