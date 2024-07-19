@@ -742,8 +742,10 @@ def benchmark_unet(
     )
     baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
 
-    # print(baseline_results)
-    # breakpoint()
+
+    baseline_times = [bl.result.stdout.split()[6] for bl in baseline_results]
+    candidate_times_list = [[ct.result.stdout.split()[6] for ct in same_device_results] for same_device_results in sorted_benchmarking_results]
+
     
     i = 0
     with unet_result_log.open("w") as log_file:
