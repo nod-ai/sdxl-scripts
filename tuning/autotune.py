@@ -16,7 +16,7 @@ from tqdm import tqdm
 import re
 import hashlib
 from dataclasses import dataclass
-from typing import Type, Optional, Callable, Iterable, Any, Dict, List
+from typing import Type, Optional, Callable, Iterable, Any, Dict
 import pickle
 from itertools import groupby
 
@@ -78,7 +78,7 @@ class BenchmarkOutput:
     output_str: Optional[str] = None
 
     @property
-    def output_list(self) -> List[str]:
+    def output_list(self) -> list[str]:
         # e.g. ['Benchmarking:', '/sdxl-scripts/tuning/tuning_2024_07_19_08_55/unet_candidate_12.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
         if self.output_str is None:
             return []
@@ -777,7 +777,7 @@ def group_benchmark_results_by_device_id(
         list(group)
         for _, group in groupby(benchmark_results, key=lambda tr: tr.device_id)
     ]
-    grouped_results: Dict[int, List[TaskResult]] = {}
+    grouped_results: Dict[int, list[TaskResult]] = {}
     for result in benchmark_results:
         if result.device_id not in grouped_results:
             grouped_results[result.device_id] = []
