@@ -286,7 +286,7 @@ transform.named_sequence @{functionName}(%conv: !transform.any_op {{transform.re
   -> (!transform.any_op, !transform.any_param) {{
   %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %conv {{
   ^bb0(%lhs: {input}, %rhs: {filter}, %out: {output}):
-    %13 = linalg.conv_2d_nhwc_hwcf {{ dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64> }}
+    %13 = linalg.conv_2d_nhwc_hwcf {{dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>}}
       ins(%lhs, %rhs : {input}, {filter})
       outs(%out : {output}) -> {output}
   }} : (!transform.any_op) -> (!transform.any_value, !transform.any_value)

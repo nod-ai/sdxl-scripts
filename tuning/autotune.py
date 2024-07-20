@@ -541,9 +541,9 @@ def generate_candidates(
             )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[
-                int(mlir.stem.split("_config")[0])
-            ].mlir_config_path = mlir
+            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
+                mlir
+            )
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
@@ -804,13 +804,13 @@ def parse_grouped_benchmark_results(
                 baseline_time = res.benchmark_time
                 dump_list.append(res.output_str)
                 continue
-            candidate_trackers[
-                res.candidate_id
-            ].unet_benchmark_time = res.benchmark_time
+            candidate_trackers[res.candidate_id].unet_benchmark_time = (
+                res.benchmark_time
+            )
             candidate_trackers[res.candidate_id].baseline_benchmark_time = baseline_time
-            candidate_trackers[
-                res.candidate_id
-            ].unet_benchmark_device_id = res.device_id
+            candidate_trackers[res.candidate_id].unet_benchmark_device_id = (
+                res.device_id
+            )
             candidate_trackers[res.candidate_id].calibrated_benchmark_diff = (
                 res.benchmark_time - baseline_time
             ) / baseline_time
