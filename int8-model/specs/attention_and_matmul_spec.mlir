@@ -513,13 +513,13 @@ module attributes { transform.with_named_sequence } {
         outs(%out : tensor<2x32x32x1280xi32>) -> tensor<2x32x32x1280xi32>
     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
       %config = transform.param.constant #iree_codegen.compilation_info<
-      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 448, 64, 1, 1, 128]]>,
+      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 64, 320, 1, 1, 160]]>,
         translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
-         workgroup_size = [256, 1, 1] subgroup_size = 64,
+         workgroup_size = [320, 1, 1] subgroup_size = 64,
           {mma_schedule = #iree_gpu.mma_schedule<
-              intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>,
-              subgroup_m_count = 1, subgroup_n_count = 4>
-          , prefetch_shared_memory, reorder_workgroups = "transpose"}>
+              intrinsic = #iree_gpu.mma_layout<MFMA_I8_32x32x16_I32>,
+              subgroup_m_count = 1, subgroup_n_count = 5>
+          , prefetch_shared_memory}>
       > -> !transform.any_param
     transform.yield %conv, %config : !transform.any_op, !transform.any_param
   }
