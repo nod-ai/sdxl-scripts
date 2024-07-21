@@ -564,6 +564,27 @@ module attributes { transform.with_named_sequence } {
     transform.yield %conv, %config : !transform.any_op, !transform.any_param
   }
 
+  transform.named_sequence @match_conv_2d_nhwc_hwcf_2x128x128x320x3x3x640(%conv: !transform.any_op {transform.readonly})
+    -> (!transform.any_op, !transform.any_param) {
+    %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %conv {
+    ^bb0(%lhs: tensor<2x130x130x640xi8>, %rhs: tensor<3x3x640x320xi8>, %out: tensor<2x128x128x320xi32>):
+      %13 = linalg.conv_2d_nhwc_hwcf {dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>}
+        ins(%lhs, %rhs : tensor<2x130x130x640xi8>, tensor<3x3x640x320xi8>)
+        outs(%out : tensor<2x128x128x320xi32>) -> tensor<2x128x128x320xi32>
+    } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+      %config = transform.param.constant #iree_codegen.compilation_info<
+      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 128, 64, 1, 1, 128]]>,
+        translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
+         workgroup_size = [128, 2, 1] subgroup_size = 64,
+          {mma_schedule = #iree_gpu.mma_schedule<
+              intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>,
+              subgroup_m_count = 2, subgroup_n_count = 2>
+          , prefetch_shared_memory}>
+      > -> !transform.any_param
+    transform.yield %conv, %config : !transform.any_op, !transform.any_param
+  }
+
+
 //===----------------------------------------------------------------------===//
 // Batch matmul tuning
 //===----------------------------------------------------------------------===//
@@ -706,6 +727,7 @@ module attributes { transform.with_named_sequence } {
         , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x1280 -> @apply_op_config
         , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x2560 -> @apply_op_config
         , @match_conv_2d_nhwc_hwcf_2x64x64x1280x3x3x1280 -> @apply_op_config
+        , @match_conv_2d_nhwc_hwcf_2x128x128x320x3x3x640 -> @apply_op_config
 
         // Batch matmul.
 

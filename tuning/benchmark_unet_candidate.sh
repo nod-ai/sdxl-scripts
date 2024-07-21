@@ -8,7 +8,7 @@ shift 2
 
 echo "Benchmarking: ${INPUT} on device ${DEVICE}"
 
-timeout 60s tools/iree-benchmark-module \
+timeout 80s tools/iree-benchmark-module \
   --device="hip://${DEVICE}" \
   --hip_use_streams=true \
   --hip_allow_inline_execution=true \
