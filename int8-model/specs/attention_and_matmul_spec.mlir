@@ -504,13 +504,13 @@ module attributes { transform.with_named_sequence } {
 // Convolution tuning
 //===----------------------------------------------------------------------===//
 
-  transform.named_sequence @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x1280(%conv: !transform.any_op {transform.readonly})
+  transform.named_sequence @match_conv_2d_nhwc_hwcf_Bx32x32x1280x3x3x1280(%conv: !transform.any_op {transform.readonly})
     -> (!transform.any_op, !transform.any_param) {
     %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %conv {
-    ^bb0(%lhs: tensor<2x34x34x1280xi8>, %rhs: tensor<3x3x1280x1280xi8>, %out: tensor<2x32x32x1280xi32>):
+    ^bb0(%lhs: tensor<?x34x34x1280xi8>, %rhs: tensor<3x3x1280x1280xi8>, %out: tensor<?x32x32x1280xi32>):
       %13 = linalg.conv_2d_nhwc_hwcf {dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>}
-        ins(%lhs, %rhs : tensor<2x34x34x1280xi8>, tensor<3x3x1280x1280xi8>)
-        outs(%out : tensor<2x32x32x1280xi32>) -> tensor<2x32x32x1280xi32>
+        ins(%lhs, %rhs : tensor<?x34x34x1280xi8>, tensor<3x3x1280x1280xi8>)
+        outs(%out : tensor<?x32x32x1280xi32>) -> tensor<?x32x32x1280xi32>
     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
       %config = transform.param.constant #iree_codegen.compilation_info<
       lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 32, 320, 1, 1, 160]]>,
@@ -524,13 +524,13 @@ module attributes { transform.with_named_sequence } {
     transform.yield %conv, %config : !transform.any_op, !transform.any_param
   }
 
-  transform.named_sequence @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x2560(%conv: !transform.any_op {transform.readonly})
+  transform.named_sequence @match_conv_2d_nhwc_hwcf_Bx32x32x1280x3x3x2560(%conv: !transform.any_op {transform.readonly})
     -> (!transform.any_op, !transform.any_param) {
     %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %conv {
-    ^bb0(%lhs: tensor<2x34x34x2560xi8>, %rhs: tensor<3x3x2560x1280xi8>, %out: tensor<2x32x32x1280xi32>):
+    ^bb0(%lhs: tensor<?x34x34x2560xi8>, %rhs: tensor<3x3x2560x1280xi8>, %out: tensor<?x32x32x1280xi32>):
       %13 = linalg.conv_2d_nhwc_hwcf {dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>}
-        ins(%lhs, %rhs : tensor<2x34x34x2560xi8>, tensor<3x3x2560x1280xi8>)
-        outs(%out : tensor<2x32x32x1280xi32>) -> tensor<2x32x32x1280xi32>
+        ins(%lhs, %rhs : tensor<?x34x34x2560xi8>, tensor<3x3x2560x1280xi8>)
+        outs(%out : tensor<?x32x32x1280xi32>) -> tensor<?x32x32x1280xi32>
     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
       %config = transform.param.constant #iree_codegen.compilation_info<
       lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 32, 320, 1, 1, 160]]>,
@@ -544,13 +544,13 @@ module attributes { transform.with_named_sequence } {
     transform.yield %conv, %config : !transform.any_op, !transform.any_param
   }
 
-  transform.named_sequence @match_conv_2d_nhwc_hwcf_2x64x64x1280x3x3x1280(%conv: !transform.any_op {transform.readonly})
+  transform.named_sequence @match_conv_2d_nhwc_hwcf_Bx64x64x1280x3x3x1280(%conv: !transform.any_op {transform.readonly})
     -> (!transform.any_op, !transform.any_param) {
     %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %conv {
-    ^bb0(%lhs: tensor<2x66x66x1280xi8>, %rhs: tensor<3x3x1280x1280xi8>, %out: tensor<2x64x64x1280xi32>):
+    ^bb0(%lhs: tensor<?x66x66x1280xi8>, %rhs: tensor<3x3x1280x1280xi8>, %out: tensor<?x64x64x1280xi32>):
       %13 = linalg.conv_2d_nhwc_hwcf {dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>}
-        ins(%lhs, %rhs : tensor<2x66x66x1280xi8>, tensor<3x3x1280x1280xi8>)
-        outs(%out : tensor<2x64x64x1280xi32>) -> tensor<2x64x64x1280xi32>
+        ins(%lhs, %rhs : tensor<?x66x66x1280xi8>, tensor<3x3x1280x1280xi8>)
+        outs(%out : tensor<?x64x64x1280xi32>) -> tensor<?x64x64x1280xi32>
     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
       %config = transform.param.constant #iree_codegen.compilation_info<
       lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 64, 320, 1, 1, 160]]>,
@@ -564,13 +564,13 @@ module attributes { transform.with_named_sequence } {
     transform.yield %conv, %config : !transform.any_op, !transform.any_param
   }
 
-  transform.named_sequence @match_conv_2d_nhwc_hwcf_2x128x128x320x3x3x640(%conv: !transform.any_op {transform.readonly})
+  transform.named_sequence @match_conv_2d_nhwc_hwcf_Bx128x128x320x3x3x640(%conv: !transform.any_op {transform.readonly})
     -> (!transform.any_op, !transform.any_param) {
     %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %conv {
-    ^bb0(%lhs: tensor<2x130x130x640xi8>, %rhs: tensor<3x3x640x320xi8>, %out: tensor<2x128x128x320xi32>):
+    ^bb0(%lhs: tensor<?x130x130x640xi8>, %rhs: tensor<3x3x640x320xi8>, %out: tensor<?x128x128x320xi32>):
       %13 = linalg.conv_2d_nhwc_hwcf {dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>}
-        ins(%lhs, %rhs : tensor<2x130x130x640xi8>, tensor<3x3x640x320xi8>)
-        outs(%out : tensor<2x128x128x320xi32>) -> tensor<2x128x128x320xi32>
+        ins(%lhs, %rhs : tensor<?x130x130x640xi8>, tensor<3x3x640x320xi8>)
+        outs(%out : tensor<?x128x128x320xi32>) -> tensor<?x128x128x320xi32>
     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
       %config = transform.param.constant #iree_codegen.compilation_info<
       lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 128, 64, 1, 1, 128]]>,
@@ -724,10 +724,10 @@ module attributes { transform.with_named_sequence } {
 
         // Convolution.
 
-        , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x1280 -> @apply_op_config
-        , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x2560 -> @apply_op_config
-        , @match_conv_2d_nhwc_hwcf_2x64x64x1280x3x3x1280 -> @apply_op_config
-        , @match_conv_2d_nhwc_hwcf_2x128x128x320x3x3x640 -> @apply_op_config
+        , @match_conv_2d_nhwc_hwcf_Bx32x32x1280x3x3x1280 -> @apply_op_config
+        , @match_conv_2d_nhwc_hwcf_Bx32x32x1280x3x3x2560 -> @apply_op_config
+        , @match_conv_2d_nhwc_hwcf_Bx64x64x1280x3x3x1280 -> @apply_op_config
+        , @match_conv_2d_nhwc_hwcf_Bx128x128x320x3x3x640 -> @apply_op_config
 
         // Batch matmul.
 
