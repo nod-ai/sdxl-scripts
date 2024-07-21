@@ -933,8 +933,8 @@ def get_dispatch_constraints(
 
     dim_info = ConvDimInfo.from_problem_size(problem_size)
     conv_constraints = []
-    # This makes the constraints UNSAT for some reason.
-    # conv_constraints += [tile_m <= dim_info.ow]
+    # WARNING: This sometimes makes the constraints UNSAT for some reason.
+    conv_constraints += [tile_m <= dim_info.ow]
     conv_constraints += [tile_n <= dim_info.oc]
     conv_constraints += [tile_k <= dim_info.ic]
     return conv_constraints
