@@ -47,7 +47,6 @@ set -x
     --iree-global-opt-propagate-transposes=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-opt-outer-dim-concat=true \
-    --iree-flow-enable-fuse-horizontal-contractions \
     --iree-flow-enable-aggressive-fusion \
     --iree-vm-target-truncate-unsupported-floats \
     --iree-codegen-llvmgpu-use-vector-distribution \
