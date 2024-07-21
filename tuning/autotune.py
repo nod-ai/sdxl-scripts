@@ -56,56 +56,38 @@ class CandidateTracker:
     baseline_benchmark_time: Optional[float] = None
     calibrated_benchmark_diff: Optional[float] = None
 
-
 @dataclass(frozen=True)
 class PathConfig:
-    args: argparse.Namespace
-
     # Preset constants
-    global_config_prolog_mlir: Path = field(default=Path("./config_prolog.mlir"))
-    global_config_epilog_mlir: Path = field(default=Path("./config_epilog.mlir"))
-    compile_candidate_sh: Path = field(default=Path("./compile_candidate.sh"))
-    benchmark_dispatch_sh: Path = field(default=Path("./benchmark_dispatch.sh"))
-    compile_unet_candidate_sh: Path = field(default=Path("./compile_unet_candidate.sh"))
-    benchmark_unet_candidate_sh: Path = field(default=Path("./benchmark_unet_candidate.sh"))
+    global_config_prolog_mlir: Path = Path("./config_prolog.mlir")
+    global_config_epilog_mlir: Path = Path("./config_epilog.mlir")
+    compile_candidate_sh: Path = Path("./compile_candidate.sh")
+    benchmark_dispatch_sh: Path = Path("./benchmark_dispatch.sh")
+    compile_unet_candidate_sh: Path = Path("./compile_unet_candidate.sh")
+    benchmark_unet_candidate_sh: Path = Path("./benchmark_unet_candidate.sh")
 
     # Dynamic paths
     base_dir: Path = field(init=False)
-    log_file_path: Path = field(init=False)
-
-    local_config_prolog_mlir: Path = field(init=False) 
-    local_config_epilog_mlir: Path = field(init=False) 
+    local_config_prolog_mlir: Path = field(init=False)
+    local_config_epilog_mlir: Path = field(init=False)
     template_mlir: Path = field(init=False)
     candidates_dir: Path = field(init=False)
     candidate_configs_pkl: Path = field(init=False)
-    
     compiled_dir: Path = field(init=False)
     compilefailed_dir: Path = field(init=False)
     candidate_vmfbs_txt: Path = field(init=False)
-
     dispatch_benchmark_result_log: Path = field(init=False)
     dispatch_benchmark_top_result_log: Path = field(init=False)
-
-    unet_baseline_vmfb: Optional[Path] = None
+    unet_baseline_vmfb: Path = field(init=False, default=None)
     unet_benchmark_result_log: Path = field(init=False)
     unet_result_log: Path = field(init=False)
+    candidate_trackers_pkl: Path = field(init=False)
+
+    # To be set outside of class
+    log_file_path: Optional[Path] = field(init=False, default=None)
 
     def __post_init__(self):
         object.__setattr__(self, 'base_dir', self._create_base_dir())
-        object.__setattr__(self, 'log_file_path', self._name_log_file())
-        self._init_paths()
-
-    def _create_base_dir(self) -> Path:
-        timestamp = datetime.now().strftime('%Y_%m_%d_%H_%M')
-        base_dir = Path(f"./tuning_{timestamp}")
-        base_dir.mkdir(parents=True, exist_ok=True)
-        return base_dir
-    
-    def _name_log_file(self) -> Path:
-        log_file_name = f"autotune_{self.args.mode}_{self.args.input_file.stem}.log"
-        return self.base_dir / log_file_name
-        
-    def _init_paths(self):
         object.__setattr__(self, 'local_config_prolog_mlir', self.base_dir / "config_prolog.mlir")
         object.__setattr__(self, 'local_config_epilog_mlir', self.base_dir / "config_epilog.mlir")
         object.__setattr__(self, 'template_mlir', self.base_dir / "template.mlir")
@@ -117,6 +99,17 @@ class PathConfig:
         object.__setattr__(self, 'dispatch_benchmark_result_log', self.base_dir / "results.log")
         object.__setattr__(self, 'dispatch_benchmark_top_result_log', self.base_dir / "best.log")
         object.__setattr__(self, 'unet_benchmark_result_log', self.base_dir / "unet_results.log")
+        object.__setattr__(self, 'unet_result_log', self.base_dir / "unet_result.log")
+        object.__setattr__(self, 'candidate_trackers_pkl', self.base_dir / "candidate_trackers.pkl")
+
+    def _create_base_dir(self) -> Path:
+        timestamp = datetime.now().strftime('%Y_%m_%d_%H_%M')
+        base_dir = Path(f"./tuning_{timestamp}")
+        base_dir.mkdir(parents=True, exist_ok=True)
+        return base_dir
+
+    def _set_log_file_path(self, log_file_path: Path):
+        object.__setattr__(self, 'log_file_path', log_file_path)
 
 
 @dataclass
@@ -297,7 +290,8 @@ def parse_arguments() -> argparse.Namespace:
 
 def setup_logging(args: argparse.Namespace, path_config: PathConfig):
     log_file_name = f"autotune_{args.mode}_{args.input_file.stem}.log"
-    path_config.update_log_file_name(log_file_name)
+    log_file_path = path_config.base_dir / log_file_name
+    path_config._set_log_file_path(log_file_path)
 
     # Create file handler for logging to a file
     file_handler = logging.FileHandler(path_config.log_file_path)
@@ -1002,47 +996,46 @@ def autotune(args: argparse.Namespace = parse_arguments()) -> None:
     print(path_config.log_file_path, end="\n\n")
 
     print("Generating candidates...")
-    candidates, candidates_dir = generate_candidates(args, base_dir, candidate_trackers)
-    print(f"Generated [{len(candidates)}] candidates in {candidates_dir}\n")
+    candidates = generate_candidates(args, path_config, candidate_trackers)
+    print(f"Generated [{len(candidates)}] candidates in {path_config.candidates_dir}\n")
     if stop_after_phase == ExecutionPhases.generate_candidates:
         return
 
     print("Compiling candidates...")
-    compiled_candidates, compiled_dir = compile_candidates(
-        args, base_dir, candidates, candidates_dir, candidate_trackers
+    compiled_candidates = compile_candidates(
+        args, path_config, candidates, candidate_trackers
     )
-    print(f"Compiled [{len(compiled_candidates)}] files in {compiled_dir}\n")
+    print(f"Compiled [{len(compiled_candidates)}] files in {path_config.compiled_dir}\n")
     if stop_after_phase == ExecutionPhases.compile_candidates:
         return
 
     print("Benchmarking compiled candidates...")
-    best_log = benchmark_compiled_candidates(
-        args, base_dir, candidates_dir, compiled_candidates, candidate_trackers
+    benchmark_compiled_candidates(
+        args, path_config, compiled_candidates, candidate_trackers
     )
-    print(f"Top candidates results are stored in {best_log}\n")
+    print(f"Top candidates results are stored in {path_config.dispatch_benchmark_top_result_log}\n")
     if stop_after_phase == ExecutionPhases.benchmark_candidates:
         return
 
     print(f"Compiling top unet candidates...")
     unet_candidates = compile_unet_candidates(
-        args, base_dir, best_log, candidate_trackers
+        args, path_config, candidate_trackers
     )
-    print(f"Unet candidates compiled in {base_dir}\n")
+    print(f"Unet candidates compiled in {path_config.base_dir}\n")
     if stop_after_phase == ExecutionPhases.compile_unet_candidates:
         return
 
     print("Benchmarking unet candidates...")
-    unet_result_log = benchmark_unet(
-        args, base_dir, unet_candidates, candidate_trackers
+    benchmark_unet(
+        args, path_config, unet_candidates, candidate_trackers
     )
-    print(f"Done, stored unet result in {unet_result_log}\n")
+    print(f"Done, stored unet result in {path_config.unet_result_log}\n")
     if stop_after_phase == ExecutionPhases.benchmark_unet_candidates:
         return
 
-    candidate_trackers_file_path = base_dir / "candidate_trackers.pkl"
-    with open(candidate_trackers_file_path, "wb") as file:
+    with open(path_config.candidate_trackers_pkl, "wb") as file:
         pickle.dump(candidate_trackers, file)
-    print(f"Candidate trackers are saved in {candidate_trackers_file_path}")
+    print(f"Candidate trackers are saved in {path_config.candidate_trackers_pkl}")
 
     print("Check the detailed log in:")
     print(path_config.log_file_path)
