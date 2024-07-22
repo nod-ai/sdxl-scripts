@@ -31,114 +31,96 @@ module attributes { transform.with_named_sequence } {
     // Get attention op
     // ==========================================
     %attention = transform.structured.match ops{["iree_linalg_ext.attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    %elementwise = transform.structured.match ops{["linalg.generic"]} in %variant_op : (!transform.any_op) -> !transform.any_op
 
     // Tile and distribute to workgroups
     // ==========================================
-    %tiled_attention, %forall_grid =
-    transform.structured.tile_using_forall %attention tile_sizes [1, 128]
-      ( mapping = [#gpu.block<x>, #gpu.block<y>] ) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.iree.populate_workgroup_count_region_using_num_threads_slice %forall_grid : (!transform.any_op) -> ()
 
-    // Tile batch dimensions of attention
-    // ==========================================
-    %attention2 = transform.structured.match ops{["iree_linalg_ext.attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
-    %batch_tiled_attn, %loop = transform.structured.tile_using_for %attention2 tile_sizes [1] : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    %top_level_func = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
-    transform.apply_patterns to %top_level_func {
+    %blocked_el, %wg_forall =
+    transform.structured.tile_using_forall %elementwise tile_sizes [1, 1, 128, 0]
+      ( mapping = [#gpu.block<x>, #gpu.block<y>, #gpu.block<z>] ) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    %blocked_att, %wg_forall2 = transform.structured.fuse_into_containing_op %attention into %wg_forall : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
+
+    transform.iree.populate_workgroup_count_region_using_num_threads_slice %wg_forall2 : (!transform.any_op) -> ()
+
+    // Cleanup
+    %attfunc = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %attfunc {
       transform.apply_patterns.canonicalization
     } : !transform.any_op
-    transform.apply_cse to %top_level_func : !transform.any_op
+    transform.apply_cse to %attfunc : !transform.any_op
 
-    // Promote query and output operands
+    // Convert to online attention
     // ==========================================
-    //%attention3 = transform.structured.match ops{["iree_linalg_ext.attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
-    //%promoted_attention, %alloc_a0, %alloc_a1 = transform.iree.promote_operands %attention3 [0, 3]
-    //  : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
+    transform.iree.convert_to_online_attention %blocked_att : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 
-    // Tile and decompose attention
-    // ==========================================
-    %attention4 = transform.structured.match ops{["iree_linalg_ext.attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
-    %acc_fill, %max_fill, %sum_fill, %inner_loop, %final_scaling, %last_truncate, %blocked_attention = transform.iree.tile_attention %attention4 {tile_size = 32} :
-      (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
-    %scale_q, %fill_op, %first_matmul, %reduce_max, %partial_softmax, %scale_factor, %update, %reduce_sum, %truncate, %scale_acc, %second_matmul
-        = transform.iree.decompose_tiled_attention %blocked_attention {tile_size = 32} :
-      (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+    transform.apply_patterns to %attfunc {
+      transform.apply_patterns.canonicalization
+      transform.apply_patterns.linalg.tiling_canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %attfunc : !transform.any_op
+
+    %func = transform.apply_registered_pass "linalg-fuse-elementwise-ops" to %attfunc : (!transform.any_op) -> (!transform.any_op)
+
+    // Tile along K2
+    %online_att = transform.structured.match ops{["iree_linalg_ext.online_attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    %tiled_att, %k2_for = transform.structured.tile_using_for %online_att tile_sizes [0, 0, 0, 0, 64, 0]: (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+
+    transform.apply_patterns to %func {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func : !transform.any_op
 
     // Promote key and value operands
     // ==========================================
-    %promoted_first_matmul, %alloc0 = transform.iree.promote_operands %first_matmul [1]
-      : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    %promoted_second_matmul, %alloc1 = transform.iree.promote_operands %second_matmul [1]
-      : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    %attt = transform.structured.match ops{["iree_linalg_ext.online_attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    %promoted_att, %alloc0, %alloc1 = transform.iree.promote_operands %attt [1, 2]
+      : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
 
-    // Tile and fuse attention ops
-    // ==========================================
-    %tiled_matmul, %forall = transform.structured.tile_using_forall %promoted_second_matmul tile_sizes [32] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    %tiled_reduce_sum, %forall_reduce = transform.structured.tile_using_forall %reduce_sum tile_sizes [32] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-
-
-    %f0, %loop0 = transform.structured.fuse_into_containing_op %scale_acc into %forall : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
-    %f1, %loop1 = transform.structured.fuse_into_containing_op %truncate into %loop0 : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
-
-    %func = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
-    transform.apply_cse to %func : !transform.any_op
-
-    %loop4 = transform.loop.fuse_sibling %forall_reduce into %loop1 : (!transform.any_op, !transform.any_op) -> !transform.any_op
-    transform.apply_cse to %func : !transform.any_op
-
-    %f5_1, %loop5_1 = transform.structured.fuse_into_containing_op %update into %loop4 : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.apply_cse to %func : !transform.any_op
-
-    %f5, %loop5 = transform.structured.fuse_into_containing_op %scale_factor into %loop5_1 : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
-    %f6, %loop6 = transform.structured.fuse_into_containing_op %partial_softmax into %loop5 : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.apply_cse to %func : !transform.any_op
-
-    %f7, %loop7 = transform.structured.fuse_into_containing_op %reduce_max into %loop6 : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
-    %f8, %loop8 = transform.structured.fuse_into_containing_op %promoted_first_matmul into %loop7 : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.apply_patterns to %func {
-      transform.apply_patterns.canonicalization
-    } : !transform.any_op
-    transform.apply_cse to %func : !transform.any_op
-
-    %f9, %loop9 = transform.structured.fuse_into_containing_op %fill_op into %loop8 : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
+    // This is a hack... We distribute the loop and the merging seperately and just assume they are fused.
+    %warp_attention = transform.structured.match ops{["iree_linalg_ext.online_attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    %warp_merge = transform.structured.match ops{["linalg.generic"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    transform.structured.tile_using_forall %warp_attention tile_sizes[0, 0, 32, 0, 0, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %warp_merge tile_sizes[0, 0, 32, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 
     transform.apply_patterns to %func {
       transform.apply_patterns.canonicalization
     } : !transform.any_op
     transform.apply_cse to %func : !transform.any_op
 
-    %f10, %loop10 = transform.structured.fuse_into_containing_op %scale_q into %loop9 : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
-
-    transform.apply_patterns to %func {
-      transform.apply_patterns.canonicalization
-    } : !transform.any_op
-    transform.apply_cse to %func : !transform.any_op
-
-    // Distribute fills
-    // ==========================================
-
-    // Get all fills that haven't been distributed to warps.
     %fills = transform.include @get_undistributed_fills failures(propagate) (%variant_op)  : (!transform.any_op) -> !transform.any_op
-    %tiled_fill, %fill_grid = transform.structured.tile_using_forall %fills tile_sizes[32] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-
-    // Distribute last_truncate and fuse final_scaling into it
-    // ==========================================
-    %tiled_truncate, %loop_truncate = transform.structured.tile_using_forall %last_truncate tile_sizes[32] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.structured.fuse_into_containing_op %final_scaling into %loop_truncate : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
+    %acc_fill, %max_fill, %sum_fill = transform.split_handle %fills : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %acc_fill tile_sizes[0, 32] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %max_fill tile_sizes[0, 0, 32] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %sum_fill tile_sizes[0, 0, 32] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 
     transform.apply_patterns to %func {
       transform.apply_patterns.canonicalization
     } : !transform.any_op
     transform.apply_cse to %func : !transform.any_op
+
+    // Decompose attention
+    %func2 = transform.apply_registered_pass "iree-linalg-ext-decompose-attention" to %func : (!transform.any_op) -> (!transform.any_op)
+
+    transform.apply_patterns to %func2 {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func2 : !transform.any_op
 
     // Vectorize function
     // ==========================================
-    transform.apply_patterns to %func {
+    transform.apply_patterns to %func2 {
       transform.apply_patterns.iree.fold_reshape_into_tensor_hal_interface
-      transform.apply_patterns.linalg.fold_unit_extent_dims_via_slices
       transform.apply_patterns.vector.cast_away_vector_leading_one_dim
+      transform.apply_patterns.linalg.fold_unit_extent_dims_via_reshapes
+      transform.apply_patterns.canonicalization
     } : !transform.any_op
-    %func_3 = transform.structured.vectorize_children_and_apply_patterns %func : (!transform.any_op) -> (!transform.any_op)
+    %func_3 = transform.structured.vectorize_children_and_apply_patterns %func2 : (!transform.any_op) -> (!transform.any_op)
+
+    transform.apply_patterns to %func_3 {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func_3 : !transform.any_op
 
     // Bufferization
     // ==========================================
@@ -163,7 +145,7 @@ module attributes { transform.with_named_sequence } {
     // Step 6. Post-bufferization vector distribution
     // ===========================================================================
     transform.iree.forall_to_workgroup %memref_func : (!transform.any_op) -> ()
-    transform.iree.map_nested_forall_to_gpu_threads %memref_func workgroup_dims = [64, 4, 1] subgroup_size = 64 : (!transform.any_op) -> ()
+    transform.iree.map_nested_forall_to_gpu_threads %memref_func workgroup_dims = [64, 4, 1] subgroup_size = 64 sync_after_distribution = false : (!transform.any_op) -> ()
 
     transform.apply_patterns to %memref_func {
       transform.apply_patterns.memref.fold_memref_alias_ops
@@ -182,17 +164,23 @@ module attributes { transform.with_named_sequence } {
     transform.memref.erase_dead_alloc_and_stores %func_8 : (!transform.any_op) -> ()
 
     // Apply chained matmul optimization.
-    transform.apply_registered_pass "iree-amdgpu-prepare-chained-matmul" to %func_8 : (!transform.any_op) -> (!transform.any_op)
+    %func_9 = transform.apply_registered_pass "iree-amdgpu-prepare-chained-matmul" to %func_8 : (!transform.any_op) -> (!transform.any_op)
 
-    // Get the vector.contract ops.
+    %intrinsic = transform.param.constant #layout -> !transform.any_param
+
+    %mma = transform.structured.match ops{["vector.contract"]} in %variant_op :  (!transform.any_op) -> !transform.any_op
+    %mma1, %mma2 = transform.split_handle %mma : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.annotate %mma "iree.amdgpu.mma" = %intrinsic : !transform.any_op, !transform.any_param
+
+    transform.apply_registered_pass "iree-llvmgpu-cast-type-to-fit-mma" to %func_9 : (!transform.any_op) -> (!transform.any_op)
+
     %contracts = transform.structured.match ops{["vector.contract"]} in %variant_op :  (!transform.any_op) -> !transform.any_op
     %contract1, %contract2 = transform.split_handle %contracts : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-
-    %layout16x16x16 = transform.param.constant #layout -> !transform.any_param
-    transform.iree.set_contraction_layout_attributes %contract1, %layout16x16x16 { read_layout_indices = array<i64: 0, 1> } : !transform.any_op, !transform.any_param
-    transform.iree.set_contraction_layout_attributes %contract2, %layout16x16x16 : !transform.any_op, !transform.any_param
+    transform.iree.set_contraction_layout_attributes %contract1, %intrinsic { read_layout_indices = array<i64: 0, 1> } : !transform.any_op, !transform.any_param
+    transform.iree.set_contraction_layout_attributes %contract2, %intrinsic : !transform.any_op, !transform.any_param
 
     %distribute_func = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+
     %distribute_func_2 = transform.iree.amdgpu_distribute_vectors %distribute_func : (!transform.any_op) -> !transform.any_op
 
     transform.apply_patterns to %distribute_func_2 {
@@ -210,7 +198,7 @@ module attributes { transform.with_named_sequence } {
       } : !transform.any_op
     transform.apply_cse to %distribute_func_2 : !transform.any_op
 
-    %forop = transform.structured.match ops{["scf.for"]} in %distribute_func_2 : (!transform.any_op) -> !transform.any_op
+    %forop = transform.structured.match ops{["scf.for"]} in %variant_op : (!transform.any_op) -> !transform.any_op
     %prefetched_forop = transform.iree.prefetch_shared_memory_copies %forop : (!transform.any_op) -> (!transform.any_op)
 
     transform.apply_patterns to %distribute_func_2 {
@@ -220,8 +208,8 @@ module attributes { transform.with_named_sequence } {
       } : !transform.any_op
     transform.apply_cse to %distribute_func_2 : !transform.any_op
 
-    transform.iree.reduce_shared_memory_bank_conflicts %distribute_func_2 : (!transform.any_op) -> ()
-
+    %func_11 = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    transform.iree.reduce_shared_memory_bank_conflicts %func_11 : (!transform.any_op) -> ()
     transform.yield
   }
 
@@ -455,8 +443,8 @@ module attributes { transform.with_named_sequence } {
   transform.named_sequence @match_attention(%attention: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
     transform.match.operation_name %attention ["iree_linalg_ext.attention"] : !transform.any_op
     %in0 = transform.get_operand %attention[0] : (!transform.any_op) -> !transform.any_value
-    transform.iree.match.cast_compatible_type %in0 = tensor<?x?x?xf16> : !transform.any_value
-    transform.iree.match.dim_is_multiple_of %in0[2], 64 : !transform.any_value
+    transform.iree.match.cast_compatible_type %in0 = tensor<?x?x?x?xf16> : !transform.any_value
+    transform.iree.match.dim_is_multiple_of %in0[3], 64 : !transform.any_value
     transform.yield %attention : !transform.any_op
   }
 
