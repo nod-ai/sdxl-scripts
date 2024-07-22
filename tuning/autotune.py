@@ -20,7 +20,6 @@ from typing import Type, Optional, Callable, Iterable, Any
 import pickle
 from itertools import groupby
 import random
-import os
 
 """
 Sample Usage:
@@ -69,7 +68,6 @@ class PathConfig:
     benchmark_unet_candidate_sh: str = "./benchmark_unet_candidate.sh"
 
     # Dynamic paths
-    tuning_work_dir: Path = field(init=False)
     base_dir: Path = field(init=False)
     local_config_prolog_mlir: Path = field(init=False)
     local_config_epilog_mlir: Path = field(init=False)
@@ -90,7 +88,6 @@ class PathConfig:
     log_file_path: Optional[Path] = field(init=False, default=None)
 
     def __post_init__(self):
-        object.__setattr__(self, 'tuning_work_dir', self._init_work_dir())
         object.__setattr__(self, 'base_dir', self._create_base_dir())
         object.__setattr__(self, 'local_config_prolog_mlir', self.base_dir / "config_prolog.mlir")
         object.__setattr__(self, 'local_config_epilog_mlir', self.base_dir / "config_epilog.mlir")
@@ -106,10 +103,6 @@ class PathConfig:
         object.__setattr__(self, 'unet_benchmark_result_log', self.base_dir / "unet_results.log")
         object.__setattr__(self, 'unet_result_log', self.base_dir / "unet_result.log")
         object.__setattr__(self, 'candidate_trackers_pkl', self.base_dir / "candidate_trackers.pkl")
-
-    def _init_work_dir(self) -> Path:
-        tuning_work_dir = Path(os.getcwd())
-        return tuning_work_dir
 
     def _create_base_dir(self) -> Path:
         timestamp = datetime.now().strftime('%Y_%m_%d_%H_%M')
