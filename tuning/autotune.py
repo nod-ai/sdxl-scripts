@@ -63,10 +63,11 @@ class PathConfig:
     # Preset constants
     global_config_prolog_mlir: Path = Path("./config_prolog.mlir")
     global_config_epilog_mlir: Path = Path("./config_epilog.mlir")
-    compile_candidate_sh: str = "./compile_candidate.sh"
-    benchmark_dispatch_sh: str = "./benchmark_dispatch.sh"
-    compile_unet_candidate_sh: str = "./compile_unet_candidate.sh"
-    benchmark_unet_candidate_sh: str = "./benchmark_unet_candidate.sh"
+    compile_candidate_sh: Path = Path("./compile_candidate.sh")
+    benchmark_dispatch_sh: Path = Path("./benchmark_dispatch.sh")
+    compile_unet_candidate_sh: Path = Path("./compile_unet_candidate.sh")
+    benchmark_unet_candidate_sh: Path = Path("./benchmark_unet_candidate.sh")
+    unet_baseline_vmfb: Path = Path("./unet_baseline.vmfb")
 
     # Dynamic paths
     base_dir: Path = field(init=False)
@@ -80,7 +81,7 @@ class PathConfig:
     candidate_vmfbs_txt: Path = field(init=False)
     dispatch_benchmark_result_log: Path = field(init=False)
     dispatch_benchmark_top_result_log: Path = field(init=False)
-    unet_baseline_vmfb: Path = field(init=False, default=None)
+
     unet_benchmark_result_log: Path = field(init=False)
     unet_result_log: Path = field(init=False)
     candidate_trackers_pkl: Path = field(init=False)
@@ -113,9 +114,6 @@ class PathConfig:
             self, "dispatch_benchmark_top_result_log", self.base_dir / "best.log"
         )
         object.__setattr__(
-            self, "unet_baseline_vmfb", self.base_dir / "unet_baseline.vmfb"
-        )
-        object.__setattr__(
             self, "unet_benchmark_result_log", self.base_dir / "unet_results.log"
         )
         object.__setattr__(self, "unet_result_log", self.base_dir / "unet_result.log")
@@ -131,6 +129,15 @@ class PathConfig:
 
     def _set_log_file_path(self, log_file_path: Path):
         object.__setattr__(self, "log_file_path", log_file_path)
+
+    def get_candidate_mlir_path(self, candidate_id: int) -> str:
+        return f"{self.candidates_dir}/{candidate_id}.mlir"
+    def get_candidate_spec_mlir_path(self, candidate_id: int) -> str:
+        return f"{self.candidates_dir}/configs/{candidate_id}_spec.mlir"
+
+    def get_exe_format(self, path: Path) -> str:
+        return f"./{path.as_posix()}"
+
 
 
 @dataclass
@@ -174,22 +181,17 @@ class DispatchBenchmarkResult:
         except ValueError:
             return None
 
-    def generate_sample_result(
-        self, candidate_id: int = 0, mean_time: int | float = random.randint(100, 500)
-    ) -> str:
-        return f"{candidate_id}\tMean Time: {mean_time:.1f}\n"
-
 
 @dataclass
-class BenchmarkOutput:
-    output_str: Optional[str] = None
+class UnetBenchmarkResult:
+    result_str: str = None
 
     @property
     def output_list(self) -> list[str]:
         # e.g. ['Benchmarking:', '/sdxl-scripts/tuning/tuning_2024_07_19_08_55/unet_candidate_12.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
-        if self.output_str is None:
+        if self.result_str is None:
             return []
-        return self.output_str.split()
+        return self.result_str.split()
 
     @property
     def unet_candidate_path(self) -> Optional[str]:
@@ -221,20 +223,20 @@ class BenchmarkOutput:
         except ValueError:
             return None
 
-    def calibrated_output_str(self, change: float) -> str:
-        if self.output_str is None:
-            return self.output_str
+    def calibrated_result_str(self, change: float) -> str:
+        if self.result_str is None:
+            return self.result_str
 
         benchmark_time = self.benchmark_time
         if benchmark_time is None:
-            return self.output_str
+            return self.result_str
 
         # Format the change to be added to the string
         percentage_change = change * 100
         change_str = f"({percentage_change:+.3f}%)"
 
         # Use regex to find and replace the old benchmark time with the new one
-        new_output_str = re.sub(
+        new_result_str = re.sub(
             r"(\d+(\.\d+)?)\s*ms",
             lambda m: f"{self.benchmark_time} ms {change_str}",
             self.result_str,
@@ -242,14 +244,6 @@ class BenchmarkOutput:
         )
 
         return new_result_str
-
-    def generate_sample_result(
-        self,
-        candidate_vmfb_path_str: str = "unet_baseline.vmfb",
-        device_id: int = 0,
-        t1: int | float = random.randint(100, 500),
-    ) -> str:
-        return f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}\nBM_run_forward/process_time/real_time_median\t    {t1:.3g} ms\t    {(t1+1):.3g} ms\t      5 items_per_second={t1/200:5f}/s\n"
 
 
 def parse_devices(devices_str: str) -> list[int]:
@@ -405,7 +399,7 @@ def handle_error(
     error_type: Type[BaseException] = Exception,
     exit_program: bool = False,
 ) -> None:
-    """Handles errors with logging and optional program exit"""
+    """If meets the condition, handles errors with logging and optional program exit"""
     if not condition:
         return
 
@@ -445,7 +439,7 @@ def create_worker_context_queue(device_ids: list[int]) -> queue.Queue[tuple[int,
 
 
 def run_command(
-    args: argparse.Namespace, command: list[str | Path], check: bool = True
+    args: argparse.Namespace, command: list[str], check: bool = True
 ) -> subprocess.CompletedProcess:
     """Run a shell command and log the output.
 
@@ -524,8 +518,7 @@ def multiprocess_progress_wrapper(
                 worker_pool.terminate()
                 worker_pool.join()
                 sys.exit(1)  # Exit the script
-            except:
-                assert False
+
     return results
 
 
@@ -681,9 +674,9 @@ def compile_candidates(
     for candidate_index in candidates:
 
         command = [
-            path_config.compile_candidate_sh,
-            f"{args.mode}",
-            f"{candidate_trackers[candidate_index].mlir_path}",
+            path_config.get_exe_format(path_config.compile_candidate_sh),
+            args.mode,
+            candidate_trackers[candidate_index].mlir_path.as_posix(),
         ]
         task_list.append(TaskTuple(args, command, check=False))
 
@@ -789,8 +782,8 @@ def benchmark_compiled_candidates(
     task_list = []
     for index in compiled_candidates:
         command = [
-            path_config.benchmark_dispatch_sh,
-            f"{candidate_trackers[index].compiled_vmfb_path}",
+            path_config.get_exe_format(path_config.benchmark_dispatch_sh),
+            candidate_trackers[index].compiled_vmfb_path.as_posix(),
         ]
         task_list.append(
             TaskTuple(args, command, check=False, command_need_device_id=True)
@@ -813,64 +806,20 @@ def benchmark_compiled_candidates(
     )
 
     with path_config.dispatch_benchmark_result_log.open("w") as log_file:
-        log_file.writelines(benchmark_results)
-    
-    benchmark_failed_count = 0
-    for res in benchmark_results:
-        if not res:
-            benchmark_failed_count += 1
-            continue
-        parts = res.split()
-        # Update candidate tracker
-        candidate_trackers[int(parts[0])].first_benchmark_time = float(
-            parts[-1]
-        )
-        i+=1
-        best_results.append(
-            (
-                parts[-1],
-                f"{path_config.candidates_dir}/{parts[0]}.mlir",
-                f"{path_config.candidates_dir}/configs/{parts[0]}_spec.mlir",
-            )
-        )
+        for dump_str in dispatch_benchmark_dump_list:
+            log_file.write(dump_str)
 
-    best_results = []
-    with results_log.open("r") as log_file:
-        for line in log_file:
-            if "failed" not in line:
-                parts = line.split()
-
-                # Update candidate tracker
-                candidate_trackers[int(parts[0])].first_benchmark_time = float(
-                    parts[-1]
-                )
-
-                best_results.append(
-                    (
-                        parts[-1],
-                        f"{candidates_dir}/{parts[0]}.mlir",
-                        f"{candidates_dir}/configs/{parts[0]}_spec.mlir",
-                    )
-                )
-
-    benchmarked_dir = candidates_dir / "compiled"
-    benchmarked_files = sorted(benchmarked_dir.glob("*.vmfb"), key=numerical_sort_key)
-    benchmark_failed_dir = benchmarked_dir / "benchmark_failed"
-    benchmark_failed_files = sorted(
-        benchmark_failed_dir.glob("*.vmfb"), key=numerical_sort_key
-    )
-
-    benchmarking_rate = (len(benchmarked_files) / len(benchmark_results)) * 100
+    benchmarking_rate = (len(parsed_benchmark_results) / len(benchmark_results)) * 100
     logging.critical(
-        f"Total: {len(benchmark_results)} | Benchmarked: {len(benchmarked_files)} | Failed: {len(benchmark_failed_files)} | Benchmarking Rate: {benchmarking_rate:.1f}%"
+        f"Total: {len(benchmark_results)} | Benchmarked: {len(parsed_benchmark_results)} | Failed: {len(benchmark_results) - len(parsed_benchmark_results)} | Benchmarking Rate: {benchmarking_rate:.1f}%"
     )
-
     handle_error(
-        condition=(len(best_results) == 0),
+        condition=(len(benchmark_results) == 0),
         msg="Failed to benchmark all candidate .vmfb files",
     )
 
-    best_results = sorted(best_results, key=lambda x: float(x[0]))[
+    # Select top candidates
+    best_results = sorted(parsed_benchmark_results, key=lambda x: float(x[0]))[
         : args.num_unet_candidates
     ]
     logging.critical(f"Selected top[{len(best_results)}]")
@@ -894,9 +843,9 @@ def compile_unet_candidates(
             if "/0.mlir" not in line:
                 input_file = line.strip().split()[2]
                 command = [
-                    path_config.compile_unet_candidate_sh,
-                    f"{args.mode}",
-                    f"{input_file}",
+                    path_config.get_exe_format(path_config.compile_unet_candidate_sh),
+                    args.mode,
+                    input_file,
                 ]
                 task_list.append(TaskTuple(args, command))
 
@@ -980,6 +929,34 @@ def group_benchmark_results_by_device_id(
     return grouped_benchmark_results
 
 
+def group_benchmark_results_by_device_id(
+    benchmark_results: list[TaskResult],
+) -> list[list[TaskResult]]:
+    """
+    Groups benchmark results by device ID.
+
+    e.g.
+    [TaskResult(res1, device_1), TaskResult(res2, device_2), TaskResult(res3, device_1)]
+    ----->
+    [ [TaskResult(res1, device_1), TaskResult(res3, device_1)], [TaskResult(res2, device_2)] ]
+    """
+    grouped_results = [
+        list(group)
+        for _, group in groupby(benchmark_results, key=lambda br: br.device_id)
+    ]
+    grouped_results: dict[int, list[TaskResult]] = {}
+    for result in benchmark_results:
+        if result.device_id not in grouped_results:
+            grouped_results[result.device_id] = []
+        grouped_results[result.device_id].append(result)
+
+    grouped_benchmark_results = [
+        grouped_results[device_id] for device_id in sorted(grouped_results)
+    ]
+
+    return grouped_benchmark_results
+
+
 def parse_grouped_benchmark_results(
     path_config: PathConfig,
     grouped_benchmark_results: list[list[TaskResult]],
@@ -990,10 +967,12 @@ def parse_grouped_benchmark_results(
 
     for same_device_results in grouped_benchmark_results:
         for unet_candidate_result in same_device_results:
-            res = BenchmarkOutput(unet_candidate_result.result.stdout)
+            if not unet_candidate_result.result.stdout:
+                continue
+            res = UnetBenchmarkResult(unet_candidate_result.result.stdout)
             if str(path_config.unet_baseline_vmfb) in res.unet_candidate_path:
                 baseline_time = res.benchmark_time
-                dump_list.append(res.output_str)
+                dump_list.append(res.result_str)
                 continue
             candidate_trackers[res.candidate_id].unet_benchmark_time = (
                 res.benchmark_time
@@ -1005,7 +984,7 @@ def parse_grouped_benchmark_results(
             candidate_trackers[res.candidate_id].calibrated_benchmark_diff = (
                 res.benchmark_time - baseline_time
             ) / baseline_time
-            dump_str = res.calibrated_output_str(
+            dump_str = res.calibrated_result_str(
                 candidate_trackers[res.candidate_id].calibrated_benchmark_diff
             )
 
@@ -1023,19 +1002,13 @@ def benchmark_unet(
     """Benchmark U-Net candidate files and log the results."""
     logging.info("benchmark_unet()")
 
-    candidate_trackers[0].unet_candidate_path = path_config.unet_baseline_vmfb
-
-    unet_candidates = sort_candidates_by_first_benchmark_times(
-        unet_candidates, candidate_trackers
-    )
-
     # Benchmarking unet candidates
     worker_context_queue = create_worker_context_queue(args.devices)
     benchmark_task_list = []
     for index in unet_candidates:
         command = [
-            path_config.benchmark_unet_candidate_sh,
-            f"{candidate_trackers[index].unet_candidate_path}",
+            path_config.get_exe_format(path_config.benchmark_unet_candidate_sh),
+            candidate_trackers[index].unet_candidate_path.as_posix(),
         ]
         benchmark_task_list.append(
             TaskTuple(
@@ -1065,31 +1038,9 @@ def benchmark_unet(
         TaskTuple(
             args,
             command=[
-                path_config.benchmark_unet_candidate_sh,
-                path_config.unet_baseline_vmfb,
+                path_config.get_exe_format(path_config.benchmark_unet_candidate_sh),
+                path_config.unet_baseline_vmfb.as_posix(),
             ],
-            check=False,
-            command_need_device_id=True,
-            cooling_time=10,
-            result_need_device_id=True,
-        )
-    ]
-    benchmark_results = multiprocess_progress_wrapper(
-        num_worker=len(args.devices),
-        task_list=benchmark_task_list,
-        function=run_command_wrapper,
-        initializer=init_worker_context,
-        initializer_inputs=(worker_context_queue,),
-    )
-    benchmark_results = sorted(benchmark_results, key=lambda br: br.device_id)
-    grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
-
-    # Benchmarking baselines on each involved device
-    worker_context_queue = create_worker_context_queue(args.devices)
-    baseline_task_list = [
-        TaskTuple(
-            args,
-            command=[path_config.benchmark_unet_candidate_sh, path_config.unet_baseline_vmfb],
             check=False,
             command_need_device_id=True,
             result_need_device_id=True,
@@ -1126,7 +1077,7 @@ def autotune(args: argparse.Namespace = parse_arguments()) -> None:
     stop_after_phase: str = args.stop_after
 
     print("Setup logging")
-    setup_logging(args, log_dir=path_config.base_dir)
+    setup_logging(args, path_config)
     print(path_config.log_file_path, end="\n\n")
 
     print("Generating candidates...")
