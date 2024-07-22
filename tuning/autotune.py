@@ -752,24 +752,6 @@ def parse_dispatch_benchmark_results(
     return benchmark_result_configs, dump_list
 
 
-def generate_dryrun_dispatch_benchmark_results(
-    compiled_candidates: list[int],
-) -> list[TaskResult]:
-    task_results = []
-    for candidate_id in compiled_candidates:
-        # print(DispatchBenchmarkResult().generate_sample_result(candidate_id))
-        task_result = subprocess.CompletedProcess(
-            args=[""],
-            returncode=0,
-            stdout=DispatchBenchmarkResult().generate_sample_result(
-                candidate_id, mean_time=random.randint(100, 500)
-            ),
-            stderr="",
-        )
-        task_results.append(TaskResult(task_result))
-    return task_results
-
-
 def benchmark_compiled_candidates(
     args: argparse.Namespace,
     path_config: PathConfig,
