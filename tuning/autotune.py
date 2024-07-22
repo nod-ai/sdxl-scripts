@@ -666,7 +666,6 @@ def compile_candidates(
 def benchmark_compiled_candidates(
     args: argparse.Namespace,
     path_config: PathConfig,
-    candidates_dir: Path,
     compiled_candidates: list[int],
     candidate_trackers: list[CandidateTracker],
 ) :
@@ -728,6 +727,25 @@ def benchmark_compiled_candidates(
 
     with path_config.dispatch_benchmark_result_log.open("w") as log_file:
         log_file.writelines(benchmark_results)
+    
+    benchmark_failed_count = 0
+    for res in benchmark_results:
+        if not res:
+            benchmark_failed_count += 1
+            continue
+        parts = res.split()
+        # Update candidate tracker
+        candidate_trackers[int(parts[0])].first_benchmark_time = float(
+            parts[-1]
+        )
+        i+=1
+        best_results.append(
+            (
+                parts[-1],
+                f"{path_config.candidates_dir}/{parts[0]}.mlir",
+                f"{path_config.candidates_dir}/configs/{parts[0]}_spec.mlir",
+            )
+        )
 
     best_results = []
     with results_log.open("r") as log_file:
