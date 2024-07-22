@@ -825,6 +825,36 @@ module attributes { transform.with_named_sequence } {
     transform.yield %cont, %config : !transform.any_op, !transform.any_param
   }
 
+  transform.named_sequence @match_matmul_like_Bx10x64x64x2048_i8xi8xi32(%cont: !transform.any_op {transform.readonly})
+    -> (!transform.any_op, !transform.any_param) {
+    %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %cont {
+    ^bb0(%lhs: tensor<?x64x2048xi8>, %rhs: tensor<10x64x2048xi8>, %out: tensor<?x10x64x64xi32>):
+      %16 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d2, d4)>,
+                                             affine_map<(d0, d1, d2, d3, d4) -> (d1, d3, d4)>,
+                                             affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3)>],
+                            iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction"]}
+        ins(%lhs, %rhs : tensor<?x64x2048xi8>, tensor<10x64x2048xi8>)
+        outs(%out : tensor<?x10x64x64xi32>) {
+      ^bb0(%in: i8, %in_0: i8, %acc: i32):
+        %18 = arith.extsi %in : i8 to i32
+        %19 = arith.extsi %in_0 : i8 to i32
+        %20 = arith.muli %18, %19 : i32
+        %21 = arith.addi %acc, %20 : i32
+        linalg.yield %21 : i32
+      } -> tensor<?x10x64x64xi32>
+    } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+    %config = transform.param.constant #iree_codegen.compilation_info<
+    lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 16, 320, 128]]>,
+      translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
+        workgroup_size = [256, 1, 1] subgroup_size = 64,
+        {mma_schedule = #iree_gpu.mma_schedule<
+            intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>,
+            subgroup_m_count = 1, subgroup_n_count = 4>
+        , prefetch_shared_memory}>
+    > -> !transform.any_param
+    transform.yield %cont, %config : !transform.any_op, !transform.any_param
+  }
+
 // TUNING_SPEC_END DO NOT REMOVE
 
 //===----------------------------------------------------------------------===//
@@ -864,6 +894,7 @@ module attributes { transform.with_named_sequence } {
         // Contration.
         , @match_matmul_like_Bx20x1024x64x1280_i8xi8xi32 -> @apply_op_config
         , @match_matmul_like_Bx20x64x64x2048_i8xi8xi32 -> @apply_op_config
+        , @match_matmul_like_Bx10x64x64x2048_i8xi8xi32 -> @apply_op_config
 
         // TUNING_MATCH_END DO NOT REMOVE
       : (!transform.any_op) -> (!transform.any_op)
