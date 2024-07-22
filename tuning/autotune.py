@@ -123,7 +123,7 @@ class PathConfig:
 
     def _create_base_dir(self) -> Path:
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M")
-        base_dir =Path(f"./tuning_{timestamp}")
+        base_dir = Path(f"./tuning_{timestamp}")
         base_dir.mkdir(parents=True, exist_ok=True)
         return base_dir
 
@@ -132,12 +132,12 @@ class PathConfig:
 
     def get_candidate_mlir_path(self, candidate_id: int) -> str:
         return f"{self.candidates_dir}/{candidate_id}.mlir"
+
     def get_candidate_spec_mlir_path(self, candidate_id: int) -> str:
         return f"{self.candidates_dir}/configs/{candidate_id}_spec.mlir"
 
     def get_exe_format(self, path: Path) -> str:
         return f"./{path.as_posix()}"
-
 
 
 @dataclass
@@ -154,6 +154,7 @@ class TaskTuple:
 class TaskResult:
     result: subprocess.CompletedProcess
     device_id: int = None
+
 
 @dataclass
 class DispatchBenchmarkResult:
@@ -650,9 +651,9 @@ def generate_candidates(
             )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
-                mlir
-            )
+            candidate_trackers[
+                int(mlir.stem.split("_config")[0])
+            ].mlir_config_path = mlir
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
@@ -974,13 +975,13 @@ def parse_grouped_benchmark_results(
                 baseline_time = res.benchmark_time
                 dump_list.append(res.result_str)
                 continue
-            candidate_trackers[res.candidate_id].unet_benchmark_time = (
-                res.benchmark_time
-            )
+            candidate_trackers[
+                res.candidate_id
+            ].unet_benchmark_time = res.benchmark_time
             candidate_trackers[res.candidate_id].baseline_benchmark_time = baseline_time
-            candidate_trackers[res.candidate_id].unet_benchmark_device_id = (
-                res.device_id
-            )
+            candidate_trackers[
+                res.candidate_id
+            ].unet_benchmark_device_id = res.device_id
             candidate_trackers[res.candidate_id].calibrated_benchmark_diff = (
                 res.benchmark_time - baseline_time
             ) / baseline_time
@@ -1028,9 +1029,7 @@ def benchmark_unet(
         initializer_inputs=(worker_context_queue,),
     )
     benchmark_results = sorted(benchmark_results, key=lambda br: br.device_id)
-    grouped_benchmark_results = group_benchmark_results_by_device_id(
-        benchmark_results
-    )
+    grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
 
     # Benchmarking baselines on each involved device
     worker_context_queue = create_worker_context_queue(args.devices)
