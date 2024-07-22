@@ -269,7 +269,7 @@ class UnetBenchmarkResult:
         device_id: int = 0,
         t1: int | float = random.randint(100, 500),
     ) -> str:
-        return f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}\nBM_run_forward/process_time/real_time_median\t    {t1:.3g} ms\t    {(t1+1):.3g} ms\t      5 items_per_second={t1/200:5f}/s\n"
+        return f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}\nBM_run_forward/process_time/real_time_median\t    {t1:.3g} ms\t    {(t1+1):.3g} ms\t      5 items_per_second={t1/200:5f}/s\n\n"
 
 
 def parse_devices(devices_str: str) -> list[int]:
@@ -825,7 +825,6 @@ def generate_dryrun_dispatch_benchmark_results(
 ) -> list[TaskResult]:
     task_results = []
     for candidate_id in compiled_candidates:
-        # print(DispatchBenchmarkResult().generate_sample_result(candidate_id))
         task_result = subprocess.CompletedProcess(
             args=[""],
             returncode=0,
@@ -1084,7 +1083,7 @@ def generate_dryrun_unet_benchmark_results(
             ),
             stderr="",
         )
-        start += random.randint(-1, 10)
+        start += random.randint(-5, 8)
         task_results.append(TaskResult(task_result, device_id))
     return task_results
 
