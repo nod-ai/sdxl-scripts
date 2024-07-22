@@ -1005,7 +1005,11 @@ def generate_constraints(
     constraints += [k % intrinsic_mn == 0]
     constraints += [(k * n) % wg_threads == 0]
     constraints += [(k * m) % wg_threads == 0]
-    constraints += [subgroup_m_count * subgroup_n_count == num_subgroups]
+    subgroups = subgroup_m_count * subgroup_n_count
+    if num_subgroups > 0:
+        constraints += [subgroups == num_subgroups]
+    else:
+        constraints += [subgroups >= 1, subgroups <= 10]
 
     constraints += [waves_per_eu == 2]
     # constraints += [z3.Or(waves_per_eu == 2, waves_per_eu == 3, waves_per_eu == 4)]
@@ -1248,9 +1252,9 @@ def main():
     )
     parser.add_argument(
         "--num-subgroups",
-        help="Number of subgroups per workgroup to use",
+        help="Number of subgroups per workgroup to use. (-1 == unconstrained)",
         type=int,
-        default=4,
+        default=-1,
     )
     parser.add_argument(
         "--lhs-dims", help="Map of LHS matmul dims", type=str, default="mk"

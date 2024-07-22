@@ -212,9 +212,9 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--num-subgroups",
-        help="Number of subgroups per workgroup to use",
+        help="Number of subgroups per workgroup to use. (-1 == unconstrained)",
         type=int,
-        default=4,
+        default=-1,
     )
     parser.add_argument(
         "--lhs-dims", help="Map of LHS matmul dims", type=str, default="mk"
