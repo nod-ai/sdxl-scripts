@@ -125,7 +125,7 @@ class PathConfig:
 
     def _create_base_dir(self) -> Path:
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M")
-        base_dir = self.tuning_work_dir / f"tuning_{timestamp}"
+        base_dir =Path(f"./tuning_{timestamp}")
         base_dir.mkdir(parents=True, exist_ok=True)
         return base_dir
 
