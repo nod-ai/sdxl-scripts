@@ -272,9 +272,17 @@ transform.named_sequence @{functionName}(%matmul: !transform.any_op {{transform.
 def get_transform_function_conv(
     problem_size: ProblemSize, functionName: str, configuration: Configuration
 ) -> str:
-    input = f"tensor<{problem_size.lhs_type}>"
+    dynamic_batch_input_ty = problem_size.lhs_type
+    dynamic_batch_input_ty.shape = dynamic_batch_input_ty.shape.copy()
+    dynamic_batch_input_ty.shape[0] = -1
+
+    dynamic_batch_output_ty = problem_size.res_type
+    dynamic_batch_output_ty.shape = dynamic_batch_output_ty.shape.copy()
+    dynamic_batch_output_ty.shape[0] - 1
+
+    input = f"tensor<{dynamic_batch_input_ty}>"
     filter = f"tensor<{problem_size.rhs_type}>"
-    output = f"tensor<{problem_size.res_type}>"
+    output = f"tensor<{dynamic_batch_output_ty}>"
 
     tile_sizes = ", ".join(map(str, get_conv_tile_sizes(configuration)))
 
@@ -466,7 +474,7 @@ def apply_params_conv(
     modified = indent(
         get_transform_function_conv(
             problem_size,
-            f"match_conv_2d_nhwc_hwcf_{conv_dims.n}x{conv_dims.oh}x{conv_dims.ow}x{conv_dims.oc}x{conv_dims.fh}x{conv_dims.fw}x{conv_dims.ic}",
+            f"match_conv_2d_nhwc_hwcf_Bx{conv_dims.oh}x{conv_dims.ow}x{conv_dims.oc}x{conv_dims.fh}x{conv_dims.fw}x{conv_dims.ic}",
             configuration,
         ),
         "//   ",
