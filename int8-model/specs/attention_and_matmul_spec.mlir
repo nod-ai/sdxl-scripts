@@ -5,6 +5,7 @@
 // TODO: Figure out how to parameterize the tile sizes without duplicating
 // the attention function.
 
+#layout_f8 = #iree_gpu.mma_layout<MFMA_F8E4M3FNUZ_16x16x32_F32>
 #layout_16 = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>
 #layout = #iree_gpu.mma_layout<MFMA_F16_32x32x8_F32>
 
@@ -213,6 +214,197 @@ module attributes { transform.with_named_sequence } {
     transform.yield
   }
 
+  // Script for FA2 transform pipeline for FP8 attention.
+  transform.named_sequence @__attention_main_f8(%variant_op: !transform.any_op {transform.readonly}) {
+    // Get attention op
+    // ==========================================
+    %attention = transform.structured.match ops{["iree_linalg_ext.attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+
+    %elemwise = transform.get_consumers_of_result %attention[0] : (!transform.any_op) -> (!transform.any_op)
+
+    // Tile and distribute to workgroups
+    // ==========================================
+    %blocked_elemwise, %elemwise_forall =
+    transform.structured.tile_using_forall %elemwise tile_sizes [1, 1, 128, 0]
+      ( mapping = [#gpu.block<x>, #gpu.block<y>, #gpu.block<z>] ) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+
+    %blocked_att, %wg_forall = transform.structured.fuse_into_containing_op %attention into %elemwise_forall : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
+
+    // %wg_fused_forall = transform.loop.fuse_sibling %elemwise_forall into %wg_forall : (!transform.any_op, !transform.any_op) -> !transform.any_op
+    // transform.print %wg_fused_forall : !transform.any_op
+
+    transform.iree.populate_workgroup_count_region_using_num_threads_slice %wg_forall : (!transform.any_op) -> ()
+
+    // Cleanup
+    %func = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %func {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func : !transform.any_op
+
+    // Convert to online attention
+    // ==========================================
+    transform.iree.convert_to_online_attention %blocked_att : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+
+    transform.apply_patterns to %func {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func : !transform.any_op
+
+    // Tile along K2
+    %online_att = transform.structured.match ops{["iree_linalg_ext.online_attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    %tiled_att, %k2_for = transform.structured.tile_using_for %online_att tile_sizes [0, 0, 0, 0, 64, 0]: (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+
+    transform.apply_patterns to %func {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func : !transform.any_op
+
+    // Promote key and value operands
+    // ==========================================
+    %attt = transform.structured.match ops{["iree_linalg_ext.online_attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    %promoted_att, %alloc0, %alloc1 = transform.iree.promote_operands %attt [1, 2]
+      : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
+
+    // This is a hack... We distribute the loop and the merging seperately and just assume they are fused.
+    %warp_attention = transform.structured.match ops{["iree_linalg_ext.online_attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    %generics = transform.structured.match ops{["linalg.generic"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    %warp_merge, %warp_elemwise = transform.split_handle %generics : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %warp_merge tile_sizes[0, 0, 32, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %warp_elemwise tile_sizes[0, 0, 32, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %warp_attention tile_sizes[0, 0, 32, 0, 0, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+
+    transform.apply_patterns to %func {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func : !transform.any_op
+
+    %fills = transform.include @get_undistributed_fills failures(propagate) (%variant_op)  : (!transform.any_op) -> !transform.any_op
+    %acc_fill, %max_fill, %sum_fill = transform.split_handle %fills : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %acc_fill tile_sizes[0, 0,32, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %max_fill tile_sizes[0, 0, 32] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %sum_fill tile_sizes[0, 0, 32] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+
+    transform.apply_patterns to %func {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func : !transform.any_op
+
+    // Decompose attention
+    // TODO: Fix erroring out here!
+    %func2 = transform.apply_registered_pass "iree-linalg-ext-decompose-attention" to %func : (!transform.any_op) -> (!transform.any_op)
+
+    transform.apply_patterns to %func2 {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func2 : !transform.any_op
+
+    // Vectorize function
+    // ==========================================
+    transform.apply_patterns to %func2 {
+      transform.apply_patterns.iree.fold_reshape_into_tensor_hal_interface
+      transform.apply_patterns.vector.cast_away_vector_leading_one_dim
+      transform.apply_patterns.linalg.fold_unit_extent_dims_via_reshapes
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    %func_3 = transform.structured.vectorize_children_and_apply_patterns %func2 : (!transform.any_op) -> (!transform.any_op)
+
+    transform.apply_patterns to %func_3 {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func_3 : !transform.any_op
+
+    // Bufferization
+    // ==========================================
+    transform.apply_patterns to %func_3 {
+      transform.apply_patterns.tensor.reassociative_reshape_folding
+      transform.apply_patterns.canonicalization
+      transform.apply_patterns.iree.fold_fill_into_pad
+      transform.apply_patterns.linalg.tiling_canonicalization
+      transform.apply_patterns.scf.for_loop_canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func_3 : !transform.any_op
+    transform.iree.eliminate_empty_tensors %func_3 : (!transform.any_op) -> ()
+    transform.apply_patterns to %func_3 { transform.apply_patterns.linalg.erase_unnecessary_inputs } : !transform.any_op
+    %memref_func = transform.iree.bufferize { target_gpu } %func_3 : (!transform.any_op) -> (!transform.any_op)
+
+    // Step 5. Pre-process the contract and transfer ops to put it in the right form.
+    // ===========================================================================
+    transform.apply_patterns to %memref_func {
+      transform.apply_patterns.vector.fold_arith_extension
+    } : !transform.any_op
+
+    // Step 6. Post-bufferization vector distribution
+    // ===========================================================================
+    transform.iree.forall_to_workgroup %memref_func : (!transform.any_op) -> ()
+    transform.iree.map_nested_forall_to_gpu_threads %memref_func workgroup_dims = [64, 4, 1] subgroup_size = 64 sync_after_distribution = false : (!transform.any_op) -> ()
+
+    transform.apply_patterns to %memref_func {
+      transform.apply_patterns.memref.fold_memref_alias_ops
+    } : !transform.any_op
+    transform.iree.apply_licm %memref_func : !transform.any_op
+    transform.apply_patterns to %memref_func {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %memref_func : !transform.any_op
+    %func_8 = transform.structured.hoist_redundant_vector_transfers %memref_func
+    : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %func_8 {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %func_8 : !transform.any_op
+    transform.memref.erase_dead_alloc_and_stores %func_8 : (!transform.any_op) -> ()
+
+    // Apply chained matmul optimization.
+    %func_9 = transform.apply_registered_pass "iree-amdgpu-prepare-chained-matmul" to %func_8 : (!transform.any_op) -> (!transform.any_op)
+
+    %intrinsic = transform.param.constant #layout_f8 -> !transform.any_param
+
+    %mma = transform.structured.match ops{["vector.contract"]} in %variant_op :  (!transform.any_op) -> !transform.any_op
+    %mma1, %mma2 = transform.split_handle %mma : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.annotate %mma "iree.amdgpu.mma" = %intrinsic : !transform.any_op, !transform.any_param
+
+    transform.apply_registered_pass "iree-llvmgpu-cast-type-to-fit-mma" to %func_9 : (!transform.any_op) -> (!transform.any_op)
+
+    %contracts = transform.structured.match ops{["vector.contract"]} in %variant_op :  (!transform.any_op) -> !transform.any_op
+    %contract1, %contract2 = transform.split_handle %contracts : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.iree.set_contraction_layout_attributes %contract1, %intrinsic { read_layout_indices = array<i64: 0, 1> } : !transform.any_op, !transform.any_param
+    transform.iree.set_contraction_layout_attributes %contract2, %intrinsic : !transform.any_op, !transform.any_param
+
+    %distribute_func = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+
+    %distribute_func_2 = transform.iree.amdgpu_distribute_vectors %distribute_func : (!transform.any_op) -> !transform.any_op
+
+    transform.apply_patterns to %distribute_func_2 {
+      transform.apply_patterns.canonicalization
+    } : !transform.any_op
+    transform.apply_cse to %distribute_func_2 : !transform.any_op
+
+    // Distribute shared memory copies
+    // ==========================================
+    transform.iree.gpu_distribute_shared_memory_copy %distribute_func_2 : (!transform.any_op) -> ()
+    transform.apply_patterns to %distribute_func_2 {
+        transform.apply_patterns.memref.fold_memref_alias_ops
+        transform.apply_patterns.canonicalization
+        transform.apply_patterns.linalg.tiling_canonicalization
+      } : !transform.any_op
+    transform.apply_cse to %distribute_func_2 : !transform.any_op
+
+    %forop = transform.structured.match ops{["scf.for"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    %prefetched_forop = transform.iree.prefetch_shared_memory_copies %forop : (!transform.any_op) -> (!transform.any_op)
+
+    transform.apply_patterns to %distribute_func_2 {
+        transform.apply_patterns.memref.fold_memref_alias_ops
+        transform.apply_patterns.canonicalization
+        transform.apply_patterns.linalg.tiling_canonicalization
+      } : !transform.any_op
+    transform.apply_cse to %distribute_func_2 : !transform.any_op
+
+    %func_11 = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    transform.iree.reduce_shared_memory_bank_conflicts %func_11 : (!transform.any_op) -> ()
+    transform.yield
+  }
+
   // Send it down a custom transform dialect pipeline.
   transform.named_sequence @custom_attention(%attention: !transform.any_op {transform.readonly}) {
     %func = transform.get_parent_op %attention {op_name = "func.func"} : (!transform.any_op) -> !transform.any_op
@@ -226,6 +418,23 @@ module attributes { transform.with_named_sequence } {
     %in0 = transform.get_operand %attention[0] : (!transform.any_op) -> !transform.any_value
     transform.iree.match.cast_compatible_type %in0 = tensor<?x?x?x?xf16> : !transform.any_value
     transform.iree.match.dim_is_multiple_of %in0[3], 64 : !transform.any_value
+    transform.yield %attention : !transform.any_op
+  }
+
+  // Send it down a custom transform dialect pipeline.
+  transform.named_sequence @custom_attention_f8(%attention: !transform.any_op {transform.readonly}) {
+    %func = transform.get_parent_op %attention {op_name = "func.func"} : (!transform.any_op) -> !transform.any_op
+    %attn = transform.param.constant #iree_codegen.translation_info<TransformDialectCodegen codegen_spec = @__attention_main_f8, { llvm_func_attrs = { "amdgpu-waves-per-eu" = "2", "denormal-fp-math-f32" = "preserve-sign" } }> -> !transform.any_param
+    transform.annotate %func "translation_info" = %attn : !transform.any_op, !transform.any_param
+    transform.yield
+  }
+
+  transform.named_sequence @match_attention_f8(%attention: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+    transform.match.operation_name %attention ["iree_linalg_ext.attention"] : !transform.any_op
+    // Ensures K2 is divisible by 64.
+    %in1 = transform.get_operand %attention[1] : (!transform.any_op) -> !transform.any_value
+    transform.iree.match.cast_compatible_type %in1 = tensor<?x?x?x?xf8E4M3FNUZ> : !transform.any_value
+    transform.iree.match.dim_is_multiple_of %in1[2], 64 : !transform.any_value
     transform.yield %attention : !transform.any_op
   }
 
@@ -693,7 +902,8 @@ module attributes { transform.with_named_sequence } {
   transform.named_sequence @__kernel_config(%variant_op: !transform.any_op {transform.consumed}) {
     transform.foreach_match in %variant_op
         // Attention.
-        @match_attention -> @custom_attention
+        @match_attention -> @custom_attention,
+        @match_attention_f8 -> @custom_attention_f8
 
         // TUNING_MATCH_BEGIN DO NOT REMOVE
 
