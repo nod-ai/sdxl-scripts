@@ -90,7 +90,7 @@ class PathConfig:
     log_file_path: Optional[Path] = field(init=False, default=None)
 
     def __post_init__(self):
-        object.__setattr__(self, "base_dir", self._create_base_dir())
+        object.__setattr__(self, "base_dir", self._name_base_dir())
         object.__setattr__(
             self, "local_config_prolog_mlir", self.base_dir / "config_prolog.mlir"
         )
@@ -121,10 +121,9 @@ class PathConfig:
             self, "candidate_trackers_pkl", self.base_dir / "candidate_trackers.pkl"
         )
 
-    def _create_base_dir(self) -> Path:
+    def _name_base_dir(self) -> Path:
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M")
         base_dir = Path(f"./tuning_{timestamp}")
-        base_dir.mkdir(parents=True, exist_ok=True)
         return base_dir
 
     def _set_log_file_path(self, log_file_path: Path):
@@ -158,10 +157,10 @@ class TaskResult:
 
 @dataclass
 class DispatchBenchmarkResult:
-    result_str: str = None
+    result_str: Optional[str] = None
 
     @property
-    def output_list(self) -> list[str]:
+    def get_tokens(self) -> list[str]:
         # e.g. ['0', 'Mean', 'Time:', '694.0']
         if self.result_str is None:
             return []
@@ -169,26 +168,26 @@ class DispatchBenchmarkResult:
 
     @property
     def candidate_id(self) -> Optional[int]:
-        if not self.output_list or len(self.output_list) < 1:
+        if not self.get_tokens or len(self.get_tokens) < 1:
             return None
-        return int(self.output_list[0])
+        return int(self.get_tokens[0])
 
     @property
     def benchmark_time(self) -> Optional[float]:
-        if len(self.output_list) < 4:
+        if len(self.get_tokens) < 4:
             return None
         try:
-            return float(self.output_list[3])
+            return float(self.get_tokens[3])
         except ValueError:
             return None
 
 
 @dataclass
 class UnetBenchmarkResult:
-    result_str: str = None
+    result_str: Optional[str] = None
 
     @property
-    def output_list(self) -> list[str]:
+    def get_tokens(self) -> list[str]:
         # e.g. ['Benchmarking:', '/sdxl-scripts/tuning/tuning_2024_07_19_08_55/unet_candidate_12.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
         if self.result_str is None:
             return []
@@ -196,9 +195,9 @@ class UnetBenchmarkResult:
 
     @property
     def unet_candidate_path(self) -> Optional[str]:
-        if not self.output_list or len(self.output_list) < 2:
+        if not self.get_tokens or len(self.get_tokens) < 2:
             return None
-        return self.output_list[1]
+        return self.get_tokens[1]
 
     @property
     def candidate_id(self) -> Optional[int]:
@@ -211,16 +210,16 @@ class UnetBenchmarkResult:
 
     @property
     def device_id(self) -> Optional[str]:
-        if len(self.output_list) < 5:
+        if len(self.get_tokens) < 5:
             return None
-        return self.output_list[4]
+        return self.get_tokens[4]
 
     @property
     def benchmark_time(self) -> Optional[int | float]:
-        if len(self.output_list) < 7:
+        if len(self.get_tokens) < 7:
             return None
         try:
-            return float(self.output_list[6])
+            return float(self.get_tokens[6])
         except ValueError:
             return None
 
@@ -1053,6 +1052,7 @@ def benchmark_unet(
 
 def autotune(args: argparse.Namespace = parse_arguments()) -> None:
     path_config = PathConfig()
+    path_config.base_dir.mkdir(parents=True, exist_ok=True)
 
     candidate_trackers = []
     stop_after_phase: str = args.stop_after

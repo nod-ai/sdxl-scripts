@@ -6,7 +6,7 @@ Usage: python -m pytest test_autotune.py
 """
 
 
-def test_group_benmark_results_by_device_id():
+def test_group_benchmark_results_by_device_id():
     def generate_res(res_arg: str, device_id: int) -> autotune.TaskResult:
         result = autotune.subprocess.CompletedProcess(
             args=[res_arg],
