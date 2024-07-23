@@ -159,25 +159,22 @@ class TaskResult:
 class DispatchBenchmarkResult:
     result_str: Optional[str] = None
 
-    @property
     def get_tokens(self) -> list[str]:
         # e.g. ['0', 'Mean', 'Time:', '694.0']
         if self.result_str is None:
             return []
         return self.result_str.split()
 
-    @property
-    def candidate_id(self) -> Optional[int]:
-        if not self.get_tokens or len(self.get_tokens) < 1:
+    def get_candidate_id(self) -> Optional[int]:
+        if not self.get_tokens() or len(self.get_tokens()) < 1:
             return None
-        return int(self.get_tokens[0])
+        return int(self.get_tokens()[0])
 
-    @property
-    def benchmark_time(self) -> Optional[float]:
-        if len(self.get_tokens) < 4:
+    def get_benchmark_time(self) -> Optional[float]:
+        if len(self.get_tokens()) < 4:
             return None
         try:
-            return float(self.get_tokens[3])
+            return float(self.get_tokens()[3])
         except ValueError:
             return None
 
@@ -186,48 +183,43 @@ class DispatchBenchmarkResult:
 class UnetBenchmarkResult:
     result_str: Optional[str] = None
 
-    @property
     def get_tokens(self) -> list[str]:
         # e.g. ['Benchmarking:', '/sdxl-scripts/tuning/tuning_2024_07_19_08_55/unet_candidate_12.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
         if self.result_str is None:
             return []
         return self.result_str.split()
 
-    @property
-    def unet_candidate_path(self) -> Optional[str]:
-        if not self.get_tokens or len(self.get_tokens) < 2:
+    def get_unet_candidate_path(self) -> Optional[str]:
+        if not self.get_tokens() or len(self.get_tokens()) < 2:
             return None
-        return self.get_tokens[1]
+        return self.get_tokens()[1]
 
-    @property
-    def candidate_id(self) -> Optional[int]:
-        if self.unet_candidate_path:
+    def get_candidate_id(self) -> Optional[int]:
+        if self.get_unet_candidate_path():
             try:
-                return int(self.unet_candidate_path.split("_")[-1].split(".")[0])
+                return int(self.get_unet_candidate_path().split("_")[-1].split(".")[0])
             except ValueError:
                 return None
         return None
 
-    @property
-    def device_id(self) -> Optional[str]:
-        if len(self.get_tokens) < 5:
+    def get_device_id(self) -> Optional[str]:
+        if len(self.get_tokens()) < 5:
             return None
-        return self.get_tokens[4]
+        return self.get_tokens()[4]
 
-    @property
-    def benchmark_time(self) -> Optional[int | float]:
-        if len(self.get_tokens) < 7:
+    def get_benchmark_time(self) -> Optional[int | float]:
+        if len(self.get_tokens()) < 7:
             return None
         try:
-            return float(self.get_tokens[6])
+            return float(self.get_tokens()[6])
         except ValueError:
             return None
 
-    def calibrated_result_str(self, change: float) -> str:
+    def get_calibrated_result_str(self, change: float) -> str:
         if self.result_str is None:
             return self.result_str
 
-        benchmark_time = self.benchmark_time
+        benchmark_time = self.get_benchmark_time()
         if benchmark_time is None:
             return self.result_str
 
@@ -238,7 +230,7 @@ class UnetBenchmarkResult:
         # Use regex to find and replace the old benchmark time with the new one
         new_result_str = re.sub(
             r"(\d+(\.\d+)?)\s*ms",
-            lambda m: f"{self.benchmark_time} ms {change_str}",
+            lambda m: f"{self.get_benchmark_time()} ms {change_str}",
             self.result_str,
             count=1,
         )
@@ -738,14 +730,14 @@ def parse_dispatch_benchmark_results(
         if not benchmark_result.result.stdout:
             continue
         res = DispatchBenchmarkResult(benchmark_result.result.stdout)
-        candidate_trackers[res.candidate_id].first_benchmark_time = res.benchmark_time
+        candidate_trackers[res.get_candidate_id()].first_benchmark_time = res.get_benchmark_time()
         dump_list.append(res.result_str)
 
         benchmark_result_configs.append(
             (
-                str(res.benchmark_time),
-                path_config.get_candidate_mlir_path(res.candidate_id),
-                path_config.get_candidate_spec_mlir_path(res.candidate_id),
+                str(res.get_benchmark_time()),
+                path_config.get_candidate_mlir_path(res.get_candidate_id()),
+                path_config.get_candidate_spec_mlir_path(res.get_candidate_id()),
             )
         )
     return benchmark_result_configs, dump_list
@@ -845,7 +837,7 @@ def compile_unet_candidates(
     for unet_candidate in unet_candidates_files:
         index = int(unet_candidate.stem.split("_")[-1])
         candidate_trackers[index].unet_candidate_path = unet_candidate
-        hash_val = calculate_md5(candidate_trackers[index].unet_candidate_path)
+        hash_val = calculate_md5(candidate_trackers[index].get_unet_candidate_path())
         candidate_trackers[index].unet_vmfb_hash = hash_val
         unet_candidates_hash_list.append((index, hash_val))
         unet_candidates_indexes.append(index)
@@ -896,13 +888,13 @@ def group_benchmark_results_by_device_id(
     """
     grouped_results = [
         list(group)
-        for _, group in groupby(benchmark_results, key=lambda br: br.device_id)
+        for _, group in groupby(benchmark_results, key=lambda br: br.get_device_id())
     ]
     grouped_results: dict[int, list[TaskResult]] = {}
     for result in benchmark_results:
-        if result.device_id not in grouped_results:
-            grouped_results[result.device_id] = []
-        grouped_results[result.device_id].append(result)
+        if result.get_device_id() not in grouped_results:
+            grouped_results[result.get_device_id()] = []
+        grouped_results[result.get_device_id()].append(result)
 
     grouped_benchmark_results = [
         grouped_results[device_id] for device_id in sorted(grouped_results)
@@ -924,13 +916,13 @@ def group_benchmark_results_by_device_id(
     """
     grouped_results = [
         list(group)
-        for _, group in groupby(benchmark_results, key=lambda br: br.device_id)
+        for _, group in groupby(benchmark_results, key=lambda br: br.get_device_id())
     ]
     grouped_results: dict[int, list[TaskResult]] = {}
     for result in benchmark_results:
-        if result.device_id not in grouped_results:
-            grouped_results[result.device_id] = []
-        grouped_results[result.device_id].append(result)
+        if result.get_device_id() not in grouped_results:
+            grouped_results[result.get_device_id()] = []
+        grouped_results[result.get_device_id()].append(result)
 
     grouped_benchmark_results = [
         grouped_results[device_id] for device_id in sorted(grouped_results)
@@ -952,22 +944,22 @@ def parse_grouped_benchmark_results(
             if not unet_candidate_result.result.stdout:
                 continue
             res = UnetBenchmarkResult(unet_candidate_result.result.stdout)
-            if str(path_config.unet_baseline_vmfb) in res.unet_candidate_path:
-                baseline_time = res.benchmark_time
+            if str(path_config.unet_baseline_vmfb) in res.get_unet_candidate_path():
+                baseline_time = res.get_benchmark_time()
                 dump_list.append(res.result_str)
                 continue
             candidate_trackers[
-                res.candidate_id
-            ].unet_benchmark_time = res.benchmark_time
-            candidate_trackers[res.candidate_id].baseline_benchmark_time = baseline_time
+                res.get_candidate_id()
+            ].unet_benchmark_time = res.get_benchmark_time()
+            candidate_trackers[res.get_candidate_id()].baseline_benchmark_time = baseline_time
             candidate_trackers[
-                res.candidate_id
-            ].unet_benchmark_device_id = res.device_id
-            candidate_trackers[res.candidate_id].calibrated_benchmark_diff = (
-                res.benchmark_time - baseline_time
+                res.get_candidate_id()
+            ].unet_benchmark_device_id = res.get_device_id()
+            candidate_trackers[res.get_candidate_id()].calibrated_benchmark_diff = (
+                res.get_benchmark_time() - baseline_time
             ) / baseline_time
-            dump_str = res.calibrated_result_str(
-                candidate_trackers[res.candidate_id].calibrated_benchmark_diff
+            dump_str = res.get_calibrated_result_str()(
+                candidate_trackers[res.get_candidate_id()].calibrated_benchmark_diff
             )
 
             dump_list.append(dump_str)
@@ -990,7 +982,7 @@ def benchmark_unet(
     for index in unet_candidates:
         command = [
             path_config.get_exe_format(path_config.benchmark_unet_candidate_sh),
-            candidate_trackers[index].unet_candidate_path.as_posix(),
+            candidate_trackers[index].get_unet_candidate_path().as_posix(),
         ]
         benchmark_task_list.append(
             TaskTuple(
@@ -1009,7 +1001,7 @@ def benchmark_unet(
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
     )
-    benchmark_results = sorted(benchmark_results, key=lambda br: br.device_id)
+    benchmark_results = sorted(benchmark_results, key=lambda br: br.get_device_id())
     grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
 
     # Benchmarking baselines on each involved device
@@ -1033,7 +1025,7 @@ def benchmark_unet(
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
     )
-    baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
+    baseline_results = sorted(baseline_results, key=lambda tr: tr.get_device_id())
 
     # Insert baseline results to the head of each list
     grouped_benchmark_results = [
