@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 from typing import Type, Optional, Callable, Iterable, Any
 import pickle
 from itertools import groupby
-import random
 
 """
 Sample Usage:
@@ -846,7 +845,7 @@ def compile_unet_candidates(
     for unet_candidate in unet_candidates_files:
         index = int(unet_candidate.stem.split("_")[-1])
         candidate_trackers[index].unet_candidate_path = unet_candidate
-        hash_val = calculate_md5(candidate_trackers[index].get_unet_candidate_path())
+        hash_val = calculate_md5(candidate_trackers[index].unet_candidate_path)
         candidate_trackers[index].unet_vmfb_hash = hash_val
         unet_candidates_hash_list.append((index, hash_val))
         unet_candidates_indexes.append(index)
@@ -897,13 +896,13 @@ def group_benchmark_results_by_device_id(
     """
     grouped_results = [
         list(group)
-        for _, group in groupby(benchmark_results, key=lambda br: br.get_device_id())
+        for _, group in groupby(benchmark_results, key=lambda br: br.device_id)
     ]
     grouped_results: dict[int, list[TaskResult]] = {}
     for result in benchmark_results:
-        if result.get_device_id() not in grouped_results:
-            grouped_results[result.get_device_id()] = []
-        grouped_results[result.get_device_id()].append(result)
+        if result.device_id not in grouped_results:
+            grouped_results[result.device_id] = []
+        grouped_results[result.device_id].append(result)
 
     grouped_benchmark_results = [
         grouped_results[device_id] for device_id in sorted(grouped_results)
@@ -925,13 +924,13 @@ def group_benchmark_results_by_device_id(
     """
     grouped_results = [
         list(group)
-        for _, group in groupby(benchmark_results, key=lambda br: br.get_device_id())
+        for _, group in groupby(benchmark_results, key=lambda br: br.device_id)
     ]
     grouped_results: dict[int, list[TaskResult]] = {}
     for result in benchmark_results:
-        if result.get_device_id() not in grouped_results:
-            grouped_results[result.get_device_id()] = []
-        grouped_results[result.get_device_id()].append(result)
+        if result.device_id not in grouped_results:
+            grouped_results[result.device_id] = []
+        grouped_results[result.device_id].append(result)
 
     grouped_benchmark_results = [
         grouped_results[device_id] for device_id in sorted(grouped_results)
@@ -967,7 +966,7 @@ def parse_grouped_benchmark_results(
             candidate_trackers[res.get_candidate_id()].calibrated_benchmark_diff = (
                 res.get_benchmark_time() - baseline_time
             ) / baseline_time
-            dump_str = res.get_calibrated_result_str()(
+            dump_str = res.get_calibrated_result_str(
                 candidate_trackers[res.get_candidate_id()].calibrated_benchmark_diff
             )
 
@@ -991,7 +990,7 @@ def benchmark_unet(
     for index in unet_candidates:
         command = [
             path_config.get_exe_format(path_config.benchmark_unet_candidate_sh),
-            candidate_trackers[index].get_unet_candidate_path().as_posix(),
+            candidate_trackers[index].unet_candidate_path.as_posix(),
         ]
         benchmark_task_list.append(
             TaskTuple(
@@ -1010,7 +1009,7 @@ def benchmark_unet(
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
     )
-    benchmark_results = sorted(benchmark_results, key=lambda br: br.get_device_id())
+    benchmark_results = sorted(benchmark_results, key=lambda br: br.device_id)
     grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
 
     # Benchmarking baselines on each involved device
@@ -1034,7 +1033,7 @@ def benchmark_unet(
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
     )
-    baseline_results = sorted(baseline_results, key=lambda tr: tr.get_device_id())
+    baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
 
     # Insert baseline results to the head of each list
     grouped_benchmark_results = [
