@@ -28,6 +28,7 @@ rm -rf "${WORKING_DIR}/benchmarks/punet"
   "${SCRIPT_DIR}/specs/${TRANSFORM_PREFIX}attention_and_matmul_spec.mlir" \
   "${SCRIPT_DIR}/base_ir/punet_07_18.mlir" \
   --iree-hal-dump-executable-configurations-to="${WORKING_DIR}/configurations/punet" \
+  --iree-hal-dump-executable-intermediates-to="${WORKING_DIR}/intermediates/punet" \
   --iree-hal-dump-executable-sources-to="${WORKING_DIR}/sources/punet" \
   --iree-hal-dump-executable-binaries-to="${WORKING_DIR}/binaries/punet" \
   --iree-hal-dump-executable-benchmarks-to="${WORKING_DIR}/benchmarks/punet" \

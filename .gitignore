@@ -1,5 +1,6 @@
 sources/
 benchmarks/
 binaries/
+intermediates/
 configurations/
 tmp/
