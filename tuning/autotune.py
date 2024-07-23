@@ -129,11 +129,11 @@ class PathConfig:
     def _set_log_file_path(self, log_file_path: Path):
         object.__setattr__(self, "log_file_path", log_file_path)
 
-    def get_candidate_mlir_path(self, candidate_id: int) -> str:
-        return f"{self.candidates_dir}/{candidate_id}.mlir"
+    def get_candidate_mlir_path(self, candidate_id: int) -> Path:
+        return self.candidates_dir / f"{candidate_id}.mlir"
 
-    def get_candidate_spec_mlir_path(self, candidate_id: int) -> str:
-        return f"{self.candidates_dir}/configs/{candidate_id}_spec.mlir"
+    def get_candidate_spec_mlir_path(self, candidate_id: int) -> Path:
+        return self.candidates_dir / "configs" / f"{candidate_id}_spec.mlir"
 
     def get_exe_format(self, path: Path) -> str:
         return f"./{path.as_posix()}"
@@ -153,6 +153,13 @@ class TaskTuple:
 class TaskResult:
     result: subprocess.CompletedProcess
     device_id: int = None
+
+
+@dataclass
+class parsed_disptach_benchmark_result:
+    benchmark_time: float
+    candidate_mlir: Path
+    candidate_spec_mlir: Path
 
 
 @dataclass
@@ -325,6 +332,8 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     return parser.parse_args()
+
+
 
 
 def setup_logging(args: argparse.Namespace, path_config: PathConfig):
@@ -722,7 +731,7 @@ def parse_dispatch_benchmark_results(
     path_config: PathConfig,
     benchmark_results: list[TaskResult],
     candidate_trackers: CandidateTracker,
-) -> list[tuple[str, str, str]]:
+) -> tuple[list[parsed_disptach_benchmark_result], list[str]]:
     benchmark_result_configs = []
     dump_list = []
 
@@ -735,9 +744,9 @@ def parse_dispatch_benchmark_results(
 
         benchmark_result_configs.append(
             (
-                str(res.get_benchmark_time()),
+                parsed_disptach_benchmark_result(res.get_benchmark_time(),
                 path_config.get_candidate_mlir_path(res.get_candidate_id()),
-                path_config.get_candidate_spec_mlir_path(res.get_candidate_id()),
+                path_config.get_candidate_spec_mlir_path(res.get_candidate_id()))
             )
         )
     return benchmark_result_configs, dump_list
@@ -793,14 +802,14 @@ def benchmark_compiled_candidates(
     )
 
     # Select top candidates
-    best_results = sorted(parsed_benchmark_results, key=lambda x: float(x[0]))[
+    best_results = sorted(parsed_benchmark_results, key=lambda x: float(x.benchmark_time))[
         : args.num_unet_candidates
     ]
     logging.critical(f"Selected top[{len(best_results)}]")
 
     with path_config.dispatch_benchmark_top_result_log.open("w") as log_file:
         for result in best_results:
-            log_file.write(f"{result[0]}\t{result[1]}\t{result[2]}\n")
+            log_file.write(f"{result.benchmark_time}\t{result.candidate_mlir.as_posix()}\t{result.candidate_spec_mlir.as_posix()}\n")
 
 
 def compile_unet_candidates(
