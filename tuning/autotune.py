@@ -895,7 +895,7 @@ def compile_unet_candidates(
 
     # Check if unet candidate produces tbe same .vmfb
     collision_detected, unique_unet_candidates_indexes = collision_handler(
-        unet_candidates_indexes
+        unet_candidates_hash_list
     )
 
     if collision_detected:
