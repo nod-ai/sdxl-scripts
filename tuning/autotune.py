@@ -151,7 +151,7 @@ class TaskTuple:
 @dataclass
 class TaskResult:
     result: subprocess.CompletedProcess
-    device_id: int = None
+    device_id: Optional[int] = None
 
 
 @dataclass
@@ -203,7 +203,8 @@ class UnetBenchmarkResult:
     def get_candidate_id(self) -> Optional[int]:
         if self.get_unet_candidate_path():
             try:
-                return int(self.get_unet_candidate_path().split("_")[-1].split(".")[0])
+                path_str = self.get_unet_candidate_path()
+                return int(path_str.split("_")[-1].split(".")[0]) if path_str else None
             except ValueError:
                 return None
         return None
@@ -224,7 +225,7 @@ class UnetBenchmarkResult:
         except ValueError:
             return None
 
-    def get_calibrated_result_str(self, change: float) -> str:
+    def get_calibrated_result_str(self, change: float) -> Optional[str]:
         if self.result_str is None:
             return self.result_str
 
@@ -342,6 +343,8 @@ def setup_logging(args: argparse.Namespace, path_config: PathConfig):
     path_config._set_log_file_path(log_file_path)
 
     # Create file handler for logging to a file
+    if not path_config.log_file_path:
+        raise
     file_handler = logging.FileHandler(path_config.log_file_path)
     file_handler.setLevel(logging.DEBUG)
 
@@ -441,7 +444,7 @@ def create_worker_context_queue(device_ids: list[int]) -> queue.Queue[tuple[int,
 
 def run_command(
     args: argparse.Namespace, command: list[str], check: bool = True
-) -> subprocess.CompletedProcess:
+) -> Optional[subprocess.CompletedProcess]:
     """Run a shell command and log the output.
 
     Args:
@@ -484,9 +487,11 @@ def run_command_wrapper(task_tuple: TaskTuple) -> TaskResult:
         # worker add its device_id to the end of command list
         task_tuple.command.append(str(device_id))
 
-    task_result = TaskResult(
-        run_command(task_tuple.args, task_tuple.command, task_tuple.check)
-    )
+    res = run_command(task_tuple.args, task_tuple.command, task_tuple.check)
+    if not res:
+        raise
+
+    task_result = TaskResult(res)
     task_result.device_id = device_id if task_tuple.result_need_device_id else None
 
     time.sleep(task_tuple.cooling_time)
@@ -500,9 +505,11 @@ def multiprocess_progress_wrapper(
     function: Callable,
     initializer: Optional[Callable] = None,
     initializer_inputs: Optional[Iterable[Any]] = None,
-) -> list[subprocess.CompletedProcess]:
+) -> list[Any]:
     """Wrapper of multiprocessing pool and progress bar"""
     results = []
+    initializer_inputs = initializer_inputs or ()
+
     # Create a multiprocessing pool
     with multiprocessing.Pool(
         num_worker, initializer, initializer_inputs
@@ -949,8 +956,8 @@ def group_benchmark_results_by_device_id(
 def parse_grouped_benchmark_results(
     path_config: PathConfig,
     grouped_benchmark_results: list[list[TaskResult]],
-    candidate_trackers: CandidateTracker,
-) -> list[str]:
+    candidate_trackers: list[CandidateTracker],
+) -> Optional[list[str]]:
     """Update candidate_trackers and collect strings"""
     dump_list = []
 
@@ -989,7 +996,7 @@ def benchmark_unet(
     path_config: PathConfig,
     unet_candidates: list[int],
     candidate_trackers: list[CandidateTracker],
-) -> Path:
+):
     """Benchmark U-Net candidate files and log the results."""
     logging.info("benchmark_unet()")
 
@@ -1063,7 +1070,7 @@ def autotune(args: argparse.Namespace) -> None:
     path_config = PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
 
-    candidate_trackers = []
+    candidate_trackers: list[CandidateTracker] = []
     stop_after_phase: str = args.stop_after
 
     print("Setup logging")
