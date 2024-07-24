@@ -60,8 +60,8 @@ def test_find_collisions():
 
 
 def test_find_no_collisions():
-    input = [(1, "abc"), (2, "abc"), (3, "abc")]
-    assert autotune.find_collisions(input) == (True, [("abc", [1, 2, 3])])
+    input = [(1, "abc"), (2, "def"), (3, "hig")]
+    assert autotune.find_collisions(input) == (False, [("abc", [1]), ("def", [2]), ("hig", [3])])
 
 
 def test_UnetBenchmarkResult_get_calibrated_result_str():
