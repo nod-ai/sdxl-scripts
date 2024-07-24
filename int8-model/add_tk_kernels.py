@@ -7,7 +7,7 @@ import os
 original_mlir = "base_ir/punet_07_18.mlir"
 base_mlir = 'tmp/punet_flow.mlir'
 new_mlir = 'tmp/punet_tk.mlir'
-kernels = glob.glob("tk_kernels/*")
+kernels = glob.glob("tk_kernels/bs1/*")
 
 # BUG: Dialect resources not copied when compiling from flow. So need to add manually for now.
 print("Capturing dialect resources ...")
@@ -34,20 +34,24 @@ new_base = []
 for line in base:
     for kernel in kernels:
         suffix = kernel.split('.')[0].split('_')[-1]
-        bias_explicit = False
-        if 'bias' in suffix:
-            bias_explicit = True
-            kernel_args = 3 + int(suffix[4:])
-            suffix = kernel.split('.')[0].split('_')[-2]
+        # Uncomment/rework when a kernel with bias comes in
+        # bias_explicit = False
+        # if 'bias' in suffix:
+        #     bias_explicit = True
+        #     kernel_args = 3 + int(suffix[4:])
+        #     suffix = kernel.split('.')[0].split('_')[-2]
         B, M, N, K = suffix.split('x')
         old_kernel = f'matmul_like_{B}x{M}x{N}x{K}'
         if not old_kernel in line:
             continue
         if old_kernel in line and 'func.func' in line:
-            if bias_explicit:
-                num_args = line.count('arg')
-                if num_args != kernel_args:
-                    continue
+            num_args = line.count('arg')
+            with open(kernel, 'r') as f:
+                data = f.readlines()
+            idx_with_kernel_args = [idx for idx, s in enumerate(data) if 'func.func' in s][0]
+            kernel_args = data[idx_with_kernel_args].count('arg')
+            if num_args != kernel_args:
+                continue
             kernel_map[kernel] = line.strip().split(' ')[1][1:-7]
             prefix_map[kernel] = kernel_map[kernel].split(old_kernel)[0][:-1]
         if old_kernel in line and 'flow.dispatch' in line and not 'func.func' in line:
