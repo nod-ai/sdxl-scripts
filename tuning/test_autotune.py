@@ -59,27 +59,27 @@ def test_find_collisions():
     assert autotune.find_collisions(input) == (True, [("abc", [1, 3]), ("def", [2])])
 
 
-def test_UnetBenchmarkResult_calibrated_output_str():
+def test_UnetBenchmarkResult_get_calibrated_result_str():
     baseline_time = 423
     res_time = 304
-    result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {res_time} ms	    305 ms	      5 items_per_second=1.520000/s"
+    result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {float(res_time)} ms	    305 ms	      5 items_per_second=1.520000/s"
     change = (res_time - baseline_time) / baseline_time
-    output_str = autotune.UnetBenchmarkResult(result_str).calibrated_output_str(change)
-    expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median            {res_time} ms (-28.132%)         305 ms            5 items_per_second=1.520000/s"
+    output_str = autotune.UnetBenchmarkResult(result_str).get_calibrated_result_str(change)
+    expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median\t    {float(res_time)} ms (-28.132%)\t    305 ms\t      5 items_per_second=1.520000/s"
     assert output_str == expect_str
 
     baseline_time = 218
     res_time = 218
-    result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {res_time} ms	    305 ms	      5 items_per_second=1.520000/s"
+    result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {float(res_time)} ms	    305 ms	      5 items_per_second=1.520000/s"
     change = (res_time - baseline_time) / baseline_time
-    output_str = autotune.UnetBenchmarkResult(result_str).calibrated_output_str(change)
-    expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median            {res_time} ms (+0.000%)         305 ms            5 items_per_second=1.520000/s"
+    output_str = autotune.UnetBenchmarkResult(result_str).get_calibrated_result_str(change)
+    expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median\t    {float(res_time)} ms (+0.000%)\t    305 ms\t      5 items_per_second=1.520000/s"
     assert output_str == expect_str
 
     baseline_time = 123
     res_time = 345
-    result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {res_time} ms	    305 ms	      5 items_per_second=1.520000/s"
+    result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {float(res_time)} ms	    305 ms	      5 items_per_second=1.520000/s"
     change = (res_time - baseline_time) / baseline_time
-    output_str = autotune.UnetBenchmarkResult(result_str).calibrated_output_str(change)
-    expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median            {res_time} ms (+180.488%)         305 ms            5 items_per_second=1.520000/s"
+    output_str = autotune.UnetBenchmarkResult(result_str).get_calibrated_result_str(change)
+    expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median\t    {float(res_time)} ms (+180.488%)\t    305 ms\t      5 items_per_second=1.520000/s"
     assert output_str == expect_str
