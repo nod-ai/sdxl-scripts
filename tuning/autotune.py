@@ -47,6 +47,7 @@ class CandidateTracker:
     configuration: Optional[tune.Configuration] = None
     compilation_successful: Optional[bool] = None
     compiled_vmfb_path: Optional[Path] = None
+    compiled_vmfb_hash: Optional[str] = None
     first_benchmark_time: Optional[float] = None
     first_benchmark_device_id: Optional[int] = None
     unet_candidate_path: Optional[Path] = None
@@ -669,6 +670,24 @@ def generate_candidates(
     return candidates
 
 
+def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, list[int]]:
+    """If a collision is found, generate a list of new indexes. If no collision, `unique_indexes = []`"""
+    # Check if candidate produces tbe same .vmfb
+    collision_detected, hash_list = find_collisions(index_hash_list)
+    unique_indexes = []
+    if not collision_detected:
+        return collision_detected, unique_indexes
+
+    # If a collision is detected, select the first one from the collided list
+    logging.warning("Collisions detected")
+    for hash_val, indices in hash_list:
+        if len(indices) != 1:
+            logging.warning(f"Hash value '{hash_val}' collided at candidate {indices}.")
+        unique_indexes.append(indices[0])
+
+    return collision_detected, unique_indexes
+
+
 def compile_candidates(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -716,11 +735,15 @@ def compile_candidates(
         index = int(failed_file.stem)
         candidate_trackers[index].compilation_successful = False
     compiled_candidates = []
+    compiled_candidates_hash_list = []
     for compiled_file in compiled_files:
         index = int(compiled_file.stem)
         compiled_candidates.append(index)
         candidate_trackers[index].compilation_successful = True
         candidate_trackers[index].compiled_vmfb_path = compiled_file
+        hash_val = calculate_md5(candidate_trackers[index].compiled_vmfb_path)
+        candidate_trackers[index].compiled_vmfb_hash = hash_val
+        compiled_candidates_hash_list.append((index, hash_val))
 
     handle_error(
         condition=(good == 0), msg="Failed to compile all candidate .mlir files"
@@ -731,7 +754,13 @@ def compile_candidates(
         level=logging.WARNING,
     )
 
-    return compiled_candidates
+    collision_detected, unique_indexes = collision_handler(
+        compiled_candidates_hash_list
+    )
+    if collision_detected:
+        logging.critical(f"Remains [{len(unique_indexes)}] unique candidate indexes")
+
+    return compiled_candidates if not collision_detected else unique_indexes
 
 
 def parse_dispatch_benchmark_results(
@@ -865,16 +894,14 @@ def compile_unet_candidates(
         unet_candidates_indexes.append(index)
 
     # Check if unet candidate produces tbe same .vmfb
-    collision_detected, hash_list = find_collisions(unet_candidates_hash_list)
+    collision_detected, unique_unet_candidates_indexes = collision_handler(
+        unet_candidates_indexes
+    )
+
     if collision_detected:
-        unique_unet_candidates_indexes = []
-        logging.warning("Collisions detected")
-        for hash_val, indices in hash_list:
-            if len(indices) != 1:
-                logging.warning(
-                    f"Hash value '{hash_val}' collided at candidate {indices}."
-                )
-            unique_unet_candidates_indexes.append(indices[0])
+        logging.critical(
+            f"Remains [{len(unique_unet_candidates_indexes)}] unique candidate indexes"
+        )
 
     return (
         unique_unet_candidates_indexes
@@ -1087,9 +1114,7 @@ def autotune(args: argparse.Namespace) -> None:
     compiled_candidates = compile_candidates(
         args, path_config, candidates, candidate_trackers
     )
-    print(
-        f"Compiled [{len(compiled_candidates)}] files in {path_config.compiled_dir}\n"
-    )
+    print(f"Compiled files are stored in {path_config.compiled_dir}\n")
     if stop_after_phase == ExecutionPhases.compile_candidates:
         return
 
