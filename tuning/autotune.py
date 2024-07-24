@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Type, Optional, Callable, Iterable, Any
 import pickle
 from itertools import groupby
+import random
 
 """
 Sample Usage:
@@ -194,7 +195,7 @@ class DispatchBenchmarkResult:
             return float(self.get_tokens()[3])
         except ValueError:
             return None
-        
+
     def generate_sample_result(
         self, candidate_id: int = 0, mean_time: int | float = random.randint(100, 500)
     ) -> str:
@@ -847,7 +848,9 @@ def benchmark_compiled_candidates(
     logging.info("benchmark_top_candidates()")
 
     if args.dry_run:
-        benchmark_results = generate_dryrun_dispatch_benchmark_results(compiled_candidates)
+        benchmark_results = generate_dryrun_dispatch_benchmark_results(
+            compiled_candidates
+        )
     else:
         # Benchmarking dispatch candidates
         task_list = []
@@ -1132,7 +1135,9 @@ def benchmark_unet(
             initializer_inputs=(worker_context_queue,),
         )
         benchmark_results = sorted(benchmark_results, key=lambda br: br.device_id)
-        grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
+        grouped_benchmark_results = group_benchmark_results_by_device_id(
+            benchmark_results
+        )
 
         # Benchmarking baselines on each involved device
         worker_context_queue = create_worker_context_queue(args.devices)
