@@ -57,11 +57,15 @@ def test_sort_candidates_by_first_benchmark_times():
 def test_find_collisions():
     input = [(1, "abc"), (2, "def"), (3, "abc")]
     assert autotune.find_collisions(input) == (True, [("abc", [1, 3]), ("def", [2])])
-
-
-def test_find_no_collisions():
     input = [(1, "abc"), (2, "def"), (3, "hig")]
     assert autotune.find_collisions(input) == (False, [("abc", [1]), ("def", [2]), ("hig", [3])])
+
+
+def test_collision_handler():
+    input = [(1, "abc"), (2, "def"), (3, "abc"), (4, "def"), (5, "hig")]
+    assert autotune.collision_handler(input) == (True, [1, 2, 5])
+    input = [(1, "abc"), (2, "def"), (3, "hig")]
+    assert autotune.collision_handler(input) == (False, [])
 
 
 def test_UnetBenchmarkResult_get_calibrated_result_str():

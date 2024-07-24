@@ -671,6 +671,7 @@ def generate_candidates(
 
 
 def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, list[int]]:
+    """If find collision, generate a list of new indexes. If no collision, unique_indexes = []"""
     # Check if candidate produces tbe same .vmfb
     collision_detected, hash_list = find_collisions(index_hash_list)
     unique_indexes = []
@@ -678,7 +679,6 @@ def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, lis
         return collision_detected, unique_indexes
 
     # if collision detected, select the first one from the collided list
-    unique_indexes = []
     logging.warning("Collisions detected")
     for hash_val, indices in hash_list:
         if len(indices) != 1:
