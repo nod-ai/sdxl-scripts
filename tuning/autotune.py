@@ -677,14 +677,12 @@ def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, lis
     if not collision_detected:
         return collision_detected, unique_indexes
 
-    # if collision detected, select the first one from the collided list 
+    # if collision detected, select the first one from the collided list
     unique_indexes = []
     logging.warning("Collisions detected")
     for hash_val, indices in hash_list:
         if len(indices) != 1:
-            logging.warning(
-                f"Hash value '{hash_val}' collided at candidate {indices}."
-            )
+            logging.warning(f"Hash value '{hash_val}' collided at candidate {indices}.")
         unique_indexes.append(indices[0])
 
     return collision_detected, unique_indexes
@@ -756,11 +754,11 @@ def compile_candidates(
         level=logging.WARNING,
     )
 
-    collision_detected, unique_indexes = collision_handler(compiled_candidates_hash_list)
+    collision_detected, unique_indexes = collision_handler(
+        compiled_candidates_hash_list
+    )
     if collision_detected:
-        logging.critical(
-            f"Remains [{len(unique_indexes)}] unique candidate indexes"
-        )
+        logging.critical(f"Remains [{len(unique_indexes)}] unique candidate indexes")
 
     return compiled_candidates if not collision_detected else unique_indexes
 
@@ -896,7 +894,9 @@ def compile_unet_candidates(
         unet_candidates_indexes.append(index)
 
     # Check if unet candidate produces tbe same .vmfb
-    collision_detected, unique_unet_candidates_indexes = collision_handler(unet_candidates_indexes)
+    collision_detected, unique_unet_candidates_indexes = collision_handler(
+        unet_candidates_indexes
+    )
 
     if collision_detected:
         logging.critical(
@@ -1114,9 +1114,7 @@ def autotune(args: argparse.Namespace) -> None:
     compiled_candidates = compile_candidates(
         args, path_config, candidates, candidate_trackers
     )
-    print(
-        f"Compiled files are stored in {path_config.compiled_dir}\n"
-    )
+    print(f"Compiled files are stored in {path_config.compiled_dir}\n")
     if stop_after_phase == ExecutionPhases.compile_candidates:
         return
 
