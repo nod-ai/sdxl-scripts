@@ -156,7 +156,7 @@ class TaskResult:
 
 @dataclass
 class ParsedDisptachBenchmarkResult:
-    benchmark_time: float
+    benchmark_time_in_seconds: float
     candidate_mlir: Path
     candidate_spec_mlir: Path
 
@@ -731,7 +731,7 @@ def parse_dispatch_benchmark_results(
     path_config: PathConfig,
     benchmark_results: list[TaskResult],
     candidate_trackers: CandidateTracker,
-) -> tuple[list[parsed_disptach_benchmark_result], list[str]]:
+) -> tuple[list[ParsedDisptachBenchmarkResult], list[str]]:
     benchmark_result_configs = []
     dump_list = []
 
@@ -746,7 +746,7 @@ def parse_dispatch_benchmark_results(
 
         benchmark_result_configs.append(
             (
-                parsed_disptach_benchmark_result(
+                ParsedDisptachBenchmarkResult(
                     res.get_benchmark_time(),
                     path_config.get_candidate_mlir_path(res.get_candidate_id()),
                     path_config.get_candidate_spec_mlir_path(res.get_candidate_id()),
@@ -807,14 +807,14 @@ def benchmark_compiled_candidates(
 
     # Select top candidates
     best_results = sorted(
-        parsed_benchmark_results, key=lambda x: float(x.benchmark_time)
+        parsed_benchmark_results, key=lambda x: float(x.benchmark_time_in_seconds)
     )[: args.num_unet_candidates]
     logging.critical(f"Selected top[{len(best_results)}]")
 
     with path_config.dispatch_benchmark_top_result_log.open("w") as log_file:
         for result in best_results:
             log_file.write(
-                f"{result.benchmark_time}\t{result.candidate_mlir.as_posix()}\t{result.candidate_spec_mlir.as_posix()}\n"
+                f"{result.benchmark_time_in_seconds}\t{result.candidate_mlir.as_posix()}\t{result.candidate_spec_mlir.as_posix()}\n"
             )
 
 

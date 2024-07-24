@@ -59,6 +59,11 @@ def test_find_collisions():
     assert autotune.find_collisions(input) == (True, [("abc", [1, 3]), ("def", [2])])
 
 
+def test_find_no_collisions():
+    input = [(1, "abc"), (2, "abc"), (3, "abc")]
+    assert autotune.find_collisions(input) == (True, [("abc", [1, 2, 3])])
+
+
 def test_UnetBenchmarkResult_get_calibrated_result_str():
     baseline_time = 423
     res_time = 304
@@ -102,8 +107,8 @@ def test_parse_dispatch_benchmark_results():
 
     def generate_parsed_disptach_benchmark_result(
         time: float, i: int
-    ) -> autotune.parsed_disptach_benchmark_result:
-        return autotune.parsed_disptach_benchmark_result(
+    ) -> autotune.ParsedDisptachBenchmarkResult:
+        return autotune.ParsedDisptachBenchmarkResult(
             time,
             path_config.get_candidate_mlir_path(i),
             path_config.get_candidate_spec_mlir_path(i),
