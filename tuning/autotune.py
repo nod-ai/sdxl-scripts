@@ -208,10 +208,13 @@ class UnetBenchmarkResult:
                 return None
         return None
 
-    def get_device_id(self) -> Optional[str]:
+    def get_device_id(self) -> Optional[int]:
         if len(self.get_tokens()) < 5:
             return None
-        return self.get_tokens()[4]
+        try:
+            return int(self.get_tokens()[4])
+        except ValueError:
+            return None
 
     def get_benchmark_time(self) -> Optional[int | float]:
         if len(self.get_tokens()) < 7:
@@ -1050,7 +1053,7 @@ def benchmark_unet(
             log_file.write(dump_str)
 
 
-def autotune(args: argparse.Namespace = parse_arguments()) -> None:
+def autotune(args: argparse.Namespace) -> None:
     path_config = PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1116,7 +1119,7 @@ def autotune(args: argparse.Namespace = parse_arguments()) -> None:
 
 
 def main():
-    autotune()
+    autotune(parse_arguments())
 
 
 if __name__ == "__main__":
