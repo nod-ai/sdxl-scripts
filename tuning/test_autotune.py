@@ -83,3 +83,38 @@ def test_UnetBenchmarkResult_get_calibrated_result_str():
     output_str = autotune.UnetBenchmarkResult(result_str).get_calibrated_result_str(change)
     expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median\t    {float(res_time)} ms (+180.488%)\t    305 ms\t      5 items_per_second=1.520000/s"
     assert output_str == expect_str
+
+def test_parse_dispatch_benchmark_results():
+    def generate_res(stdout: str) -> autotune.TaskResult:
+        result = autotune.subprocess.CompletedProcess(
+            args=[""],
+            stdout=stdout,
+            returncode=0,
+        )
+        return autotune.TaskResult(result)
+
+    def generate_parsed_disptach_benchmark_result(time: float, i: int) -> autotune.parsed_disptach_benchmark_result:
+        return autotune.parsed_disptach_benchmark_result(time, path_config.get_candidate_mlir_path(i), path_config.get_candidate_spec_mlir_path(i))
+
+    test_list = [(0, 369.0), (1, 301.0), (2, 457.0), (3, 322.0), (4, 479.0)]
+    random_order = [2, 0, 3, 1, 4]
+    total = 5
+    
+    benchmark_results = [generate_res(f"{test_list[i][0]}	Mean Time: {test_list[i][1]}") for i in random_order]
+
+    candidate_trackers = [autotune.CandidateTracker(i) for i in range(total)]
+    expect_candidate_trackers = [autotune.CandidateTracker(i) for i in range(total)]
+
+    for i in range(total):
+        expect_candidate_trackers[test_list[i][0]].first_benchmark_time = test_list[i][1]
+
+    path_config = autotune.PathConfig()
+
+    tmp = [generate_parsed_disptach_benchmark_result(t, i) for i, t in test_list]
+    expect_parsed_results = [tmp[i] for i in random_order]
+    expect_dump_list = [f"{test_list[i][0]}	Mean Time: {test_list[i][1]}" for i in random_order]
+
+    parsed_results, dump_list = autotune.parse_dispatch_benchmark_results(path_config, benchmark_results, candidate_trackers)
+
+    assert parsed_results == expect_parsed_results
+    assert dump_list == expect_dump_list
