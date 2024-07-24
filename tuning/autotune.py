@@ -336,8 +336,6 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-
-
 def setup_logging(args: argparse.Namespace, path_config: PathConfig):
     log_file_name = f"autotune_{args.mode}_{args.input_file.stem}.log"
     log_file_path = path_config.base_dir / log_file_name
@@ -741,14 +739,18 @@ def parse_dispatch_benchmark_results(
         if not benchmark_result.result.stdout:
             continue
         res = DispatchBenchmarkResult(benchmark_result.result.stdout)
-        candidate_trackers[res.get_candidate_id()].first_benchmark_time = res.get_benchmark_time()
+        candidate_trackers[
+            res.get_candidate_id()
+        ].first_benchmark_time = res.get_benchmark_time()
         dump_list.append(res.result_str)
 
         benchmark_result_configs.append(
             (
-                parsed_disptach_benchmark_result(res.get_benchmark_time(),
-                path_config.get_candidate_mlir_path(res.get_candidate_id()),
-                path_config.get_candidate_spec_mlir_path(res.get_candidate_id()))
+                parsed_disptach_benchmark_result(
+                    res.get_benchmark_time(),
+                    path_config.get_candidate_mlir_path(res.get_candidate_id()),
+                    path_config.get_candidate_spec_mlir_path(res.get_candidate_id()),
+                )
             )
         )
     return benchmark_result_configs, dump_list
@@ -804,14 +806,16 @@ def benchmark_compiled_candidates(
     )
 
     # Select top candidates
-    best_results = sorted(parsed_benchmark_results, key=lambda x: float(x.benchmark_time))[
-        : args.num_unet_candidates
-    ]
+    best_results = sorted(
+        parsed_benchmark_results, key=lambda x: float(x.benchmark_time)
+    )[: args.num_unet_candidates]
     logging.critical(f"Selected top[{len(best_results)}]")
 
     with path_config.dispatch_benchmark_top_result_log.open("w") as log_file:
         for result in best_results:
-            log_file.write(f"{result.benchmark_time}\t{result.candidate_mlir.as_posix()}\t{result.candidate_spec_mlir.as_posix()}\n")
+            log_file.write(
+                f"{result.benchmark_time}\t{result.candidate_mlir.as_posix()}\t{result.candidate_spec_mlir.as_posix()}\n"
+            )
 
 
 def compile_unet_candidates(
@@ -962,7 +966,9 @@ def parse_grouped_benchmark_results(
             candidate_trackers[
                 res.get_candidate_id()
             ].unet_benchmark_time = res.get_benchmark_time()
-            candidate_trackers[res.get_candidate_id()].baseline_benchmark_time = baseline_time
+            candidate_trackers[
+                res.get_candidate_id()
+            ].baseline_benchmark_time = baseline_time
             candidate_trackers[
                 res.get_candidate_id()
             ].unet_benchmark_device_id = res.get_device_id()
