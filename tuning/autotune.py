@@ -155,7 +155,7 @@ class TaskResult:
 
 
 @dataclass
-class parsed_disptach_benchmark_result:
+class ParsedDisptachBenchmarkResult:
     benchmark_time: float
     candidate_mlir: Path
     candidate_spec_mlir: Path
