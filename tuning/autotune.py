@@ -678,7 +678,7 @@ def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, lis
     if not collision_detected:
         return collision_detected, unique_indexes
 
-    # if collision detected, select the first one from the collided list
+    # If a collision is detected, select the first one from the collided list
     logging.warning("Collisions detected")
     for hash_val, indices in hash_list:
         if len(indices) != 1:
