@@ -7,6 +7,7 @@
 
 #layout_16 = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>
 #layout = #iree_gpu.mma_layout<MFMA_F16_32x32x8_F32>
+#layout_fp8 = #iree_gpu.mma_layout<MFMA_F8E4M3FNUZ_16x16x32_F32>
 
 module attributes { transform.with_named_sequence } {
 //===----------------------------------------------------------------------===//
@@ -42,6 +43,8 @@ module attributes { transform.with_named_sequence } {
     %blocked_att, %wg_forall2 = transform.structured.fuse_into_containing_op %attention into %wg_forall : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
 
     transform.iree.populate_workgroup_count_region_using_num_threads_slice %wg_forall2 : (!transform.any_op) -> ()
+
+    transform.print %variant_op : !transform.any_op
 
     // Cleanup
     %attfunc = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
@@ -166,7 +169,7 @@ module attributes { transform.with_named_sequence } {
     // Apply chained matmul optimization.
     %func_9 = transform.apply_registered_pass "iree-amdgpu-prepare-chained-matmul" to %func_8 : (!transform.any_op) -> (!transform.any_op)
 
-    %intrinsic = transform.param.constant #layout -> !transform.any_param
+    %intrinsic = transform.param.constant #layout_fp8 -> !transform.any_param
 
     %mma = transform.structured.match ops{["vector.contract"]} in %variant_op :  (!transform.any_op) -> !transform.any_op
     %mma1, %mma2 = transform.split_handle %mma : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
@@ -224,7 +227,7 @@ module attributes { transform.with_named_sequence } {
   transform.named_sequence @match_attention(%attention: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
     transform.match.operation_name %attention ["iree_linalg_ext.attention"] : !transform.any_op
     %in0 = transform.get_operand %attention[0] : (!transform.any_op) -> !transform.any_value
-    transform.iree.match.cast_compatible_type %in0 = tensor<?x?x?x?xf16> : !transform.any_value
+    transform.iree.match.cast_compatible_type %in0 = tensor<?x?x?x?xf8E4M3FNUZ> : !transform.any_value
     transform.iree.match.dim_is_multiple_of %in0[3], 64 : !transform.any_value
     transform.yield %attention : !transform.any_op
   }
