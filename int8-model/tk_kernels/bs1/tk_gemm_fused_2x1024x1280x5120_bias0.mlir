@@ -16,7 +16,6 @@ module {
         %c2 = arith.constant 2 : index
         %c4 = arith.constant 4 : index
         %c3_i32 = arith.constant 3 : i32
-        %c1_i32 = arith.constant 1 : i32
         %c512_i32 = arith.constant 512 : i32
         %c256_i32 = arith.constant 256 : i32
         %c4_i32 = arith.constant 4 : i32
@@ -82,38 +81,38 @@ module {
         %28 = vector.load %0[%workgroup_id_2, %27, %12] : memref<2x1024x5120xi8, strided<[5242880, 5120, 1], offset: ?>>, vector<16xi8>
         %29 = arith.addi %10, %c112 : index
         %30 = vector.load %0[%workgroup_id_2, %29, %12] : memref<2x1024x5120xi8, strided<[5242880, 5120, 1], offset: ?>>, vector<16xi8>
-        %31 = arith.addi %25, %c32 : index
-        vector.store %17, %alloc_0[%31, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-        %32 = arith.addi %25, %c48 : index
-        vector.store %19, %alloc_0[%32, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-        %33 = stream.binding.subspan %arg1[%c0] : !stream.binding -> memref<1280x5120xi8, strided<[5120, 1], offset: ?>>
-        %34 = arith.remsi %4, %c16 : index
-        %35 = arith.muli %34, %c80 : index
-        %36 = arith.addi %7, %35 : index
-        %37 = arith.addi %36, %2 : index
-        %38 = arith.addi %37, %1 : index
-        %39 = vector.load %33[%38, %12] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
-        %40 = arith.addi %38, %c16 : index
-        %41 = vector.load %33[%40, %12] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
+        %31 = stream.binding.subspan %arg1[%c0] : !stream.binding -> memref<1280x5120xi8, strided<[5120, 1], offset: ?>>
+        %32 = arith.remsi %4, %c16 : index
+        %33 = arith.muli %32, %c80 : index
+        %34 = arith.addi %7, %33 : index
+        %35 = arith.addi %34, %2 : index
+        %36 = arith.addi %35, %1 : index
+        %37 = vector.load %31[%36, %12] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
+        %38 = arith.addi %36, %c16 : index
+        %39 = vector.load %31[%38, %12] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
+        %40 = arith.addi %25, %c32 : index
+        vector.store %17, %alloc_0[%40, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+        %41 = arith.addi %25, %c48 : index
+        vector.store %19, %alloc_0[%41, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
         %42 = arith.addi %25, %c64 : index
         vector.store %21, %alloc_0[%42, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
         %43 = arith.addi %25, %c80 : index
         vector.store %23, %alloc_0[%43, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-        %44 = arith.addi %38, %c32 : index
-        %45 = vector.load %33[%44, %12] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
-        %46 = arith.addi %38, %c48 : index
-        %47 = vector.load %33[%46, %12] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
-        %48 = arith.addi %25, %c96 : index
-        vector.store %28, %alloc_0[%48, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-        %49 = arith.addi %25, %c112 : index
-        vector.store %30, %alloc_0[%49, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-        %50 = arith.addi %38, %c64 : index
-        %51 = vector.load %33[%50, %12] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
-        vector.store %39, %alloc[%25, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-        vector.store %41, %alloc[%26, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-        vector.store %45, %alloc[%31, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-        vector.store %47, %alloc[%32, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-        vector.store %51, %alloc[%42, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+        %44 = arith.addi %36, %c32 : index
+        %45 = vector.load %31[%44, %12] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
+        %46 = arith.addi %36, %c48 : index
+        %47 = vector.load %31[%46, %12] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
+        %48 = arith.addi %36, %c64 : index
+        %49 = vector.load %31[%48, %12] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
+        %50 = arith.addi %25, %c96 : index
+        vector.store %28, %alloc_0[%50, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+        %51 = arith.addi %25, %c112 : index
+        vector.store %30, %alloc_0[%51, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+        vector.store %37, %alloc[%25, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+        vector.store %39, %alloc[%26, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+        vector.store %45, %alloc[%40, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+        vector.store %47, %alloc[%41, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+        vector.store %49, %alloc[%42, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
         amdgpu.lds_barrier
         amdgpu.lds_barrier
         %52 = arith.divsi %thread_id_x, %c64 : index
@@ -222,84 +221,81 @@ module {
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c256_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           %541 = vector.load %0[%workgroup_id_2, %16, %530] : memref<2x1024x5120xi8, strided<[5242880, 5120, 1], offset: ?>>, vector<16xi8>
           %542 = vector.load %0[%workgroup_id_2, %18, %530] : memref<2x1024x5120xi8, strided<[5242880, 5120, 1], offset: ?>>, vector<16xi8>
-          %543 = amdgpu.mfma %arg57 * %arg45 + %533 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %544 = amdgpu.mfma %arg55 * %arg34 + %534 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %545 = amdgpu.mfma %arg37 * %arg23 + %535 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %546 = amdgpu.mfma %arg19 * %arg12 + %536 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %547 = vector.load %alloc_0[%54, %74] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
-          %548 = vector.load %alloc_0[%54, %77] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
-          %549 = vector.load %alloc_0[%54, %80] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
-          %550 = vector.load %alloc_0[%54, %58] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
-          llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c32_i32, %c2_i32, %c0_i32) : (i32, i32, i32) -> ()
+          %543 = vector.load %0[%workgroup_id_2, %20, %530] : memref<2x1024x5120xi8, strided<[5242880, 5120, 1], offset: ?>>, vector<16xi8>
+          %544 = vector.load %0[%workgroup_id_2, %22, %530] : memref<2x1024x5120xi8, strided<[5242880, 5120, 1], offset: ?>>, vector<16xi8>
+          %545 = amdgpu.mfma %arg57 * %arg45 + %533 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %546 = amdgpu.mfma %arg55 * %arg34 + %534 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %547 = amdgpu.mfma %arg37 * %arg23 + %535 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %548 = amdgpu.mfma %arg19 * %arg12 + %536 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %549 = vector.load %alloc_0[%54, %74] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
+          %550 = vector.load %alloc_0[%54, %77] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
+          %551 = vector.load %alloc_0[%54, %80] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
+          %552 = vector.load %alloc_0[%54, %58] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
+          llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c32_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c256_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
-          %551 = vector.load %0[%workgroup_id_2, %20, %530] : memref<2x1024x5120xi8, strided<[5242880, 5120, 1], offset: ?>>, vector<16xi8>
-          %552 = vector.load %0[%workgroup_id_2, %22, %530] : memref<2x1024x5120xi8, strided<[5242880, 5120, 1], offset: ?>>, vector<16xi8>
-          %553 = amdgpu.mfma %arg56 * %arg35 + %544 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %554 = amdgpu.mfma %arg46 * %arg24 + %545 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %555 = amdgpu.mfma %arg28 * %arg13 + %546 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %556 = amdgpu.mfma %550 * %arg47 + %arg62 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c32_i32, %c2_i32, %c0_i32) : (i32, i32, i32) -> ()
+          %553 = amdgpu.mfma %arg56 * %arg35 + %546 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %554 = amdgpu.mfma %arg46 * %arg24 + %547 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %555 = amdgpu.mfma %arg28 * %arg13 + %548 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %556 = amdgpu.mfma %552 * %arg47 + %arg62 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           amdgpu.lds_barrier
           vector.store %531, %alloc_0[%25, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
           vector.store %532, %alloc_0[%26, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
           %557 = vector.load %0[%workgroup_id_2, %27, %530] : memref<2x1024x5120xi8, strided<[5242880, 5120, 1], offset: ?>>, vector<16xi8>
           %558 = vector.load %0[%workgroup_id_2, %29, %530] : memref<2x1024x5120xi8, strided<[5242880, 5120, 1], offset: ?>>, vector<16xi8>
-          %559 = amdgpu.mfma %arg57 * %arg36 + %553 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %560 = amdgpu.mfma %arg55 * %arg25 + %554 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %561 = amdgpu.mfma %arg37 * %arg14 + %555 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %562 = amdgpu.mfma %549 * %arg48 + %556 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %559 = vector.load %31[%36, %530] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
+          %560 = vector.load %31[%38, %530] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
+          %561 = amdgpu.mfma %arg57 * %arg36 + %553 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %562 = amdgpu.mfma %arg55 * %arg25 + %554 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %563 = amdgpu.mfma %arg37 * %arg14 + %555 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %564 = amdgpu.mfma %551 * %arg48 + %556 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c512_i32, %c2_i32, %c0_i32) : (i32, i32, i32) -> ()
-          llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c32_i32, %c2_i32, %c0_i32) : (i32, i32, i32) -> ()
+          llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c32_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
-          vector.store %541, %alloc_0[%31, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-          vector.store %542, %alloc_0[%32, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-          %563 = vector.load %33[%38, %530] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
-          %564 = vector.load %33[%40, %530] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
-          %565 = amdgpu.mfma %arg56 * %arg26 + %560 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %566 = amdgpu.mfma %arg46 * %arg15 + %561 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %567 = amdgpu.mfma %548 * %arg49 + %562 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %568 = amdgpu.mfma %550 * %arg38 + %arg61 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          vector.store %541, %alloc_0[%40, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+          vector.store %542, %alloc_0[%41, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+          %565 = amdgpu.mfma %arg56 * %arg26 + %562 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %566 = amdgpu.mfma %arg46 * %arg15 + %563 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %567 = amdgpu.mfma %550 * %arg49 + %564 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %568 = amdgpu.mfma %552 * %arg38 + %arg61 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c512_i32, %c2_i32, %c0_i32) : (i32, i32, i32) -> ()
-          llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c32_i32, %c2_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
-          vector.store %551, %alloc_0[%42, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-          vector.store %552, %alloc_0[%43, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-          %569 = vector.load %33[%44, %530] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
-          %570 = vector.load %33[%46, %530] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
-          %571 = amdgpu.mfma %arg57 * %arg27 + %565 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %572 = amdgpu.mfma %arg55 * %arg16 + %566 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %573 = amdgpu.mfma %547 * %arg50 + %567 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %574 = amdgpu.mfma %549 * %arg39 + %568 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          vector.store %543, %alloc_0[%42, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+          vector.store %544, %alloc_0[%43, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+          %569 = vector.load %31[%44, %530] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
+          %570 = vector.load %31[%46, %530] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
+          %571 = vector.load %31[%48, %530] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
+          %572 = amdgpu.mfma %arg57 * %arg27 + %565 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %573 = amdgpu.mfma %arg55 * %arg16 + %566 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %574 = amdgpu.mfma %549 * %arg50 + %567 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %575 = amdgpu.mfma %551 * %arg39 + %568 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c512_i32, %c2_i32, %c0_i32) : (i32, i32, i32) -> ()
-          llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c32_i32, %c2_i32, %c0_i32) : (i32, i32, i32) -> ()
+          llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c32_i32, %c3_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
-          vector.store %557, %alloc_0[%48, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-          vector.store %558, %alloc_0[%49, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-          %575 = vector.load %33[%50, %530] : memref<1280x5120xi8, strided<[5120, 1], offset: ?>>, vector<16xi8>
-          %576 = amdgpu.mfma %arg56 * %arg17 + %572 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %577 = amdgpu.mfma %540 * %arg51 + %573 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %578 = amdgpu.mfma %548 * %arg40 + %574 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %579 = amdgpu.mfma %550 * %arg29 + %arg60 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          vector.store %557, %alloc_0[%50, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+          vector.store %558, %alloc_0[%51, %12] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+          %576 = amdgpu.mfma %arg56 * %arg17 + %573 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %577 = amdgpu.mfma %540 * %arg51 + %574 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %578 = amdgpu.mfma %550 * %arg40 + %575 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %579 = amdgpu.mfma %552 * %arg29 + %arg60 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c512_i32, %c2_i32, %c0_i32) : (i32, i32, i32) -> ()
-          llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c32_i32, %c1_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
-          vector.store %563, %alloc[%25, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-          vector.store %564, %alloc[%26, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+          vector.store %559, %alloc[%25, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+          vector.store %560, %alloc[%26, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
           %580 = amdgpu.mfma %arg57 * %arg18 + %576 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %581 = amdgpu.mfma %539 * %arg52 + %577 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %582 = amdgpu.mfma %547 * %arg41 + %578 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %583 = amdgpu.mfma %549 * %arg30 + %579 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %582 = amdgpu.mfma %549 * %arg41 + %578 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %583 = amdgpu.mfma %551 * %arg30 + %579 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c512_i32, %c2_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
-          vector.store %569, %alloc[%31, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-          vector.store %570, %alloc[%32, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
-          vector.store %575, %alloc[%42, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+          vector.store %569, %alloc[%40, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+          vector.store %570, %alloc[%41, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
+          vector.store %571, %alloc[%42, %12] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<16xi8>
           %584 = amdgpu.mfma %538 * %arg53 + %581 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %585 = amdgpu.mfma %540 * %arg42 + %582 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %586 = amdgpu.mfma %548 * %arg31 + %583 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %587 = amdgpu.mfma %550 * %arg20 + %arg59 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %586 = amdgpu.mfma %550 * %arg31 + %583 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %587 = amdgpu.mfma %552 * %arg20 + %arg59 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c512_i32, %c3_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           amdgpu.lds_barrier
@@ -310,8 +306,8 @@ module {
           %591 = vector.load %alloc[%63, %65] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
           %592 = amdgpu.mfma %537 * %arg54 + %584 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %593 = amdgpu.mfma %539 * %arg43 + %585 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %594 = amdgpu.mfma %547 * %arg32 + %586 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %595 = amdgpu.mfma %549 * %arg21 + %587 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %594 = amdgpu.mfma %549 * %arg32 + %586 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %595 = amdgpu.mfma %551 * %arg21 + %587 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c256_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           %596 = vector.load %alloc_0[%55, %68] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
@@ -320,8 +316,8 @@ module {
           %599 = vector.load %alloc[%63, %71] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
           %600 = amdgpu.mfma %538 * %arg44 + %593 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %601 = amdgpu.mfma %540 * %arg33 + %594 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %602 = amdgpu.mfma %548 * %arg22 + %595 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %603 = amdgpu.mfma %550 * %arg11 + %arg58 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %602 = amdgpu.mfma %550 * %arg22 + %595 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %603 = amdgpu.mfma %552 * %arg11 + %arg58 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c256_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           %604 = vector.load %alloc_0[%55, %74] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
@@ -330,8 +326,8 @@ module {
           %607 = vector.load %alloc[%63, %77] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
           %608 = amdgpu.mfma %537 * %arg45 + %600 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %609 = amdgpu.mfma %539 * %arg34 + %601 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %610 = amdgpu.mfma %547 * %arg23 + %602 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %611 = amdgpu.mfma %549 * %arg12 + %603 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %610 = amdgpu.mfma %549 * %arg23 + %602 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %611 = amdgpu.mfma %551 * %arg12 + %603 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c256_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           %612 = vector.load %alloc_0[%55, %80] : memref<128x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
@@ -340,7 +336,7 @@ module {
           %615 = vector.load %alloc[%63, %58] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
           %616 = amdgpu.mfma %538 * %arg35 + %609 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %617 = amdgpu.mfma %540 * %arg24 + %610 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %618 = amdgpu.mfma %548 * %arg13 + %611 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %618 = amdgpu.mfma %550 * %arg13 + %611 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c256_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c3_i32, %c0_i32) : (i32, i32, i32) -> ()
           %619 = amdgpu.mfma %614 * %615 + %arg64 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
@@ -350,7 +346,7 @@ module {
           %623 = vector.load %alloc[%86, %71] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
           %624 = amdgpu.mfma %537 * %arg36 + %616 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %625 = amdgpu.mfma %539 * %arg25 + %617 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %626 = amdgpu.mfma %547 * %arg14 + %618 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %626 = amdgpu.mfma %549 * %arg14 + %618 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c256_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           %627 = amdgpu.mfma %612 * %613 + %619 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
@@ -363,7 +359,7 @@ module {
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c8_i32, %c3_i32, %c0_i32) : (i32, i32, i32) -> ()
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c256_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           %634 = amdgpu.mfma %606 * %607 + %627 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %635 = amdgpu.mfma %614 * %631 + %543 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %635 = amdgpu.mfma %614 * %631 + %545 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %636 = vector.load %alloc[%98, %59] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
           %637 = vector.load %alloc[%98, %65] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
           %638 = vector.load %alloc[%98, %68] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
@@ -383,7 +379,7 @@ module {
           llvm.call_intrinsic "llvm.amdgcn.sched.group.barrier"(%c256_i32, %c4_i32, %c0_i32) : (i32, i32, i32) -> ()
           %649 = amdgpu.mfma %598 * %599 + %642 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %650 = amdgpu.mfma %606 * %629 + %643 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %651 = amdgpu.mfma %614 * %647 + %559 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %651 = amdgpu.mfma %614 * %647 + %561 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %652 = vector.load %alloc[%112, %59] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
           %653 = vector.load %alloc[%112, %65] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
           %654 = vector.load %alloc[%112, %68] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
@@ -403,7 +399,7 @@ module {
           %664 = amdgpu.mfma %590 * %591 + %657 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %665 = amdgpu.mfma %598 * %623 + %658 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %666 = amdgpu.mfma %606 * %645 + %659 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
-          %667 = amdgpu.mfma %614 * %663 + %571 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
+          %667 = amdgpu.mfma %614 * %663 + %572 {blocks = 1 : i32, k = 32 : i32, m = 16 : i32, n = 16 : i32} blgp =  none : vector<8xi8>, vector<8xi8>, vector<4xi32>
           %668 = vector.load %alloc[%62, %59] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
           %669 = vector.load %alloc[%62, %65] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
           %670 = vector.load %alloc[%62, %68] : memref<80x264xi8, #gpu.address_space<workgroup>>, vector<8xi8>
@@ -430,7 +426,7 @@ module {
         %146 = arith.addi %6, %53 : index
         %147 = arith.addi %146, %145 : index
         %148 = arith.addi %147, %c16 : index
-        %149 = arith.addi %11, %35 : index
+        %149 = arith.addi %11, %33 : index
         %150 = arith.addi %149, %61 : index
         %151 = arith.addi %150, %c64 : index
         %152 = vector.extract_strided_slice %140#57 {offsets = [0], sizes = [1], strides = [1]} : vector<4xi32> to vector<1xi32>
