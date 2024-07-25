@@ -34,12 +34,8 @@ new_base = []
 for line in base:
     for kernel in kernels:
         suffix = kernel.split('.')[0].split('_')[-1]
-        # Uncomment/rework when a kernel with bias comes in
-        # bias_explicit = False
-        # if 'bias' in suffix:
-        #     bias_explicit = True
-        #     kernel_args = 3 + int(suffix[4:])
-        #     suffix = kernel.split('.')[0].split('_')[-2]
+        if 'bias' in suffix:
+            suffix = kernel.split('.')[0].split('_')[-2]
         B, M, N, K = suffix.split('x')
         old_kernel = f'matmul_like_{B}x{M}x{N}x{K}'
         if not old_kernel in line:

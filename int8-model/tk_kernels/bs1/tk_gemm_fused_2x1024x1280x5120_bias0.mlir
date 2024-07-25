@@ -1,14 +1,14 @@
 #translation = #iree_codegen.translation_info<None workgroup_size = [256, 1, 1] subgroup_size = 64>
 module {
-  flow.executable private @tk_gemm_fused_2x1024x1280x5120 {
-    flow.executable.export public @tk_gemm_fused_2x1024x1280x5120 workgroups() -> (index, index, index) {
+  flow.executable private @tk_gemm_fused_2x1024x1280x5120_bias0 {
+    flow.executable.export public @tk_gemm_fused_2x1024x1280x5120_bias0 workgroups() -> (index, index, index) {
       %c8 = arith.constant 8 : index
       %c16 = arith.constant 16 : index
       %c2 = arith.constant 2 : index
       flow.return %c8, %c16, %c2 : index, index, index
     }
     builtin.module {
-      func.func @tk_gemm_fused_2x1024x1280x5120(%arg0: !stream.binding, %arg1: !stream.binding, %arg2: !stream.binding, %arg3: !stream.binding, %arg4: !stream.binding, %arg5: !stream.binding) attributes {translation_info = #translation} {
+      func.func @tk_gemm_fused_2x1024x1280x5120_bias0(%arg0: !stream.binding, %arg1: !stream.binding, %arg2: !stream.binding, %arg3: !stream.binding, %arg4: !stream.binding, %arg5: !stream.binding) attributes {translation_info = #translation} {
         %c19 = arith.constant 19 : index
         %c18 = arith.constant 18 : index
         %c17 = arith.constant 17 : index
