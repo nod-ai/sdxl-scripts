@@ -12,7 +12,7 @@ readonly NAME="$(basename "$INPUT" .mlir)"
 
 # printf "Benchmarking $(basename ${INPUT}) on ${DEVICE}\n"
 
-timeout 12s ./tools/iree-benchmark-module --device="hip://${DEVICE}" --module="${INPUT}" \
+timeout 16s ./tools/iree-benchmark-module --device="hip://${DEVICE}" --module="${INPUT}" \
   --hip_use_streams=true --hip_allow_inline_execution=true \
   --batch_size=1000 --benchmark_repetitions=3 > "${DIR}/benchmark_log_${DEVICE}.out" 2>&1 || (mv "$INPUT" "${DIR}/benchmark_failed" && exit 0)
 
