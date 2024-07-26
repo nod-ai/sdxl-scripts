@@ -1094,15 +1094,14 @@ def generate_dryrun_unet_benchmark_results(
 def dryrun_benchmark_unet(
     path_config: PathConfig,
     unet_candidates: list[int],
-    candidate_trackers: list[CandidateTracker],):
+    candidate_trackers: list[CandidateTracker],
+):
 
     unet_vmfb_paths = [path_config.unet_baseline_vmfb] + [
         candidate_trackers[i].unet_candidate_path for i in unet_candidates
     ]
     benchmark_results = generate_dryrun_unet_benchmark_results(unet_vmfb_paths)
-    grouped_benchmark_results = group_benchmark_results_by_device_id(
-        benchmark_results
-    )
+    grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
 
     # Update candidate_tracker and extract strings which will be stored in unet_result_log
     dump_list = parse_grouped_benchmark_results(
@@ -1153,9 +1152,7 @@ def benchmark_unet(
         initializer_inputs=(worker_context_queue,),
     )
     benchmark_results = sorted(benchmark_results, key=lambda br: br.device_id)
-    grouped_benchmark_results = group_benchmark_results_by_device_id(
-        benchmark_results
-    )
+    grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
 
     # Benchmarking baselines on each involved device
     worker_context_queue = create_worker_context_queue(args.devices)

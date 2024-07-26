@@ -58,7 +58,10 @@ def test_find_collisions():
     input = [(1, "abc"), (2, "def"), (3, "abc")]
     assert autotune.find_collisions(input) == (True, [("abc", [1, 3]), ("def", [2])])
     input = [(1, "abc"), (2, "def"), (3, "hig")]
-    assert autotune.find_collisions(input) == (False, [("abc", [1]), ("def", [2]), ("hig", [3])])
+    assert autotune.find_collisions(input) == (
+        False,
+        [("abc", [1]), ("def", [2]), ("hig", [3])],
+    )
 
 
 def test_collision_handler():
@@ -222,9 +225,11 @@ def test_generate_sample_result():
     res = autotune.DispatchBenchmarkResult()
     output = res.generate_sample_result(1, 3.14)
     expect = f"1\tMean Time: 3.1\n"
-    assert (output == expect), "DispatchBenchmarkResult generates invalid sample string"
+    assert output == expect, "DispatchBenchmarkResult generates invalid sample string"
 
     res = autotune.UnetBenchmarkResult()
-    output = res.generate_sample_result(1, "some_dir/tuning_2024_07_24_20_06/unet_candidate_60.vmfb.vmfb", 576.89)
+    output = res.generate_sample_result(
+        1, "some_dir/tuning_2024_07_24_20_06/unet_candidate_60.vmfb.vmfb", 576.89
+    )
     expect = f"Benchmarking: 1 on device some_dir/tuning_2024_07_24_20_06/unet_candidate_60.vmfb.vmfb\nBM_run_forward/process_time/real_time_median\t    577 ms\t    578 ms\t      5 items_per_second=2.884450/s\n\n"
-    assert (output == expect), "UnetBenchmarkResult generates invalid sample string"
+    assert output == expect, "UnetBenchmarkResult generates invalid sample string"
