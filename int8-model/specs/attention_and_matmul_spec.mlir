@@ -679,28 +679,10 @@ module attributes { transform.with_named_sequence } {
         {mma_schedule = #iree_gpu.mma_schedule<
            intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>,
            subgroup_m_count = 2, subgroup_n_count = 2>
-         , prefetch_shared_memory}>
+         , prefetch_shared_memory, reorder_workgroups = "transpose"}>
       > -> !transform.any_param
     transform.yield %generic, %config : !transform.any_op, !transform.any_param
   }
-
-  // transform.named_sequence @match_broadcast_rhs_mmt_Bx4096x5120x640(%generic: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
-  //   %mmt = transform.include @match_broadcast_rhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
-  //   %lhs = transform.get_operand %generic[0] : (!transform.any_op) -> !transform.any_value
-  //   %rhs = transform.get_operand %generic[1] : (!transform.any_op) -> !transform.any_value
-  //   transform.iree.match.cast_compatible_type %lhs = tensor<?x4096x640xi8> : !transform.any_value
-  //   transform.iree.match.cast_compatible_type %rhs = tensor<5120x640xi8> : !transform.any_value
-  //   %config = transform.param.constant #iree_codegen.compilation_info<
-  //     lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 128, 320, 128]]>,
-  //     translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
-  //       workgroup_size = [128, 4, 1] subgroup_size = 64,
-  //       {mma_schedule = #iree_gpu.mma_schedule<
-  //          intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>,
-  //          subgroup_m_count = 4, subgroup_n_count = 2>
-  //        , prefetch_shared_memory, reorder_workgroups = "transpose"}>
-  //     > -> !transform.any_param
-  //   transform.yield %generic, %config : !transform.any_op, !transform.any_param
-  // }
 
   transform.named_sequence @match_broadcast_rhs_mmt_Bx4096x5120x640(%generic: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
     %mmt = transform.include @match_broadcast_rhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
@@ -786,7 +768,7 @@ module attributes { transform.with_named_sequence } {
         {mma_schedule = #iree_gpu.mma_schedule<
             intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>,
             subgroup_m_count = 2, subgroup_n_count = 2>
-        , prefetch_shared_memory}>
+        , prefetch_shared_memory, reorder_workgroups = "transpose"}>
     > -> !transform.any_param
     transform.yield %cont, %config : !transform.any_op, !transform.any_param
   }
@@ -816,7 +798,7 @@ module attributes { transform.with_named_sequence } {
         {mma_schedule = #iree_gpu.mma_schedule<
             intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>,
             subgroup_m_count = 2, subgroup_n_count = 1>
-        , prefetch_shared_memory}>
+        , prefetch_shared_memory, reorder_workgroups = "transpose"}>
     > -> !transform.any_param
     transform.yield %cont, %config : !transform.any_op, !transform.any_param
   }
