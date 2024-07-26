@@ -925,7 +925,7 @@ module attributes { transform.with_named_sequence } {
         // Broadcast rhs mmt.
         // Carried over from SPX.
         , @match_broadcast_rhs_mmt_Bx1024x10240x1280 -> @apply_op_config
-        , @match_broadcast_rhs_mmt_Bx1024x1280x5120 -> @apply_op_config
+        // , @match_broadcast_rhs_mmt_Bx1024x1280x5120 -> @apply_op_config
         , @match_broadcast_rhs_mmt_Bx1024x1280x1280 -> @apply_op_config
         , @match_broadcast_rhs_mmt_Bx4096x5120x640 -> @apply_op_config
         , @match_broadcast_rhs_mmt_Bx4096x640x640 -> @apply_op_config
