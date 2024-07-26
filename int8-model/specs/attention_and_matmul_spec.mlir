@@ -928,8 +928,8 @@ module attributes { transform.with_named_sequence } {
         // , @match_broadcast_rhs_mmt_Bx1024x1280x5120 -> @apply_op_config
         , @match_broadcast_rhs_mmt_Bx1024x1280x1280 -> @apply_op_config
         , @match_broadcast_rhs_mmt_Bx4096x5120x640 -> @apply_op_config
-        , @match_broadcast_rhs_mmt_Bx4096x640x640 -> @apply_op_config
-        , @match_broadcast_rhs_mmt_Bx4096x640x2560 -> @apply_op_config
+        // , @match_broadcast_rhs_mmt_Bx4096x640x640 -> @apply_op_config
+        // , @match_broadcast_rhs_mmt_Bx4096x640x2560 -> @apply_op_config
 
         // Contration.
         , @match_matmul_like_Bx20x1024x64x1280_i8xi8xi32 -> @apply_op_config
