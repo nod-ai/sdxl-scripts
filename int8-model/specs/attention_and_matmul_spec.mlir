@@ -684,6 +684,24 @@ module attributes { transform.with_named_sequence } {
     transform.yield %generic, %config : !transform.any_op, !transform.any_param
   }
 
+  // transform.named_sequence @match_broadcast_rhs_mmt_Bx4096x5120x640(%generic: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+  //   %mmt = transform.include @match_broadcast_rhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
+  //   %lhs = transform.get_operand %generic[0] : (!transform.any_op) -> !transform.any_value
+  //   %rhs = transform.get_operand %generic[1] : (!transform.any_op) -> !transform.any_value
+  //   transform.iree.match.cast_compatible_type %lhs = tensor<?x4096x640xi8> : !transform.any_value
+  //   transform.iree.match.cast_compatible_type %rhs = tensor<5120x640xi8> : !transform.any_value
+  //   %config = transform.param.constant #iree_codegen.compilation_info<
+  //     lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 128, 320, 128]]>,
+  //     translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
+  //       workgroup_size = [128, 4, 1] subgroup_size = 64,
+  //       {mma_schedule = #iree_gpu.mma_schedule<
+  //          intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>,
+  //          subgroup_m_count = 4, subgroup_n_count = 2>
+  //        , prefetch_shared_memory, reorder_workgroups = "transpose"}>
+  //     > -> !transform.any_param
+  //   transform.yield %generic, %config : !transform.any_op, !transform.any_param
+  // }
+
   transform.named_sequence @match_broadcast_rhs_mmt_Bx4096x5120x640(%generic: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
     %mmt = transform.include @match_broadcast_rhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
     %lhs = transform.get_operand %generic[0] : (!transform.any_op) -> !transform.any_value
@@ -691,13 +709,13 @@ module attributes { transform.with_named_sequence } {
     transform.iree.match.cast_compatible_type %lhs = tensor<?x4096x640xi8> : !transform.any_value
     transform.iree.match.cast_compatible_type %rhs = tensor<5120x640xi8> : !transform.any_value
     %config = transform.param.constant #iree_codegen.compilation_info<
-      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 128, 320, 128]]>,
+      lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 256, 128, 64]]>,
       translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
-        workgroup_size = [128, 4, 1] subgroup_size = 64,
+        workgroup_size = [256, 2, 1] subgroup_size = 64,
         {mma_schedule = #iree_gpu.mma_schedule<
-           intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>,
-           subgroup_m_count = 4, subgroup_n_count = 2>
-         , prefetch_shared_memory, reorder_workgroups = "transpose"}>
+           intrinsic = #iree_gpu.mma_layout<MFMA_I8_32x32x16_I32>,
+           subgroup_m_count = 2, subgroup_n_count = 4>
+         , prefetch_shared_memory}>
       > -> !transform.any_param
     transform.yield %generic, %config : !transform.any_op, !transform.any_param
   }
@@ -944,20 +962,21 @@ module attributes { transform.with_named_sequence } {
         , @match_conv_2d_nhwc_hwcf_Bx32x32x1280x3x3x2560 -> @apply_op_config
         , @match_conv_2d_nhwc_hwcf_Bx64x64x1280x3x3x1280 -> @apply_op_config
         , @match_conv_2d_nhwc_hwcf_Bx128x128x640x3x3x640 -> @apply_op_config
+        , @match_conv_2d_nhwc_hwcf_Bx128x128x320x3x3x320 -> @apply_op_config
 
         // Carried over from SPX.
         , @match_conv_2d_nhwc_hwcf_Bx128x128x320x3x3x640 -> @apply_op_config
         , @match_conv_2d_nhwc_hwcf_Bx128x128x320x3x3x960 -> @apply_op_config
-        , @match_conv_2d_nhwc_hwcf_Bx128x128x320x3x3x320 -> @apply_op_config
 
         // Batch matmul.
 
         // Broadcast rhs mmt.
+        , @match_broadcast_rhs_mmt_Bx4096x5120x640 -> @apply_op_config
+
         // Carried over from SPX.
         , @match_broadcast_rhs_mmt_Bx1024x10240x1280 -> @apply_op_config
         // , @match_broadcast_rhs_mmt_Bx1024x1280x5120 -> @apply_op_config
         , @match_broadcast_rhs_mmt_Bx1024x1280x1280 -> @apply_op_config
-        , @match_broadcast_rhs_mmt_Bx4096x5120x640 -> @apply_op_config
         // , @match_broadcast_rhs_mmt_Bx4096x640x640 -> @apply_op_config
         // , @match_broadcast_rhs_mmt_Bx4096x640x2560 -> @apply_op_config
 
