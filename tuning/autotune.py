@@ -1091,6 +1091,29 @@ def generate_dryrun_unet_benchmark_results(
     return task_results
 
 
+def dryrun_benchmark_unet(
+    path_config: PathConfig,
+    unet_candidates: list[int],
+    candidate_trackers: list[CandidateTracker],):
+
+    unet_vmfb_paths = [path_config.unet_baseline_vmfb] + [
+        candidate_trackers[i].unet_candidate_path for i in unet_candidates
+    ]
+    benchmark_results = generate_dryrun_unet_benchmark_results(unet_vmfb_paths)
+    grouped_benchmark_results = group_benchmark_results_by_device_id(
+        benchmark_results
+    )
+
+    # Update candidate_tracker and extract strings which will be stored in unet_result_log
+    dump_list = parse_grouped_benchmark_results(
+        path_config, grouped_benchmark_results, candidate_trackers
+    )
+
+    with path_config.unet_result_log.open("w") as log_file:
+        for dump_str in dump_list:
+            log_file.write(dump_str)
+
+
 def benchmark_unet(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -1101,71 +1124,66 @@ def benchmark_unet(
     logging.info("benchmark_unet()")
 
     if args.dry_run:
-        unet_vmfb_paths = [path_config.unet_baseline_vmfb] + [
-            candidate_trackers[i].unet_candidate_path for i in unet_candidates
-        ]
-        benchmark_results = generate_dryrun_unet_benchmark_results(unet_vmfb_paths)
-        grouped_benchmark_results = group_benchmark_results_by_device_id(
-            benchmark_results
-        )
-    else:
-        # Benchmarking unet candidates
-        worker_context_queue = create_worker_context_queue(args.devices)
-        benchmark_task_list = []
-        for index in unet_candidates:
-            command = [
-                path_config.get_exe_format(path_config.benchmark_unet_candidate_sh),
-                candidate_trackers[index].unet_candidate_path.as_posix(),
-            ]
-            benchmark_task_list.append(
-                TaskTuple(
-                    args,
-                    command,
-                    check=False,
-                    command_need_device_id=True,
-                    cooling_time=10,
-                    result_need_device_id=True,
-                )
-            )
-        benchmark_results = multiprocess_progress_wrapper(
-            num_worker=len(args.devices),
-            task_list=benchmark_task_list,
-            function=run_command_wrapper,
-            initializer=init_worker_context,
-            initializer_inputs=(worker_context_queue,),
-        )
-        benchmark_results = sorted(benchmark_results, key=lambda br: br.device_id)
-        grouped_benchmark_results = group_benchmark_results_by_device_id(
-            benchmark_results
-        )
+        dryrun_benchmark_unet(path_config, unet_candidates, candidate_trackers)
+        return
 
-        # Benchmarking baselines on each involved device
-        worker_context_queue = create_worker_context_queue(args.devices)
-        baseline_task_list = [
+    # Benchmarking unet candidates
+    worker_context_queue = create_worker_context_queue(args.devices)
+    benchmark_task_list = []
+    for index in unet_candidates:
+        command = [
+            path_config.get_exe_format(path_config.benchmark_unet_candidate_sh),
+            candidate_trackers[index].unet_candidate_path.as_posix(),
+        ]
+        benchmark_task_list.append(
             TaskTuple(
                 args,
-                command=[
-                    path_config.get_exe_format(path_config.benchmark_unet_candidate_sh),
-                    path_config.unet_baseline_vmfb.as_posix(),
-                ],
+                command,
                 check=False,
                 command_need_device_id=True,
+                cooling_time=10,
                 result_need_device_id=True,
             )
-        ] * len(grouped_benchmark_results)
-        baseline_results = multiprocess_progress_wrapper(
-            num_worker=len(args.devices),
-            task_list=baseline_task_list,
-            function=run_command_wrapper,
-            initializer=init_worker_context,
-            initializer_inputs=(worker_context_queue,),
         )
-        baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
+    benchmark_results = multiprocess_progress_wrapper(
+        num_worker=len(args.devices),
+        task_list=benchmark_task_list,
+        function=run_command_wrapper,
+        initializer=init_worker_context,
+        initializer_inputs=(worker_context_queue,),
+    )
+    benchmark_results = sorted(benchmark_results, key=lambda br: br.device_id)
+    grouped_benchmark_results = group_benchmark_results_by_device_id(
+        benchmark_results
+    )
 
-        # Insert baseline results to the head of each list
-        grouped_benchmark_results = [
-            [x] + y for x, y in zip(baseline_results, grouped_benchmark_results)
-        ]
+    # Benchmarking baselines on each involved device
+    worker_context_queue = create_worker_context_queue(args.devices)
+    baseline_task_list = [
+        TaskTuple(
+            args,
+            command=[
+                path_config.get_exe_format(path_config.benchmark_unet_candidate_sh),
+                path_config.unet_baseline_vmfb.as_posix(),
+            ],
+            check=False,
+            command_need_device_id=True,
+            result_need_device_id=True,
+        )
+    ] * len(grouped_benchmark_results)
+    baseline_results = multiprocess_progress_wrapper(
+        num_worker=len(args.devices),
+        task_list=baseline_task_list,
+        function=run_command_wrapper,
+        initializer=init_worker_context,
+        initializer_inputs=(worker_context_queue,),
+    )
+    baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
+
+    # Insert baseline results to the head of each list
+    grouped_benchmark_results = [
+        [x] + y for x, y in zip(baseline_results, grouped_benchmark_results)
+    ]
 
     # Update candidate_tracker and extract strings which will be stored in unet_result_log
     dump_list = parse_grouped_benchmark_results(
