@@ -792,12 +792,12 @@ module attributes { transform.with_named_sequence } {
       } -> tensor<?x20x64x64xi32>
     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
     %config = transform.param.constant #iree_codegen.compilation_info<
-    lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 16, 256, 128]]>,
+    lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 1, 32, 320, 128]]>,
       translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
-        workgroup_size = [256, 1, 1] subgroup_size = 64,
+        workgroup_size = [64, 2, 1] subgroup_size = 64,
         {mma_schedule = #iree_gpu.mma_schedule<
             intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>,
-            subgroup_m_count = 1, subgroup_n_count = 4>
+            subgroup_m_count = 2, subgroup_n_count = 1>
         , prefetch_shared_memory}>
     > -> !transform.any_param
     transform.yield %cont, %config : !transform.any_op, !transform.any_param
