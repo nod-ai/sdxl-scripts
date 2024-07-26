@@ -65,7 +65,7 @@ module attributes { transform.with_named_sequence } {
 
     // Tile along K2
     %online_att = transform.structured.match ops{["iree_linalg_ext.online_attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
-    %tiled_att, %k2_for = transform.structured.tile_using_for %online_att tile_sizes [0, 0, 0, 0, 64, 0]: (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    %tiled_att, %k2_for = transform.structured.tile_using_for %online_att tile_sizes [0, 0, 0, 0, 32, 0]: (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 
     transform.apply_patterns to %func {
       transform.apply_patterns.canonicalization
