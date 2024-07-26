@@ -368,7 +368,7 @@ module attributes { transform.with_named_sequence } {
 
     %contracts = transform.structured.match ops{["vector.contract"]} in %variant_op :  (!transform.any_op) -> !transform.any_op
     %contract1, %contract2 = transform.split_handle %contracts : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.iree.set_contraction_layout_attributes %contract1, %intrinsic { read_layout_indices = array<i64: 0, 1> } : !transform.any_op, !transform.any_param
+    transform.iree.set_contraction_layout_attributes %contract1, %intrinsic : !transform.any_op, !transform.any_param
     transform.iree.set_contraction_layout_attributes %contract2, %intrinsic : !transform.any_op, !transform.any_param
 
     %distribute_func = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
@@ -391,7 +391,6 @@ module attributes { transform.with_named_sequence } {
     transform.apply_cse to %distribute_func_2 : !transform.any_op
 
     %forop = transform.structured.match ops{["scf.for"]} in %variant_op : (!transform.any_op) -> !transform.any_op
-    %prefetched_forop = transform.iree.prefetch_shared_memory_copies %forop : (!transform.any_op) -> (!transform.any_op)
 
     transform.apply_patterns to %distribute_func_2 {
         transform.apply_patterns.memref.fold_memref_alias_ops
@@ -424,7 +423,7 @@ module attributes { transform.with_named_sequence } {
   // Send it down a custom transform dialect pipeline.
   transform.named_sequence @custom_attention_f8(%attention: !transform.any_op {transform.readonly}) {
     %func = transform.get_parent_op %attention {op_name = "func.func"} : (!transform.any_op) -> !transform.any_op
-    %attn = transform.param.constant #iree_codegen.translation_info<TransformDialectCodegen codegen_spec = @__attention_main_f8, { llvm_func_attrs = { "amdgpu-waves-per-eu" = "2", "denormal-fp-math-f32" = "preserve-sign" } }> -> !transform.any_param
+    %attn = transform.param.constant #iree_codegen.translation_info<TransformDialectCodegen codegen_spec = @__attention_main_f8, { llvm_func_attrs = { "denormal-fp-math-f32" = "preserve-sign" } }> -> !transform.any_param
     transform.annotate %func "translation_info" = %attn : !transform.any_op, !transform.any_param
     transform.yield
   }
