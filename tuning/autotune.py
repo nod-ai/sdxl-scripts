@@ -1087,7 +1087,7 @@ def parse_grouped_benchmark_results(
             dump_str for _, dump_str in sorted(dump_unsort_list, key=lambda x: x[0])
         ]
 
-    # store incomplete .vmfb file at the end of dump_list
+    # Store incomplete .vmfb file at the end of dump_list.
     for index, device_id in incomplete_list:
         index_to_path = (
             lambda index: f"{path_config.unet_baseline_vmfb.as_posix()}"
