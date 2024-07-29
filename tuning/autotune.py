@@ -1068,7 +1068,7 @@ def parse_grouped_benchmark_results(
                 continue
             candidate_trackers[c_id].unet_benchmark_time = candidate_time
             candidate_trackers[c_id].unet_benchmark_device_id = res.get_device_id()
-            # skip improvement calculation if no baseline data
+            # Skip improvement calculation if no baseline data.
             if not baseline_time:
                 dump_unsort_list.append([candidate_time, res.result_str])
                 continue
