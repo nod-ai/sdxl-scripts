@@ -1051,7 +1051,7 @@ def parse_grouped_benchmark_results(
 
             res = UnetBenchmarkResult(unet_candidate_result.result.stdout)
 
-            # record baseline benchmarking result
+            # Record baseline benchmarking result.
             if str(path_config.unet_baseline_vmfb) in res.get_unet_candidate_path():
                 baseline_time = res.get_benchmark_time()
                 if not baseline_time:
