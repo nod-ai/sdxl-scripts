@@ -1045,7 +1045,7 @@ def parse_grouped_benchmark_results(
     for same_device_results in grouped_benchmark_results:
         dump_unsort_list: list[tuple[int, str]] = []
         for unet_candidate_result in same_device_results:
-            # skip if benchmark failed
+            # Skip if benchmark failed.
             if not unet_candidate_result.result.stdout:
                 continue
 
