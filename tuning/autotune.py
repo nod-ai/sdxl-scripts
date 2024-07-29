@@ -1060,7 +1060,7 @@ def parse_grouped_benchmark_results(
                 dump_list.append(res.result_str)
                 continue
 
-            # record candidate benchmarking result
+            # Record candidate benchmarking result.
             c_id = res.get_candidate_id()
             candidate_time = res.get_benchmark_time()
             if not candidate_time:
