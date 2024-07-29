@@ -1072,7 +1072,7 @@ def parse_grouped_benchmark_results(
             if not baseline_time:
                 dump_unsort_list.append([candidate_time, res.result_str])
                 continue
-            # calculate candidate improvement based baseline
+            # Calculate candidate improvement based baseline.
             candidate_trackers[c_id].baseline_benchmark_time = baseline_time
             candidate_trackers[c_id].calibrated_benchmark_diff = (
                 candidate_time - baseline_time
