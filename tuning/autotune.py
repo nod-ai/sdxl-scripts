@@ -197,9 +197,9 @@ class DispatchBenchmarkResult:
             return None
 
     def generate_sample_result(
-        self, candidate_id: int = 0, mean_time: int | float = random.randint(100, 500)
+        self, candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
     ) -> str:
-        return f"{candidate_id}\tMean Time: {mean_time:.1f}\n"
+        return f"{candidate_id}\tMean Time: {mean_time:.1f}\n" # time in ms
 
 
 @dataclass
@@ -268,7 +268,7 @@ class UnetBenchmarkResult:
         self,
         candidate_vmfb_path_str: str = "unet_baseline.vmfb",
         device_id: int = 0,
-        t1: int | float = random.randint(100, 500),
+        t1: float = random.uniform(100.0, 500.0), # time in ms
     ) -> str:
         return f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}\nBM_run_forward/process_time/real_time_median\t    {t1:.3g} ms\t    {(t1+1):.3g} ms\t      5 items_per_second={t1/200:5f}/s\n\n"
 
@@ -338,7 +338,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Dry run testing",
+        help="Do not attempt to run any modules or initialize the IREE runtime",
     )
 
     # tune.tune() options
@@ -830,7 +830,7 @@ def generate_dryrun_dispatch_benchmark_results(
             args=[""],
             returncode=0,
             stdout=DispatchBenchmarkResult().generate_sample_result(
-                candidate_id, mean_time=random.randint(100, 500)
+                candidate_id, mean_time=random.uniform(100.0, 500.0)
             ),
             stderr="",
         )
@@ -880,8 +880,7 @@ def benchmark_compiled_candidates(
     )
 
     with path_config.dispatch_benchmark_result_log.open("w") as log_file:
-        for dump_str in dispatch_benchmark_dump_list:
-            log_file.write(dump_str)
+        log_file.writelines(dispatch_benchmark_dump_list)
 
     benchmarking_rate = (len(parsed_benchmark_results) / len(benchmark_results)) * 100
     logging.critical(
@@ -1073,7 +1072,7 @@ def generate_dryrun_unet_benchmark_results(
     unet_vmfb_paths: list[str | Path],
 ) -> list[TaskResult]:
     task_results = []
-    start = random.randint(100, 500)
+    start = random.uniform(100.0, 500.0)
     device_id = 0
     for candidate_vmfb_path in unet_vmfb_paths:
         task_result = subprocess.CompletedProcess(
@@ -1086,7 +1085,7 @@ def generate_dryrun_unet_benchmark_results(
             ),
             stderr="",
         )
-        start += random.randint(-5, 8)
+        start += random.uniform(-5.0, 8.0)
         task_results.append(TaskResult(task_result, device_id))
     return task_results
 
@@ -1103,14 +1102,13 @@ def dryrun_benchmark_unet(
     benchmark_results = generate_dryrun_unet_benchmark_results(unet_vmfb_paths)
     grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
 
-    # Update candidate_tracker and extract strings which will be stored in unet_result_log
+    # Update candidate_tracker and extract strings which will be stored in unet_result_log.
     dump_list = parse_grouped_benchmark_results(
         path_config, grouped_benchmark_results, candidate_trackers
     )
 
     with path_config.unet_result_log.open("w") as log_file:
-        for dump_str in dump_list:
-            log_file.write(dump_str)
+        log_file.writelines(dump_list)
 
 
 def benchmark_unet(
@@ -1188,8 +1186,7 @@ def benchmark_unet(
     )
 
     with path_config.unet_result_log.open("w") as log_file:
-        for dump_str in dump_list:
-            log_file.write(dump_str)
+        log_file.writelines(dump_list)
 
 
 def autotune(args: argparse.Namespace) -> None:
