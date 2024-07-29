@@ -1082,7 +1082,7 @@ def parse_grouped_benchmark_results(
             )
             dump_unsort_list.append([candidate_time, dump_str])
 
-        # sort unet candidate benchmarking result str in ascending time order
+        # Sort unet candidate benchmarking result str in ascending time order.
         dump_list = dump_list + [
             dump_str for _, dump_str in sorted(dump_unsort_list, key=lambda x: x[0])
         ]
