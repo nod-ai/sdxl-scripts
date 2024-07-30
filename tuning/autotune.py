@@ -199,7 +199,8 @@ class DispatchBenchmarkResult:
     def generate_sample_result(
         self, candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
     ) -> str:
-        return f"{candidate_id}\tMean Time: {mean_time:.1f}\n" # time in ms
+        # time unit is implicit and dependent on the output of iree-benchmark-module
+        return f"{candidate_id}\tMean Time: {mean_time:.1f}\n"
 
 
 @dataclass
