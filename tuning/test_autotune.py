@@ -224,7 +224,7 @@ def test_parse_grouped_benchmark_results():
 def test_generate_sample_result():
     res = autotune.DispatchBenchmarkResult()
     output = res.generate_sample_result(1, 3.14)
-    expect = f"1\tMean Time: 3.1\n"
+    expected = f"1\tMean Time: 3.1\n"
     assert output == expect, "DispatchBenchmarkResult generates invalid sample string"
 
     res = autotune.UnetBenchmarkResult()
