@@ -78,12 +78,6 @@ def test_DispatchBenchmarkResult_get():
     assert res.get_tokens() == ['2', 'Mean', 'Time:', '586.0']
     assert res.get_candidate_id() == 2
     assert res.get_benchmark_time() == 586.0
-    # normal_str = '4\tMean Time: 479.0'
-    # res = autotune.DispatchBenchmarkResult(normal_str)
-    # assert res.result_str == normal_str
-    # assert res.get_tokens() == ['4', 'Mean', 'Time:', '479.0']
-    # assert res.get_candidate_id() == 4
-    # assert res.get_benchmark_time() == 479.0
 
     incomplete_str = "2	Mean Time:"
     res = autotune.DispatchBenchmarkResult(incomplete_str)
