@@ -19,11 +19,22 @@ from dataclasses import dataclass, field
 from typing import Type, Optional, Callable, Iterable, Any
 import pickle
 from itertools import groupby
+import random
 
 """
 Sample Usage:
 
 python autotune.py winograd 1286.mlir --lhs-dims=bmk --rhs-dims=bkn --tile-dims=*mnk --devices=1,3,5 --num-candidates=64
+
+
+Recommended Trial Run:
+
+python autotune.py winograd 1286.mlir --num-candidates=1
+
+
+Dry Run Test (no gpu requried):
+
+python autotune.py winograd 1286.mlir --num-candidates=64 --num-unet-candidates=10 --dry-run
 
 """
 
@@ -185,6 +196,12 @@ class DispatchBenchmarkResult:
         except ValueError:
             return None
 
+    def generate_sample_result(
+        self, candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
+    ) -> str:
+        # time unit is implicit and dependent on the output of iree-benchmark-module
+        return f"{candidate_id}\tMean Time: {mean_time:.1f}\n"
+
 
 @dataclass
 class UnetBenchmarkResult:
@@ -248,6 +265,14 @@ class UnetBenchmarkResult:
 
         return new_result_str
 
+    def generate_sample_result(
+        self,
+        candidate_vmfb_path_str: str = "unet_baseline.vmfb",
+        device_id: int = 0,
+        t1: float = random.uniform(100.0, 500.0), # time in ms
+    ) -> str:
+        return f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}\nBM_run_forward/process_time/real_time_median\t    {t1:.3g} ms\t    {(t1+1):.3g} ms\t      5 items_per_second={t1/200:5f}/s\n\n"
+
 
 def parse_devices(devices_str: str) -> list[int]:
     """Parse a comma-separated list of device IDs (e.g., "1,3,5" -> [1, 3, 5])."""
@@ -310,6 +335,11 @@ def parse_arguments() -> argparse.Namespace:
         help="Maximum number of stage 2 candidates",
         type=int,
         default=50,
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Do not attempt to run any modules or initialize the IREE runtime",
     )
 
     # tune.tune() options
@@ -792,6 +822,23 @@ def parse_dispatch_benchmark_results(
     return benchmark_result_configs, dump_list
 
 
+def generate_dryrun_dispatch_benchmark_results(
+    compiled_candidates: list[int],
+) -> list[TaskResult]:
+    task_results = []
+    for candidate_id in compiled_candidates:
+        task_result = subprocess.CompletedProcess(
+            args=[""],
+            returncode=0,
+            stdout=DispatchBenchmarkResult().generate_sample_result(
+                candidate_id, mean_time=random.uniform(100.0, 500.0)
+            ),
+            stderr="",
+        )
+        task_results.append(TaskResult(task_result))
+    return task_results
+
+
 def benchmark_compiled_candidates(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -801,25 +848,30 @@ def benchmark_compiled_candidates(
     """Benchmark the candidate files and store the topN results in file (best.log)."""
     logging.info("benchmark_top_candidates()")
 
-    # Benchmarking dispatch candidates
-    task_list = []
-    for index in compiled_candidates:
-        command = [
-            path_config.get_exe_format(path_config.benchmark_dispatch_sh),
-            candidate_trackers[index].compiled_vmfb_path.as_posix(),
-        ]
-        task_list.append(
-            TaskTuple(args, command, check=False, command_need_device_id=True)
+    if args.dry_run:
+        benchmark_results = generate_dryrun_dispatch_benchmark_results(
+            compiled_candidates
         )
+    else:
+        # Benchmarking dispatch candidates
+        task_list = []
+        for index in compiled_candidates:
+            command = [
+                path_config.get_exe_format(path_config.benchmark_dispatch_sh),
+                candidate_trackers[index].compiled_vmfb_path.as_posix(),
+            ]
+            task_list.append(
+                TaskTuple(args, command, check=False, command_need_device_id=True)
+            )
 
-    worker_context_queue = create_worker_context_queue(args.devices)
-    benchmark_results = multiprocess_progress_wrapper(
-        num_worker=len(args.devices),
-        task_list=task_list,
-        function=run_command_wrapper,
-        initializer=init_worker_context,
-        initializer_inputs=(worker_context_queue,),
-    )
+        worker_context_queue = create_worker_context_queue(args.devices)
+        benchmark_results = multiprocess_progress_wrapper(
+            num_worker=len(args.devices),
+            task_list=task_list,
+            function=run_command_wrapper,
+            initializer=init_worker_context,
+            initializer_inputs=(worker_context_queue,),
+        )
 
     (
         parsed_benchmark_results,
@@ -829,8 +881,7 @@ def benchmark_compiled_candidates(
     )
 
     with path_config.dispatch_benchmark_result_log.open("w") as log_file:
-        for dump_str in dispatch_benchmark_dump_list:
-            log_file.write(dump_str)
+        log_file.writelines(dispatch_benchmark_dump_list)
 
     benchmarking_rate = (len(parsed_benchmark_results) / len(benchmark_results)) * 100
     logging.critical(
@@ -1018,6 +1069,49 @@ def parse_grouped_benchmark_results(
     return dump_list
 
 
+def generate_dryrun_unet_benchmark_results(
+    unet_vmfb_paths: list[str | Path],
+) -> list[TaskResult]:
+    task_results = []
+    start = random.uniform(100.0, 500.0)
+    device_id = 0
+    for candidate_vmfb_path in unet_vmfb_paths:
+        task_result = subprocess.CompletedProcess(
+            args=[""],
+            returncode=0,
+            stdout=UnetBenchmarkResult().generate_sample_result(
+                candidate_vmfb_path_str=str(candidate_vmfb_path),
+                device_id=device_id,
+                t1=start,
+            ),
+            stderr="",
+        )
+        start += random.uniform(-5.0, 8.0)
+        task_results.append(TaskResult(task_result, device_id))
+    return task_results
+
+
+def dryrun_benchmark_unet(
+    path_config: PathConfig,
+    unet_candidates: list[int],
+    candidate_trackers: list[CandidateTracker],
+):
+
+    unet_vmfb_paths = [path_config.unet_baseline_vmfb] + [
+        candidate_trackers[i].unet_candidate_path for i in unet_candidates
+    ]
+    benchmark_results = generate_dryrun_unet_benchmark_results(unet_vmfb_paths)
+    grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
+
+    # Update candidate_tracker and extract strings which will be stored in unet_result_log.
+    dump_list = parse_grouped_benchmark_results(
+        path_config, grouped_benchmark_results, candidate_trackers
+    )
+
+    with path_config.unet_result_log.open("w") as log_file:
+        log_file.writelines(dump_list)
+
+
 def benchmark_unet(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -1026,6 +1120,10 @@ def benchmark_unet(
 ):
     """Benchmark U-Net candidate files and log the results."""
     logging.info("benchmark_unet()")
+
+    if args.dry_run:
+        dryrun_benchmark_unet(path_config, unet_candidates, candidate_trackers)
+        return
 
     # Benchmarking unet candidates
     worker_context_queue = create_worker_context_queue(args.devices)
@@ -1089,8 +1187,7 @@ def benchmark_unet(
     )
 
     with path_config.unet_result_log.open("w") as log_file:
-        for dump_str in dump_list:
-            log_file.write(dump_str)
+        log_file.writelines(dump_list)
 
 
 def autotune(args: argparse.Namespace) -> None:
