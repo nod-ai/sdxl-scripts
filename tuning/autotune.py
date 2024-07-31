@@ -12,7 +12,7 @@ import time
 import multiprocessing
 import queue
 import tune
-from tqdm import tqdm
+from tqdm import tqdm # type: ignore
 import re
 import hashlib
 from dataclasses import dataclass, field
@@ -48,6 +48,11 @@ DEFAULT_MAX_CPU_WORKERS = (
     multiprocessing.cpu_count() // 2
 )  # the actual amount of worker that will be generated = max(min(max_cpu_workers//2, len(task_list)), 1)
 """note: Do not use all CPU cores"""
+
+# Declare global variables at the module level for multiprocessing
+worker_id = None
+device_id = None
+"""Do not need to change"""
 
 
 @dataclass
@@ -181,12 +186,18 @@ class DispatchBenchmarkResult:
         # e.g. ['0', 'Mean', 'Time:', '694.0']
         if self.result_str is None:
             return []
-        return self.result_str.split()
+        try:
+            return self.result_str.split()
+        except:
+            return []
 
     def get_candidate_id(self) -> Optional[int]:
-        if not self.get_tokens() or len(self.get_tokens()) < 1:
+        if len(self.get_tokens()) < 1:
             return None
-        return int(self.get_tokens()[0])
+        try:
+            return int(self.get_tokens()[0])
+        except ValueError:
+            return None
 
     def get_benchmark_time(self) -> Optional[float]:
         if len(self.get_tokens()) < 4:
@@ -211,10 +222,13 @@ class UnetBenchmarkResult:
         # e.g. ['Benchmarking:', '/sdxl-scripts/tuning/tuning_2024_07_19_08_55/unet_candidate_12.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
         if self.result_str is None:
             return []
-        return self.result_str.split()
+        try:
+            return self.result_str.split()
+        except:
+            return []
 
     def get_unet_candidate_path(self) -> Optional[str]:
-        if not self.get_tokens() or len(self.get_tokens()) < 2:
+        if len(self.get_tokens()) < 2:
             return None
         return self.get_tokens()[1]
 
@@ -374,7 +388,7 @@ def setup_logging(args: argparse.Namespace, path_config: PathConfig):
     path_config._set_log_file_path(log_file_path)
 
     # Create file handler for logging to a file
-    if not path_config.log_file_path:
+    if path_config.log_file_path is None:
         raise
     file_handler = logging.FileHandler(path_config.log_file_path)
     file_handler.setLevel(logging.DEBUG)
@@ -519,7 +533,7 @@ def run_command_wrapper(task_tuple: TaskTuple) -> TaskResult:
         task_tuple.command.append(str(device_id))
 
     res = run_command(task_tuple.args, task_tuple.command, task_tuple.check)
-    if not res:
+    if res is None:
         raise
 
     task_result = TaskResult(res)
@@ -566,6 +580,7 @@ def numerical_sort_key(path: Path) -> tuple[int | float, str]:
     Define a sort key function that splits the filename into a numeric and a string part.
     Order: 0 | 0_a | 0_b | 1 | 1_a | 2
     """
+    numeric_part: int | float
     # Extract the numeric part at the start of the filename
     match = re.match(r"(\d+)", path.stem)
     if match:
@@ -594,7 +609,7 @@ def find_collisions(
     Take input list of candidate index numbers and hash value strings: ex. [(1, 'abc'), (2, 'def'), (3, 'abc')]
     Return collision boolean value and list of unique hash values along with their corresponding indices: ex. [('abc', [1,3]), ('def', [2])]
     """
-    hash_count = {}
+    hash_count: dict[str, list[int]] = {}
 
     # Count occurrences of each hash_val
     for index, hash_val in hash_list:
@@ -704,7 +719,7 @@ def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, lis
     """If a collision is found, generate a list of new indexes. If no collision, `unique_indexes = []`"""
     # Check if candidate produces tbe same .vmfb
     collision_detected, hash_list = find_collisions(index_hash_list)
-    unique_indexes = []
+    unique_indexes:list[int] = []
     if not collision_detected:
         return collision_detected, unique_indexes
 
@@ -729,11 +744,12 @@ def compile_candidates(
 
     task_list = []
     for candidate_index in candidates:
-
+        mlir_path = candidate_trackers[candidate_index].mlir_path
+        assert mlir_path is not None
         command = [
             path_config.get_exe_format(path_config.compile_candidate_sh),
             args.mode,
-            candidate_trackers[candidate_index].mlir_path.as_posix(),
+            mlir_path.as_posix(),
         ]
         task_list.append(TaskTuple(args, command, check=False))
 
@@ -771,7 +787,9 @@ def compile_candidates(
         compiled_candidates.append(index)
         candidate_trackers[index].compilation_successful = True
         candidate_trackers[index].compiled_vmfb_path = compiled_file
-        hash_val = calculate_md5(candidate_trackers[index].compiled_vmfb_path)
+        compiled_vmfb_path = candidate_trackers[index].compiled_vmfb_path
+        assert compiled_vmfb_path is not None
+        hash_val = calculate_md5(compiled_vmfb_path)
         candidate_trackers[index].compiled_vmfb_hash = hash_val
         compiled_candidates_hash_list.append((index, hash_val))
 
@@ -796,26 +814,28 @@ def compile_candidates(
 def parse_dispatch_benchmark_results(
     path_config: PathConfig,
     benchmark_results: list[TaskResult],
-    candidate_trackers: CandidateTracker,
+    candidate_trackers: list[CandidateTracker],
 ) -> tuple[list[ParsedDisptachBenchmarkResult], list[str]]:
     benchmark_result_configs = []
     dump_list = []
 
     for benchmark_result in benchmark_results:
-        if not benchmark_result.result.stdout:
+        res_str = benchmark_result.result.stdout
+        if res_str is None:
             continue
-        res = DispatchBenchmarkResult(benchmark_result.result.stdout)
-        candidate_trackers[
-            res.get_candidate_id()
-        ].first_benchmark_time = res.get_benchmark_time()
-        dump_list.append(res.result_str)
+        res = DispatchBenchmarkResult(res_str)
+        candidate_id = res.get_candidate_id()
+        benchmark_time = res.get_benchmark_time()
+        assert candidate_id is not None and benchmark_time is not None
+        candidate_trackers[candidate_id].first_benchmark_time = benchmark_time
+        dump_list.append(res_str)
 
         benchmark_result_configs.append(
             (
                 ParsedDisptachBenchmarkResult(
-                    res.get_benchmark_time(),
-                    path_config.get_candidate_mlir_path(res.get_candidate_id()),
-                    path_config.get_candidate_spec_mlir_path(res.get_candidate_id()),
+                    benchmark_time,
+                    path_config.get_candidate_mlir_path(candidate_id),
+                    path_config.get_candidate_spec_mlir_path(candidate_id),
                 )
             )
         )
@@ -856,9 +876,11 @@ def benchmark_compiled_candidates(
         # Benchmarking dispatch candidates
         task_list = []
         for index in compiled_candidates:
+            compiled_vmfb_path = candidate_trackers[index].compiled_vmfb_path
+            assert compiled_vmfb_path is not None
             command = [
                 path_config.get_exe_format(path_config.benchmark_dispatch_sh),
-                candidate_trackers[index].compiled_vmfb_path.as_posix(),
+                compiled_vmfb_path.as_posix(),
             ]
             task_list.append(
                 TaskTuple(args, command, check=False, command_need_device_id=True)
@@ -939,7 +961,9 @@ def compile_unet_candidates(
     for unet_candidate in unet_candidates_files:
         index = int(unet_candidate.stem.split("_")[-1])
         candidate_trackers[index].unet_candidate_path = unet_candidate
-        hash_val = calculate_md5(candidate_trackers[index].unet_candidate_path)
+        unet_candidate_path = candidate_trackers[index].unet_candidate_path
+        assert unet_candidate_path is not None
+        hash_val = calculate_md5(unet_candidate_path)
         candidate_trackers[index].unet_vmfb_hash = hash_val
         unet_candidates_hash_list.append((index, hash_val))
         unet_candidates_indexes.append(index)
@@ -962,17 +986,19 @@ def compile_unet_candidates(
 
 
 def sort_candidates_by_first_benchmark_times(
-    candidate_indexes: list[int], candidate_trackers: CandidateTracker
+    candidate_indexes: list[int], candidate_trackers: list[CandidateTracker]
 ) -> list[int]:
     """Sorts candidate indexes based on their first benchmark times in ascending order"""
+    # Get the first benchmark times, defaulting to a large number if None
     first_benchmark_times = [
-        candidate_trackers[index].first_benchmark_time for index in candidate_indexes
+        candidate_trackers[index].first_benchmark_time or float('inf') 
+        for index in candidate_indexes
     ]
     combined = list(zip(candidate_indexes, first_benchmark_times))
     combined_sorted = sorted(combined, key=lambda x: x[1])
     sorted_indexes, _ = zip(*combined_sorted)
-    sorted_indexes = list(sorted_indexes)
-    return sorted_indexes
+
+    return list(sorted_indexes)
 
 
 def group_benchmark_results_by_device_id(
@@ -986,40 +1012,9 @@ def group_benchmark_results_by_device_id(
     ----->
     [ [TaskResult(res1, device_1), TaskResult(res3, device_1)], [TaskResult(res2, device_2)] ]
     """
-    grouped_results = [
-        list(group)
-        for _, group in groupby(benchmark_results, key=lambda br: br.device_id)
-    ]
     grouped_results: dict[int, list[TaskResult]] = {}
     for result in benchmark_results:
-        if result.device_id not in grouped_results:
-            grouped_results[result.device_id] = []
-        grouped_results[result.device_id].append(result)
-
-    grouped_benchmark_results = [
-        grouped_results[device_id] for device_id in sorted(grouped_results)
-    ]
-
-    return grouped_benchmark_results
-
-
-def group_benchmark_results_by_device_id(
-    benchmark_results: list[TaskResult],
-) -> list[list[TaskResult]]:
-    """
-    Groups benchmark results by device ID.
-
-    e.g.
-    [TaskResult(res1, device_1), TaskResult(res2, device_2), TaskResult(res3, device_1)]
-    ----->
-    [ [TaskResult(res1, device_1), TaskResult(res3, device_1)], [TaskResult(res2, device_2)] ]
-    """
-    grouped_results = [
-        list(group)
-        for _, group in groupby(benchmark_results, key=lambda br: br.device_id)
-    ]
-    grouped_results: dict[int, list[TaskResult]] = {}
-    for result in benchmark_results:
+        assert result.device_id is not None
         if result.device_id not in grouped_results:
             grouped_results[result.device_id] = []
         grouped_results[result.device_id].append(result)
@@ -1035,52 +1030,52 @@ def parse_grouped_benchmark_results(
     path_config: PathConfig,
     grouped_benchmark_results: list[list[TaskResult]],
     candidate_trackers: list[CandidateTracker],
-) -> Optional[list[str]]:
+) -> list[str]:
     """Update candidate_trackers and collect strings"""
     dump_list = []
-    incomplete_list: [
-        tuple[int, int]
-    ] = []  # format: [(candidate_id, device_id)], baseline will have candidate_id=0
+    incomplete_list: list[tuple[int, Optional[int]]] = []  # format: [(candidate_id, device_id)], baseline will have candidate_id=0
 
     for same_device_results in grouped_benchmark_results:
-        dump_unsort_list: list[tuple[int, str]] = []
+        dump_unsort_list: list[tuple[float, str]] = []
         for unet_candidate_result in same_device_results:
             # Skip if benchmark failed.
-            if not unet_candidate_result.result.stdout:
+            result_str = unet_candidate_result.result.stdout
+            if result_str is None:
                 continue
 
-            res = UnetBenchmarkResult(unet_candidate_result.result.stdout)
+            res = UnetBenchmarkResult(result_str)
+            device_id = res.get_device_id()
 
             # Record baseline benchmarking result.
-            if str(path_config.unet_baseline_vmfb) in res.get_unet_candidate_path():
+            unet_candidate_path = res.get_unet_candidate_path()
+            if unet_candidate_path is not None and str(path_config.unet_baseline_vmfb) in unet_candidate_path:
                 baseline_time = res.get_benchmark_time()
-                if not baseline_time:
-                    incomplete_list.append((0, res.get_device_id()))
+                if baseline_time is None:
+                    incomplete_list.append((0, device_id))
                     continue
-                dump_list.append(res.result_str)
+                dump_list.append(result_str)
                 continue
 
             # Record candidate benchmarking result.
             c_id = res.get_candidate_id()
+            assert c_id is not None
             candidate_time = res.get_benchmark_time()
-            if not candidate_time:
-                incomplete_list.append((c_id, res.get_device_id()))
+            if candidate_time is None:
+                incomplete_list.append((c_id, device_id))
                 continue
             candidate_trackers[c_id].unet_benchmark_time = candidate_time
-            candidate_trackers[c_id].unet_benchmark_device_id = res.get_device_id()
+            candidate_trackers[c_id].unet_benchmark_device_id = device_id
             # Skip improvement calculation if no baseline data.
-            if not baseline_time:
-                dump_unsort_list.append([candidate_time, res.result_str])
+            if baseline_time is None:
+                dump_unsort_list.append((candidate_time, result_str))
                 continue
             # Calculate candidate improvement based baseline.
             candidate_trackers[c_id].baseline_benchmark_time = baseline_time
-            candidate_trackers[c_id].calibrated_benchmark_diff = (
-                candidate_time - baseline_time
-            ) / baseline_time
-            dump_str = res.get_calibrated_result_str(
-                candidate_trackers[c_id].calibrated_benchmark_diff
-            )
-            dump_unsort_list.append([candidate_time, dump_str])
+            calibrated_benchmark_diff = (candidate_time - baseline_time) / baseline_time
+            candidate_trackers[c_id].calibrated_benchmark_diff = calibrated_benchmark_diff
+            dump_str = res.get_calibrated_result_str(calibrated_benchmark_diff)
+            assert dump_str is not None
+            dump_unsort_list.append((candidate_time, dump_str))
 
         # Sort unet candidate benchmarking result str in ascending time order.
         dump_list = dump_list + [
@@ -1102,7 +1097,7 @@ def parse_grouped_benchmark_results(
 
 
 def generate_dryrun_unet_benchmark_results(
-    unet_vmfb_paths: list[str | Path],
+    unet_vmfb_paths: list[Path],
 ) -> list[TaskResult]:
     task_results = []
     start = random.uniform(100.0, 500.0)
@@ -1112,7 +1107,7 @@ def generate_dryrun_unet_benchmark_results(
             args=[""],
             returncode=0,
             stdout=UnetBenchmarkResult().generate_sample_result(
-                candidate_vmfb_path_str=str(candidate_vmfb_path),
+                candidate_vmfb_path_str=candidate_vmfb_path.as_posix(),
                 device_id=device_id,
                 t1=start,
             ),
@@ -1129,9 +1124,12 @@ def dryrun_benchmark_unet(
     candidate_trackers: list[CandidateTracker],
 ):
 
-    unet_vmfb_paths = [path_config.unet_baseline_vmfb] + [
-        candidate_trackers[i].unet_candidate_path for i in unet_candidates
-    ]
+    unet_vmfb_paths = [path_config.unet_baseline_vmfb]
+    for i in unet_candidates:
+        unet_candidate_path = candidate_trackers[i].unet_candidate_path
+        assert unet_candidate_path is not None
+        unet_vmfb_paths.append(unet_candidate_path)
+
     benchmark_results = generate_dryrun_unet_benchmark_results(unet_vmfb_paths)
     grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
 
@@ -1161,9 +1159,11 @@ def benchmark_unet(
     worker_context_queue = create_worker_context_queue(args.devices)
     benchmark_task_list = []
     for index in unet_candidates:
+        unet_candidate_path = candidate_trackers[index].unet_candidate_path
+        assert unet_candidate_path is not None
         command = [
             path_config.get_exe_format(path_config.benchmark_unet_candidate_sh),
-            candidate_trackers[index].unet_candidate_path.as_posix(),
+            unet_candidate_path.as_posix(),
         ]
         benchmark_task_list.append(
             TaskTuple(
