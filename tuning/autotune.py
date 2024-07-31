@@ -12,7 +12,7 @@ import time
 import multiprocessing
 import queue
 import tune
-from tqdm import tqdm # type: ignore
+from tqdm import tqdm  # type: ignore
 import re
 import hashlib
 from dataclasses import dataclass, field
@@ -719,7 +719,7 @@ def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, lis
     """If a collision is found, generate a list of new indexes. If no collision, `unique_indexes = []`"""
     # Check if candidate produces tbe same .vmfb
     collision_detected, hash_list = find_collisions(index_hash_list)
-    unique_indexes:list[int] = []
+    unique_indexes: list[int] = []
     if not collision_detected:
         return collision_detected, unique_indexes
 
@@ -991,7 +991,7 @@ def sort_candidates_by_first_benchmark_times(
     """Sorts candidate indexes based on their first benchmark times in ascending order"""
     # Get the first benchmark times, defaulting to a large number if None
     first_benchmark_times = [
-        candidate_trackers[index].first_benchmark_time or float('inf') 
+        candidate_trackers[index].first_benchmark_time or float("inf")
         for index in candidate_indexes
     ]
     combined = list(zip(candidate_indexes, first_benchmark_times))
@@ -1033,7 +1033,9 @@ def parse_grouped_benchmark_results(
 ) -> list[str]:
     """Update candidate_trackers and collect strings"""
     dump_list = []
-    incomplete_list: list[tuple[int, Optional[int]]] = []  # format: [(candidate_id, device_id)], baseline will have candidate_id=0
+    incomplete_list: list[
+        tuple[int, Optional[int]]
+    ] = []  # format: [(candidate_id, device_id)], baseline will have candidate_id=0
 
     for same_device_results in grouped_benchmark_results:
         dump_unsort_list: list[tuple[float, str]] = []
@@ -1048,7 +1050,10 @@ def parse_grouped_benchmark_results(
 
             # Record baseline benchmarking result.
             unet_candidate_path = res.get_unet_candidate_path()
-            if unet_candidate_path is not None and str(path_config.unet_baseline_vmfb) in unet_candidate_path:
+            if (
+                unet_candidate_path is not None
+                and str(path_config.unet_baseline_vmfb) in unet_candidate_path
+            ):
                 baseline_time = res.get_benchmark_time()
                 if baseline_time is None:
                     incomplete_list.append((0, device_id))
@@ -1072,7 +1077,9 @@ def parse_grouped_benchmark_results(
             # Calculate candidate improvement based baseline.
             candidate_trackers[c_id].baseline_benchmark_time = baseline_time
             calibrated_benchmark_diff = (candidate_time - baseline_time) / baseline_time
-            candidate_trackers[c_id].calibrated_benchmark_diff = calibrated_benchmark_diff
+            candidate_trackers[
+                c_id
+            ].calibrated_benchmark_diff = calibrated_benchmark_diff
             dump_str = res.get_calibrated_result_str(calibrated_benchmark_diff)
             assert dump_str is not None
             dump_unsort_list.append((candidate_time, dump_str))

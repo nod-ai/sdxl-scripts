@@ -75,13 +75,13 @@ def test_DispatchBenchmarkResult_get():
     normal_str = "2	Mean Time: 586.0"
     res = autotune.DispatchBenchmarkResult(normal_str)
     assert res.result_str == normal_str
-    assert res.get_tokens() == ['2', 'Mean', 'Time:', '586.0']
+    assert res.get_tokens() == ["2", "Mean", "Time:", "586.0"]
     assert res.get_candidate_id() == 2
     assert res.get_benchmark_time() == 586.0
 
     incomplete_str = "2	Mean Time:"
     res = autotune.DispatchBenchmarkResult(incomplete_str)
-    assert res.get_tokens() == ['2', 'Mean', 'Time:']
+    assert res.get_tokens() == ["2", "Mean", "Time:"]
     assert res.get_candidate_id() == 2
     assert res.get_benchmark_time() == None
     incomplete_str = ""
@@ -101,16 +101,35 @@ def test_UnetBenchmarkResult_get():
     normal_str = "Benchmarking: unet_candidate_12.vmfb on device 24\nBM_main/process_time/real_time_median 182 ms 183 ms 5 items_per_second=5.50302/s"
     res = autotune.UnetBenchmarkResult(normal_str)
     assert res.result_str == normal_str
-    assert res.get_tokens() == ['Benchmarking:', 'unet_candidate_12.vmfb', 'on', 'device', '24', 'BM_main/process_time/real_time_median', '182', 'ms', '183', 'ms', '5', 'items_per_second=5.50302/s']
-    assert res.get_unet_candidate_path() == 'unet_candidate_12.vmfb'
+    assert res.get_tokens() == [
+        "Benchmarking:",
+        "unet_candidate_12.vmfb",
+        "on",
+        "device",
+        "24",
+        "BM_main/process_time/real_time_median",
+        "182",
+        "ms",
+        "183",
+        "ms",
+        "5",
+        "items_per_second=5.50302/s",
+    ]
+    assert res.get_unet_candidate_path() == "unet_candidate_12.vmfb"
     assert res.get_candidate_id() == 12
     assert res.get_device_id() == 24
     assert res.get_benchmark_time() == 182.0
 
     incomplete_str = "Benchmarking: unet_baseline.vmfb on device 24\n"
     res = autotune.UnetBenchmarkResult(incomplete_str)
-    assert res.get_tokens() == ['Benchmarking:', 'unet_baseline.vmfb', 'on', 'device', '24']
-    assert res.get_unet_candidate_path() == 'unet_baseline.vmfb'
+    assert res.get_tokens() == [
+        "Benchmarking:",
+        "unet_baseline.vmfb",
+        "on",
+        "device",
+        "24",
+    ]
+    assert res.get_unet_candidate_path() == "unet_baseline.vmfb"
     assert res.get_candidate_id() == None
     assert res.get_device_id() == 24
     assert res.get_benchmark_time() == None
