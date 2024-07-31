@@ -269,7 +269,7 @@ class UnetBenchmarkResult:
         self,
         candidate_vmfb_path_str: str = "unet_baseline.vmfb",
         device_id: int = 0,
-        t1: float = random.uniform(100.0, 500.0), # time in ms
+        t1: float = random.uniform(100.0, 500.0),  # time in ms
     ) -> str:
         return f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}\nBM_run_forward/process_time/real_time_median\t    {t1:.3g} ms\t    {(t1+1):.3g} ms\t      5 items_per_second={t1/200:5f}/s\n\n"
 
@@ -1038,33 +1038,65 @@ def parse_grouped_benchmark_results(
 ) -> Optional[list[str]]:
     """Update candidate_trackers and collect strings"""
     dump_list = []
+    incomplete_list: [
+        tuple[int, int]
+    ] = []  # format: [(candidate_id, device_id)], baseline will have candidate_id=0
 
     for same_device_results in grouped_benchmark_results:
+        dump_unsort_list: list[tuple[int, str]] = []
         for unet_candidate_result in same_device_results:
+            # Skip if benchmark failed.
             if not unet_candidate_result.result.stdout:
                 continue
+
             res = UnetBenchmarkResult(unet_candidate_result.result.stdout)
+
+            # Record baseline benchmarking result.
             if str(path_config.unet_baseline_vmfb) in res.get_unet_candidate_path():
                 baseline_time = res.get_benchmark_time()
+                if not baseline_time:
+                    incomplete_list.append((0, res.get_device_id()))
+                    continue
                 dump_list.append(res.result_str)
                 continue
-            candidate_trackers[
-                res.get_candidate_id()
-            ].unet_benchmark_time = res.get_benchmark_time()
-            candidate_trackers[
-                res.get_candidate_id()
-            ].baseline_benchmark_time = baseline_time
-            candidate_trackers[
-                res.get_candidate_id()
-            ].unet_benchmark_device_id = res.get_device_id()
-            candidate_trackers[res.get_candidate_id()].calibrated_benchmark_diff = (
-                res.get_benchmark_time() - baseline_time
+
+            # Record candidate benchmarking result.
+            c_id = res.get_candidate_id()
+            candidate_time = res.get_benchmark_time()
+            if not candidate_time:
+                incomplete_list.append((c_id, res.get_device_id()))
+                continue
+            candidate_trackers[c_id].unet_benchmark_time = candidate_time
+            candidate_trackers[c_id].unet_benchmark_device_id = res.get_device_id()
+            # Skip improvement calculation if no baseline data.
+            if not baseline_time:
+                dump_unsort_list.append([candidate_time, res.result_str])
+                continue
+            # Calculate candidate improvement based baseline.
+            candidate_trackers[c_id].baseline_benchmark_time = baseline_time
+            candidate_trackers[c_id].calibrated_benchmark_diff = (
+                candidate_time - baseline_time
             ) / baseline_time
             dump_str = res.get_calibrated_result_str(
-                candidate_trackers[res.get_candidate_id()].calibrated_benchmark_diff
+                candidate_trackers[c_id].calibrated_benchmark_diff
             )
+            dump_unsort_list.append([candidate_time, dump_str])
 
-            dump_list.append(dump_str)
+        # Sort unet candidate benchmarking result str in ascending time order.
+        dump_list = dump_list + [
+            dump_str for _, dump_str in sorted(dump_unsort_list, key=lambda x: x[0])
+        ]
+
+    # Store incomplete .vmfb file at the end of dump_list.
+    for index, device_id in incomplete_list:
+        index_to_path = (
+            lambda index: f"{path_config.unet_baseline_vmfb.as_posix()}"
+            if index == 0
+            else f"{candidate_trackers[index].unet_candidate_path}"
+        )
+        error_msg = f"Benchmarking result of {index_to_path(index)} on deivce {device_id} is incomplete"
+        handle_error(condition=True, msg=error_msg, level=logging.WARNING)
+        dump_list.append(error_msg + "\n")
 
     return dump_list
 

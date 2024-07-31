@@ -181,11 +181,17 @@ def test_parse_grouped_benchmark_results():
     b1 = "Benchmarking: some_dir/unet_baseline.vmfb on device 0 BM_main/process_time/real_time_median 60.7 ms 13.5 ms 5 items_per_second=16.4733/s"
     b2 = "Benchmarking: unet_baseline.vmfb on device 1 BM_main/process_time/real_time_median 59.8 ms 15.1 ms 5 items_per_second=16.7114/s"
     s1 = "Benchmarking: unet_candidate_1.vmfb on device 0 BM_main/process_time/real_time_median 62.4 ms 15.4 ms 5 items_per_second=16.0223/s"
-    s2 = "Benchmarking: some_dir/unet_candidate_4.vmfb on device 1 BM_main/process_time/real_time_median 61.4 ms 11.0 ms 5 items_per_second=16.2958/s"
+    s2 = "Benchmarking: some_dir/unet_candidate_2.vmfb on device 1 BM_main/process_time/real_time_median 61.4 ms 11.0 ms 5 items_per_second=16.2958/s"
+    s3 = "Benchmarking: unet_candidate_4.vmfb on device 1 BM_main/process_time/real_time_median 57.4 ms 11.0 ms 5 items_per_second=16.2958/s"
 
     grouped_benchmark_results = [
         [generate_res(b1, 0), generate_res(s1, 0)],
-        [generate_res(b2, 1), generate_res("", 1), generate_res(s2, 1)],
+        [
+            generate_res(b2, 1),
+            generate_res("", 1),
+            generate_res(s2, 1),
+            generate_res(s3, 1),
+        ],
     ]
 
     path_config = autotune.PathConfig()
@@ -195,7 +201,8 @@ def test_parse_grouped_benchmark_results():
     candidate_trackers_before = [autotune.CandidateTracker(i) for i in range(5)]
     expect_candidate_trackers = [autotune.CandidateTracker(i) for i in range(5)]
     set_tracker(expect_candidate_trackers[1], 62.4, 0, 60.7, 0.028006589785831888)
-    set_tracker(expect_candidate_trackers[4], 61.4, 1, 59.8, 0.02675585284280939)
+    set_tracker(expect_candidate_trackers[2], 61.4, 1, 59.8, 0.02675585284280939)
+    set_tracker(expect_candidate_trackers[4], 57.4, 1, 59.8, -0.04013377926421403)
 
     expect_dump_list = [
         "Benchmarking: some_dir/unet_baseline.vmfb on device 0 "
@@ -204,7 +211,9 @@ def test_parse_grouped_benchmark_results():
         "BM_main/process_time/real_time_median 62.4 ms (+2.801%) 15.4 ms 5 items_per_second=16.0223/s",
         "Benchmarking: unet_baseline.vmfb on device 1 "
         "BM_main/process_time/real_time_median 59.8 ms 15.1 ms 5 items_per_second=16.7114/s",
-        "Benchmarking: some_dir/unet_candidate_4.vmfb on device 1 "
+        "Benchmarking: unet_candidate_4.vmfb on device 1 "
+        "BM_main/process_time/real_time_median 57.4 ms (-4.013%) 11.0 ms 5 items_per_second=16.2958/s",
+        "Benchmarking: some_dir/unet_candidate_2.vmfb on device 1 "
         "BM_main/process_time/real_time_median 61.4 ms (+2.676%) 11.0 ms 5 items_per_second=16.2958/s",
     ]
 
@@ -212,13 +221,55 @@ def test_parse_grouped_benchmark_results():
         path_config, grouped_benchmark_results, candidate_trackers
     )
 
-    assert dump_list == expect_dump_list
+    assert dump_list == expect_dump_list, "basic parsing is incorrect"
     assert (
         candidate_trackers != candidate_trackers_before
     ), "candidate_trackers should be modified"
     assert (
         candidate_trackers == expect_candidate_trackers
     ), "candidate_trackers did not change as expected"
+
+    b1 = "Benchmarking: unet_baseline.vmfb on device 0"
+    s1 = "Benchmarking: unet_candidate_1.vmfb on device 0 BM_main/process_time/real_time_median 62.4 ms 15.4 ms 5 items_per_second=16.0223/s"
+    grouped_benchmark_results = [[generate_res(b1, 0), generate_res(s1, 0)]]
+    dump_list = autotune.parse_grouped_benchmark_results(
+        path_config, grouped_benchmark_results, candidate_trackers
+    )
+    expect_dump_list = [
+        "Benchmarking: unet_candidate_1.vmfb on device 0 "
+        "BM_main/process_time/real_time_median 62.4 ms 15.4 ms 5 items_per_second=16.0223/s",
+        "Benchmarking result of unet_baseline.vmfb on deivce 0 is incomplete\n",
+    ]
+    assert dump_list == expect_dump_list, "fail to parse incomplete baselines"
+
+    b1 = "Benchmarking: some_dir/unet_baseline.vmfb on device 0 BM_main/process_time/real_time_median 60.7 ms 13.5 ms 5 items_per_second=16.4733/s"
+    s1 = "Benchmarking: unet_candidate_1.vmfb on device 0"
+    grouped_benchmark_results = [[generate_res(b1, 0), generate_res(s1, 0)]]
+    candidate_trackers[1].unet_candidate_path = "unet_candidate_1.vmfb"
+    dump_list = autotune.parse_grouped_benchmark_results(
+        path_config, grouped_benchmark_results, candidate_trackers
+    )
+    expect_dump_list = [
+        "Benchmarking: some_dir/unet_baseline.vmfb on device 0 "
+        "BM_main/process_time/real_time_median 60.7 ms 13.5 ms 5 items_per_second=16.4733/s",
+        "Benchmarking result of unet_candidate_1.vmfb on deivce 0 is incomplete\n",
+    ]
+    assert dump_list == expect_dump_list, "fail to parse incomplete candidates"
+
+    b1 = "Benchmarking: unet_baseline.vmfb on device 0"
+    s1 = "Benchmarking: unet_candidate_1.vmfb on device 0"
+    grouped_benchmark_results = [[generate_res(b1, 0), generate_res(s1, 0)]]
+    candidate_trackers[1].unet_candidate_path = "unet_candidate_1.vmfb"
+    dump_list = autotune.parse_grouped_benchmark_results(
+        path_config, grouped_benchmark_results, candidate_trackers
+    )
+    expect_dump_list = [
+        "Benchmarking result of unet_baseline.vmfb on deivce 0 is incomplete\n",
+        "Benchmarking result of unet_candidate_1.vmfb on deivce 0 is incomplete\n",
+    ]
+    assert (
+        dump_list == expect_dump_list
+    ), "fail to parse incomplete baseline and candidates"
 
 
 def test_generate_sample_result():
