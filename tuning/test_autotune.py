@@ -71,6 +71,99 @@ def test_collision_handler():
     assert autotune.collision_handler(input) == (False, [])
 
 
+def test_DispatchBenchmarkResult_get():
+    normal_str = "2	Mean Time: 586.0"
+    res = autotune.DispatchBenchmarkResult(normal_str)
+    assert res.result_str == normal_str
+    assert res.get_tokens() == ["2", "Mean", "Time:", "586.0"]
+    assert res.get_candidate_id() == 2
+    assert res.get_benchmark_time() == 586.0
+
+    incomplete_str = "2	Mean Time:"
+    res = autotune.DispatchBenchmarkResult(incomplete_str)
+    assert res.get_tokens() == ["2", "Mean", "Time:"]
+    assert res.get_candidate_id() == 2
+    assert res.get_benchmark_time() == None
+    incomplete_str = ""
+    res = autotune.DispatchBenchmarkResult(incomplete_str)
+    assert res.get_tokens() == []
+    assert res.get_candidate_id() == None
+    assert res.get_benchmark_time() == None
+
+    bad_str = 12345
+    res = autotune.DispatchBenchmarkResult(bad_str)
+    assert res.get_tokens() == []
+    assert res.get_candidate_id() == None
+    assert res.get_benchmark_time() == None
+
+
+def test_UnetBenchmarkResult_get():
+    normal_str = "Benchmarking: unet_candidate_12.vmfb on device 24\nBM_main/process_time/real_time_median 182 ms 183 ms 5 items_per_second=5.50302/s"
+    res = autotune.UnetBenchmarkResult(normal_str)
+    assert res.result_str == normal_str
+    assert res.get_tokens() == [
+        "Benchmarking:",
+        "unet_candidate_12.vmfb",
+        "on",
+        "device",
+        "24",
+        "BM_main/process_time/real_time_median",
+        "182",
+        "ms",
+        "183",
+        "ms",
+        "5",
+        "items_per_second=5.50302/s",
+    ]
+    assert res.get_unet_candidate_path() == "unet_candidate_12.vmfb"
+    assert res.get_candidate_id() == 12
+    assert res.get_device_id() == 24
+    assert res.get_benchmark_time() == 182.0
+
+    incomplete_str = "Benchmarking: unet_baseline.vmfb on device 24\n"
+    res = autotune.UnetBenchmarkResult(incomplete_str)
+    assert res.get_tokens() == [
+        "Benchmarking:",
+        "unet_baseline.vmfb",
+        "on",
+        "device",
+        "24",
+    ]
+    assert res.get_unet_candidate_path() == "unet_baseline.vmfb"
+    assert res.get_candidate_id() == None
+    assert res.get_device_id() == 24
+    assert res.get_benchmark_time() == None
+    incomplete_str = ""
+    res = autotune.UnetBenchmarkResult(incomplete_str)
+    assert res.get_tokens() == []
+    assert res.get_unet_candidate_path() == None
+    assert res.get_candidate_id() == None
+    assert res.get_device_id() == None
+    assert res.get_benchmark_time() == None
+
+    bad_str = 12345
+    res = autotune.UnetBenchmarkResult(bad_str)
+    assert res.get_tokens() == []
+    assert res.get_unet_candidate_path() == None
+    assert res.get_candidate_id() == None
+    assert res.get_device_id() == None
+    assert res.get_benchmark_time() == None
+
+
+def test_generate_sample_result():
+    res = autotune.DispatchBenchmarkResult()
+    output = res.generate_sample_result(1, 3.14)
+    expected = f"1\tMean Time: 3.1\n"
+    assert output == expected, "DispatchBenchmarkResult generates invalid sample string"
+
+    res = autotune.UnetBenchmarkResult()
+    output = res.generate_sample_result(
+        1, "some_dir/tuning_2024_07_24_20_06/unet_candidate_60.vmfb.vmfb", 576.89
+    )
+    expected = f"Benchmarking: 1 on device some_dir/tuning_2024_07_24_20_06/unet_candidate_60.vmfb.vmfb\nBM_run_forward/process_time/real_time_median\t    577 ms\t    578 ms\t      5 items_per_second=2.884450/s\n\n"
+    assert output == expected, "UnetBenchmarkResult generates invalid sample string"
+
+
 def test_UnetBenchmarkResult_get_calibrated_result_str():
     baseline_time = 423
     res_time = 304
@@ -188,7 +281,7 @@ def test_parse_grouped_benchmark_results():
         [generate_res(b1, 0), generate_res(s1, 0)],
         [
             generate_res(b2, 1),
-            generate_res("", 1),
+            generate_res(None, 1),
             generate_res(s2, 1),
             generate_res(s3, 1),
         ],
