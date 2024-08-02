@@ -11,6 +11,14 @@ repos:
       - id: check-added-large-files
         files: ^tuning/
 
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        name: run Black to format Python files
+        files: ^tuning/
+        language_version: python3.10.12
+
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.11.1
     hooks:
@@ -20,20 +28,3 @@ repos:
         files: ^tuning/
         args: ['--config-file', 'tuning/.mypy.ini']
         types: [python]
-
-  - repo: local
-    hooks:
-      - id: run-tuner-pytest
-        name: run pytest on specific tuning files
-        entry: python tuning/run_tuner_pytest.py
-        language: system
-        types: [python]
-        files: ^tuning/
-
-  - repo: https://github.com/psf/black
-    rev: 24.4.2
-    hooks:
-      - id: black
-        name: run Black to format Python files
-        files: ^tuning/
-        language_version: python3.10.12
