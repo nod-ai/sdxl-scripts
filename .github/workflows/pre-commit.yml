@@ -32,5 +32,5 @@ jobs:
       - name: Run pytest
         working-directory: tuning
         run: |
-          pytest -m test_autotune.py
-          pytest -m test_tune.py
+          python -m pytest test_autotune.py
+          python -m pytest test_tune.py
