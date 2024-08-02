@@ -10,4 +10,3 @@ func.func @main_0(%arg0: tensor<2x34x34x1280xf16>, %arg1: tensor<3x3x1280x1280xf
     outs(%6 : tensor<2x32x32x1280xf32>) -> tensor<2x32x32x1280xf32>
   return %28 : tensor<2x32x32x1280xf32>
 }
-

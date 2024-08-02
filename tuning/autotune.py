@@ -12,7 +12,7 @@ import time
 import multiprocessing
 import queue
 import tune
-from tqdm import tqdm  # type: ignore
+from tqdm import tqdm
 import re
 import hashlib
 from dataclasses import dataclass, field
@@ -704,9 +704,9 @@ def generate_candidates(
             )
             candidate_trackers.append(new_candidate)
         else:
-            candidate_trackers[
-                int(mlir.stem.split("_config")[0])
-            ].mlir_config_path = mlir
+            candidate_trackers[int(mlir.stem.split("_config")[0])].mlir_config_path = (
+                mlir
+            )
 
     handle_error(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
@@ -1033,9 +1033,9 @@ def parse_grouped_benchmark_results(
 ) -> list[str]:
     """Update candidate_trackers and collect strings"""
     dump_list = []
-    incomplete_list: list[
-        tuple[int, Optional[int]]
-    ] = []  # format: [(candidate_id, device_id)], baseline will have candidate_id=0
+    incomplete_list: list[tuple[int, Optional[int]]] = (
+        []
+    )  # format: [(candidate_id, device_id)], baseline will have candidate_id=0
 
     for same_device_results in grouped_benchmark_results:
         dump_unsort_list: list[tuple[float, str]] = []
@@ -1077,9 +1077,9 @@ def parse_grouped_benchmark_results(
             # Calculate candidate improvement based baseline.
             candidate_trackers[c_id].baseline_benchmark_time = baseline_time
             calibrated_benchmark_diff = (candidate_time - baseline_time) / baseline_time
-            candidate_trackers[
-                c_id
-            ].calibrated_benchmark_diff = calibrated_benchmark_diff
+            candidate_trackers[c_id].calibrated_benchmark_diff = (
+                calibrated_benchmark_diff
+            )
             dump_str = res.get_calibrated_result_str(calibrated_benchmark_diff)
             assert dump_str is not None
             dump_unsort_list.append((candidate_time, dump_str))
@@ -1091,8 +1091,8 @@ def parse_grouped_benchmark_results(
 
     # Store incomplete .vmfb file at the end of dump_list.
     for index, device_id in incomplete_list:
-        index_to_path = (
-            lambda index: f"{path_config.unet_baseline_vmfb.as_posix()}"
+        index_to_path = lambda index: (
+            f"{path_config.unet_baseline_vmfb.as_posix()}"
             if index == 0
             else f"{candidate_trackers[index].unet_candidate_path}"
         )

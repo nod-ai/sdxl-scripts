@@ -77,7 +77,7 @@ python autotune.py winograd 141.mlir --devices=1,3,5 --num-candidates=1024
    - Example:
      ```mlir
      @match_something -> @apply_op_config
-     ```    
+     ```
 
 ### Correctness validation
 
