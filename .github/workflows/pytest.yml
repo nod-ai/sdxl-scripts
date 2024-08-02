@@ -1,4 +1,4 @@
-name: Pre-commit Checks
+name: Pytest Checks
 
 on: 
   pull_request:
@@ -26,8 +26,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
-      - name: Run pre-commit test
-        run: pre-commit run --all-files --show-diff-on-failure --color=always
-                
-                
+      - name: Set virtual env
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+
+      - name: Install tuner dependencies
+        run: |
+          pip install -r tuning/tuner_requirements/requirements.txt
+          python -m pip install iree-compiler
+
+      - name: Run pytest
+        working-directory: tuning
+        run: |
+          python -m pytest test_autotune.py
+          python -m pytest test_tune.py
+  
+
+
 
