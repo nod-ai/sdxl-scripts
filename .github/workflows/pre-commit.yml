@@ -25,7 +25,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
-          pip install -r tuning/requirements.txt
+          pip install -r tuning/tuner_requirements/requirements.txt
 
       # - name: Run lint test
       #   run: pre-commit run --all-files --show-diff-on-failure --color=always
