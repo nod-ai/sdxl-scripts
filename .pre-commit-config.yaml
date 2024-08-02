@@ -1,0 +1,30 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        files: ^tuning/
+      - id: end-of-file-fixer
+        files: ^tuning/
+      - id: check-yaml
+        files: ^tuning/
+      - id: check-added-large-files
+        files: ^tuning/
+
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        name: run Black to format Python files
+        files: ^tuning/
+        language_version: python3.10.12
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.1
+    hooks:
+      - id: mypy
+        name: mypy type check Python files in 'tuning'
+        language_version: python3.10.12
+        files: ^tuning/
+        args: ['--config-file', 'tuning/.mypy.ini']
+        types: [python]
