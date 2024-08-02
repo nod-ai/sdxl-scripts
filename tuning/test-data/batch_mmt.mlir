@@ -3,7 +3,7 @@ module attributes {hal.device.targets = [#hal.device.target<"rocm", {legacy_sync
     hal.executable.variant public @rocm_hsaco_fb target(<"rocm", "rocm-hsaco-fb", {iree.gpu.target = #iree_gpu.target<arch = "gfx942", features = "", wgp = <compute =  fp64|fp32|fp16|int64|int32|int16|int8, storage =  b64|b32|b16|b8, subgroup =  shuffle|arithmetic, dot =  dp4xi8toi32, mma = [<MFMA_F16_16x16x16_F32>, <MFMA_F16_32x32x8_F32>, <MFMA_I8_16x16x32_I32>, <MFMA_I8_32x32x16_I32>], subgroup_size_choices = [64], max_workgroup_sizes = [1024, 1024, 1024], max_thread_count_per_workgroup = 1024, max_workgroup_memory_bytes = 65536>>, ukernels = "none"}>) {
       hal.executable.export public @main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32 ordinal(0) layout(#hal.pipeline.layout<push_constants = 2, sets = [<0, bindings = [<0, storage_buffer, ReadOnly>, <1, storage_buffer, ReadOnly>, <2, storage_buffer, ReadOnly>, <3, storage_buffer, ReadOnly>, <4, storage_buffer>]>]>) attributes {hal.interface.bindings = [#hal.interface.binding<0, 0>, #hal.interface.binding<0, 1>, #hal.interface.binding<0, 2>, #hal.interface.binding<0, 3>, #hal.interface.binding<0, 4>]} {
       ^bb0(%arg0: !hal.device):
-        %x, %y, %z = flow.dispatch.workgroup_count_from_slice 
+        %x, %y, %z = flow.dispatch.workgroup_count_from_slice
         hal.return %x, %y, %z : index, index, index
       }
       builtin.module {
@@ -92,10 +92,10 @@ module attributes {hal.device.targets = [#hal.device.target<"rocm", {legacy_sync
     hal.command_buffer.push_constants<%cmd : !hal.command_buffer> layout(%pipeline_layout : !hal.pipeline_layout) offset(0) values([%c22061440_i32, %c85437312_i32]) : i32, i32
     %main$async_dispatch_104_rocm_hsaco_fb_main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32_buffer = util.global.load @main$async_dispatch_104_rocm_hsaco_fb_main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32_buffer : !hal.buffer
     hal.command_buffer.push_descriptor_set<%cmd : !hal.command_buffer> layout(%pipeline_layout : !hal.pipeline_layout)[%c0] bindings([
-      %c0 = (%main$async_dispatch_104_rocm_hsaco_fb_main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32_buffer : !hal.buffer)[%c0, %c327270272], 
-      %c1 = (%main$async_dispatch_104_rocm_hsaco_fb_main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32_buffer : !hal.buffer)[%c327270400, %c640], 
-      %c2 = (%main$async_dispatch_104_rocm_hsaco_fb_main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32_buffer : !hal.buffer)[%c327271168, %c2560], 
-      %c3 = (%main$async_dispatch_104_rocm_hsaco_fb_main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32_buffer : !hal.buffer)[%c327273728, %c2560], 
+      %c0 = (%main$async_dispatch_104_rocm_hsaco_fb_main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32_buffer : !hal.buffer)[%c0, %c327270272],
+      %c1 = (%main$async_dispatch_104_rocm_hsaco_fb_main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32_buffer : !hal.buffer)[%c327270400, %c640],
+      %c2 = (%main$async_dispatch_104_rocm_hsaco_fb_main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32_buffer : !hal.buffer)[%c327271168, %c2560],
+      %c3 = (%main$async_dispatch_104_rocm_hsaco_fb_main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32_buffer : !hal.buffer)[%c327273728, %c2560],
       %c4 = (%main$async_dispatch_104_rocm_hsaco_fb_main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32_buffer : !hal.buffer)[%c327276288, %c327270272]
     ])
     %workgroup_x, %workgroup_y, %workgroup_z = hal.executable.calculate_workgroups device(%device_0 : !hal.device) target(@main$async_dispatch_104::@rocm_hsaco_fb::@main$async_dispatch_104_batch_matmul_transpose_b_2x4096x640x640_i8xi8xi32) : index, index, index

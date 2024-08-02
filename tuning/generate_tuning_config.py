@@ -11,24 +11,24 @@ def main() -> int:
 
     args = parser.parse_args()
     input_path: str = args.input
-    
+
     lines: list[str] = []
     with open(input_path, "r") as f:
         lines = f.readlines()
-    
+
     config_baseline_lines: list[str] = []
     config_prolog_lines: list[str] = []
     config_epilog_lines: list[str] = []
 
-    found_tuning_spec_begin = False 
-    found_tuning_spec_end = False 
-    found_tuning_match_begin = False 
-    found_tuning_match_end = False 
-    
+    found_tuning_spec_begin = False
+    found_tuning_spec_end = False
+    found_tuning_match_begin = False
+    found_tuning_match_end = False
+
     for i, line in enumerate(lines):
         if "TUNING_SPEC_BEGIN" in line:
             found_tuning_spec_begin = True
-            lines = lines[i+1:]
+            lines = lines[i + 1 :]
             break
 
         config_baseline_lines.append(line)
@@ -37,24 +37,24 @@ def main() -> int:
     for i, line in enumerate(lines):
         if "TUNING_SPEC_END" in line:
             found_tuning_spec_end = True
-            lines = lines[i+1:]
+            lines = lines[i + 1 :]
             break
 
     for i, line in enumerate(lines):
         if "TUNING_MATCH_BEGIN" in line:
             found_tuning_match_begin = True
-            lines = lines[i+1:]
+            lines = lines[i + 1 :]
             break
 
         config_baseline_lines.append(line)
         config_epilog_lines.append(line)
 
-    config_epilog_lines.append('        , @match_op -> @apply_op_config\n')
+    config_epilog_lines.append("        , @match_op -> @apply_op_config\n")
 
     for i, line in enumerate(lines):
         if "TUNING_MATCH_END" in line:
             found_tuning_match_end = True
-            lines = lines[i+1:]
+            lines = lines[i + 1 :]
             break
 
     config_baseline_lines += lines
@@ -65,16 +65,17 @@ def main() -> int:
     assert found_tuning_match_begin
     assert found_tuning_match_end
 
-    with open('config_baseline.mlir', "w") as f:
+    with open("config_baseline.mlir", "w") as f:
         f.writelines(config_baseline_lines)
 
-    with open('config_prolog.mlir', "w") as f:
+    with open("config_prolog.mlir", "w") as f:
         f.writelines(config_prolog_lines)
 
-    with open('config_epilog.mlir', "w") as f:
+    with open("config_epilog.mlir", "w") as f:
         f.writelines(config_epilog_lines)
 
     return 0
+
 
 if __name__ == "__main__":
     exit(main())

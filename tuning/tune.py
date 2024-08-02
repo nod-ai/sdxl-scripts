@@ -8,16 +8,16 @@ import logging
 import math
 import pickle
 import re
-import z3 # type: ignore
+import z3  # type: ignore
 from dataclasses import asdict, dataclass
 from enum import Enum
 from os import mkdir, path, makedirs
 from typing import Callable
 from textwrap import indent
 
-import iree.compiler as ireec # type: ignore
-from iree.compiler import ir # type: ignore
-from iree.compiler.dialects import _linalg_ops_gen, _util_ops_gen # type: ignore
+import iree.compiler as ireec  # type: ignore
+from iree.compiler import ir  # type: ignore
+from iree.compiler.dialects import _linalg_ops_gen, _util_ops_gen  # type: ignore
 
 """
 Usage: ./tune.py 121.mlir -o "tuning/candidates" -l 1024 --lhs-dims=mk --rhs-dims=nk --tile-dims=mnk

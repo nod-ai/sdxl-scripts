@@ -3,10 +3,10 @@ import numpy as np
 from argparse import ArgumentParser
 
 parser = ArgumentParser()
-parser.add_argument('shape', type=str, help='MxNxK')
+parser.add_argument("shape", type=str, help="MxNxK")
 args = parser.parse_args()
 
-shape = str(args.shape).split('x')
+shape = str(args.shape).split("x")
 assert len(shape) == 3
 
 M, N, K = int(shape[0]), int(shape[1]), int(shape[2])
@@ -30,15 +30,15 @@ for row in range(M):
 res = np.float16(res)
 
 # Write matrices
-with open(f'matrix_a.npy', 'wb') as f:
+with open(f"matrix_a.npy", "wb") as f:
     np.save(f, a)
-with open(f'matrix_b.npy', 'wb') as f:
+with open(f"matrix_b.npy", "wb") as f:
     np.save(f, b)
-with open(f'matrix_c.npy', 'wb') as f:
+with open(f"matrix_c.npy", "wb") as f:
     np.save(f, c)
-with open(f'matrix_d.npy', 'wb') as f:
+with open(f"matrix_d.npy", "wb") as f:
     np.save(f, d)
-with open(f'matrix_e.npy', 'wb') as f:
+with open(f"matrix_e.npy", "wb") as f:
     np.save(f, e)
-with open(f'matrix_res.npy', 'wb') as f:
+with open(f"matrix_res.npy", "wb") as f:
     np.save(f, res)
