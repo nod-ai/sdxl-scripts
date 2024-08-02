@@ -12,7 +12,7 @@ import time
 import multiprocessing
 import queue
 import tune
-from tqdm import tqdm  # type: ignore
+from tqdm import tqdm
 import re
 import hashlib
 from dataclasses import dataclass, field
