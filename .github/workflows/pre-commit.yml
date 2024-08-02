@@ -28,8 +28,7 @@ jobs:
         working-directory: tuning
         uses: pre-commit/action@v3.0.1
         with:
-          extra_args:
-            --show-diff-on-failure
+          extra_args: --show-diff-on-failure
             
       
       - name: Run pytest
