@@ -25,7 +25,8 @@ jobs:
         run: cd tuning
 
       - name: Run lint test
-        uses: pre-commit/action@v3.0.1
+      working-directory: tuning
+      uses: pre-commit/action@v3.0.1
                 
       - name: Run pytest
         working-directory: tuning
