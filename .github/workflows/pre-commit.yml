@@ -25,11 +25,13 @@ jobs:
         run: cd tuning
 
       - name: Run lint test
+        working-directory: tuning
         uses: pre-commit/action@v3.0.1
         with:
           extra_args: |
             --show-diff-on-failure
             --color=always
+            
       
       - name: Run pytest
         working-directory: tuning
