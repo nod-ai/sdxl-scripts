@@ -33,7 +33,7 @@ jobs:
           python -m pip install \
             --find-links https://iree.dev/pip-release-links.html \
             --upgrade \
-            iree-compiler
+            iree-compiler iree-runtime
 
       - name: Run pytest
         working-directory: tuning
