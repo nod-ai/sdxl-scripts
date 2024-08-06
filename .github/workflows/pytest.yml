@@ -30,7 +30,10 @@ jobs:
       - name: Install tuner dependencies
         run: |
           pip install -r tuning/tuner_requirements/requirements.txt
-          python -m pip install iree-compiler
+          python -m pip install \
+            --find-links https://iree.dev/pip-release-links.html \
+            --upgrade \
+            iree-compiler
 
       - name: Run pytest
         working-directory: tuning
