@@ -75,7 +75,6 @@ class CandidateTracker:
     calibrated_benchmark_diff: Optional[float] = None
 
 
-
 @dataclass(frozen=True)
 class PathConfig:
     # Preset constants
@@ -300,7 +299,7 @@ def fetch_available_devices(drivers: list[str]) -> list[str]:
     Extract all available devices on the user's machine for the provided drivers
     Only the user provided drivers will be queried
     """
-    all_device_ids = []
+    all_device_ids: list[str] = []
 
     for driver_name in drivers:
         try:
@@ -318,6 +317,7 @@ def fetch_available_devices(drivers: list[str]) -> list[str]:
             )
 
     return all_device_ids
+
 
 def parse_devices(devices_str: str) -> list[str]:
     """
@@ -339,7 +339,7 @@ def validate_devices(user_devices: list[str]) -> None:
     """Validates the user provided devices against the devices extracted by the IREE Runtime"""
     user_drivers = extract_driver_names(user_devices)
 
-    available_devices = fetch_available_devices(user_drivers)
+    available_devices = fetch_available_devices(list(user_drivers))
 
     for device in user_devices:
         handle_error(
