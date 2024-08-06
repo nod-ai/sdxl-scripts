@@ -3,6 +3,7 @@ name: Pytest Checks
 on: 
   pull_request:
     paths:
+      - ".github/workflows/pytest.yml"
       - "tuning/*"
 
 permissions:
