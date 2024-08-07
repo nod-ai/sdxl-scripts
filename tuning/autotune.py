@@ -1282,6 +1282,18 @@ def benchmark_unet(
     )
 
 
+def summerize_top_candidates(
+    path_config: PathConfig, candidate_trackers: list[CandidateTracker]
+):
+    dump_list = []
+    for candidate in candidate_trackers:
+        if candidate.unet_benchmark_time is not None:
+            final_str = f"Candidate {candidate.candidate_id}:\nUnet benchmark time: {candidate.unet_benchmark_time} on device {candidate.unet_benchmark_device_id}\nDispatch benchmark time: {candidate.first_benchmark_time} on device {candidate.unet_benchmark_device_id}\nSpec file: {candidate.mlir_spec_path}\n\n"
+            dump_list.append(final_str)
+    with open(path_config.result_summary_log, "w") as file:
+        file.writelines(dump_list)
+
+
 def autotune(args: argparse.Namespace) -> None:
     path_config = PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
@@ -1334,6 +1346,9 @@ def autotune(args: argparse.Namespace) -> None:
     print(f"Stored results in {path_config.output_unilog}")
     if stop_after_phase == ExecutionPhases.benchmark_unet_candidates:
         return
+
+    summerize_top_candidates(path_config, candidate_trackers)
+    print(f"Stored top candidates info in {path_config.result_summary_log}\n")
 
     with open(path_config.candidate_trackers_pkl, "wb") as file:
         pickle.dump(candidate_trackers, file)
