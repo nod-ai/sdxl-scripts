@@ -5,7 +5,7 @@ on:
     paths:
       - ".github/workflows/pre-commit.yml"
       - ".pre-commit-config.yaml"
-      - "tuning/*"
+      - "tuning/**"
 
 permissions:
   contents: read
