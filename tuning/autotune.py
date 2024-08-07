@@ -331,7 +331,7 @@ def validate_devices(user_devices: list[str]) -> None:
     for device in user_devices:
         handle_error(
             condition=(device not in available_devices),
-            msg=f"Invalid device specified: {device}",
+            msg=f"Invalid device specified: {device}\nFetched available devices: {available_devices}",
             error_type=argparse.ArgumentError,
             exit_program=True,
         )
@@ -1280,7 +1280,7 @@ def autotune(args: argparse.Namespace) -> None:
 
     print("Validating devices")
     validate_devices(args.devices)
-    print("Validation successful!")
+    print("Validation successful!\n")
 
     print("Generating candidates...")
     candidates = generate_candidates(args, path_config, candidate_trackers)
