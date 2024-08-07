@@ -1,1 +1,0 @@
-Test template MLIR files are generated using the IREE repository with Git SHA: 5d8362ca8acb7896338de9768f57f597230d8a06.
