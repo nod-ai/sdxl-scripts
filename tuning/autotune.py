@@ -118,9 +118,7 @@ class PathConfig:
         )
         object.__setattr__(self, "compiled_dir", self.candidates_dir / "compiled")
         object.__setattr__(self, "compilefailed_dir", self.candidates_dir / "failed")
-        object.__setattr__(
-            self, "results_unilog", self.base_dir / "results.log"
-        )
+        object.__setattr__(self, "results_unilog", self.base_dir / "results.log")
         object.__setattr__(
             self, "candidate_trackers_pkl", self.base_dir / "candidate_trackers.pkl"
         )
@@ -665,19 +663,20 @@ def load_pickle(file_path: Path) -> list[Any]:
     with open(file_path, "rb") as file:
         loaded_array = pickle.load(file)
     return loaded_array
-    
 
-def prepend_to_file(filepath: str, new_content: str, title: str="") -> None:
-    '''Appending new contents to the top of a file is complex.
-    Since the estimated log file size is small, this simple handling function is efficient enough.'''
+
+def prepend_to_file(filepath: Path, new_content: str, title: str = "") -> None:
+    """Appending new contents to the top of a file is complex.
+    Since the estimated log file size is small, this simple handling function is efficient enough.
+    """
     # Read the existing content
-    with open(filepath, 'r') as file:
+    with open(filepath, "r") as file:
         existing_content = file.read()
 
-    title_str = "="*5 + f" {title} " + "="*5 + '\n' if title != "" else ""
+    title_str = "=" * 5 + f" {title} " + "=" * 5 + "\n" if title != "" else ""
     # Write the new content followed by the existing content
-    with open(filepath, 'w') as file:
-        file.write(title_str + new_content + '\n\n' + existing_content)
+    with open(filepath, "w") as file:
+        file.write(title_str + new_content + "\n\n" + existing_content)
 
 
 def generate_candidates(
@@ -938,7 +937,11 @@ def benchmark_compiled_candidates(
     ) = parse_dispatch_benchmark_results(
         path_config, benchmark_results, candidate_trackers
     )
-    prepend_to_file(path_config.results_unilog, ''.join(dispatch_benchmark_dump_list), title="All Dispatch Benchmark Results")
+    prepend_to_file(
+        path_config.results_unilog,
+        "".join(dispatch_benchmark_dump_list),
+        title="All Dispatch Benchmark Results",
+    )
 
     benchmarking_rate = (len(parsed_benchmark_results) / len(benchmark_results)) * 100
     logging.critical(
@@ -955,11 +958,13 @@ def benchmark_compiled_candidates(
     )[: args.num_unet_candidates]
     logging.critical(f"Selected top[{len(best_results)}]")
 
-    result_content = '\n'.join(
+    result_content = "\n".join(
         f"{result.benchmark_time_in_seconds}\t{result.candidate_mlir.as_posix()}\t{result.candidate_spec_mlir.as_posix()}"
         for result in best_results
     )
-    prepend_to_file(path_config.results_unilog, result_content, title="Top Candidates Results")
+    prepend_to_file(
+        path_config.results_unilog, result_content, title="Top Candidates Results"
+    )
 
 
 def compile_unet_candidates(
@@ -972,7 +977,7 @@ def compile_unet_candidates(
 
     task_list = []
     with path_config.results_unilog.open("r") as log_file:
-        next(log_file) # skip title
+        next(log_file)  # skip title
         for line in log_file:
             if line == "\n":
                 break
@@ -1184,7 +1189,9 @@ def dryrun_benchmark_unet(
         path_config, grouped_benchmark_results, candidate_trackers
     )
 
-    prepend_to_file(path_config.results_unilog, ''.join(dump_list), title="Unet Benchmark Results")
+    prepend_to_file(
+        path_config.results_unilog, "".join(dump_list), title="Unet Benchmark Results"
+    )
 
 
 def benchmark_unet(
@@ -1263,7 +1270,9 @@ def benchmark_unet(
         path_config, grouped_benchmark_results, candidate_trackers
     )
 
-    prepend_to_file(path_config.results_unilog, ''.join(dump_list), title="Unet Benchmark Results")
+    prepend_to_file(
+        path_config.results_unilog, "".join(dump_list), title="Unet Benchmark Results"
+    )
 
 
 def autotune(args: argparse.Namespace) -> None:
@@ -1300,9 +1309,7 @@ def autotune(args: argparse.Namespace) -> None:
     benchmark_compiled_candidates(
         args, path_config, compiled_candidates, candidate_trackers
     )
-    print(
-        f"Stored results in {path_config.results_unilog}\n"
-    )
+    print(f"Stored results in {path_config.results_unilog}\n")
 
     if stop_after_phase == ExecutionPhases.benchmark_candidates:
         return
@@ -1315,9 +1322,7 @@ def autotune(args: argparse.Namespace) -> None:
 
     print("Benchmarking unet candidates...")
     benchmark_unet(args, path_config, unet_candidates, candidate_trackers)
-    print(
-        f"Stored results in {path_config.results_unilog}"
-    )
+    print(f"Stored results in {path_config.results_unilog}")
     if stop_after_phase == ExecutionPhases.benchmark_unet_candidates:
         return
 
