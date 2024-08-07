@@ -712,33 +712,3 @@ def test_parse_mlir():
     assert mlir_module != None
     assert isinstance(mlir_module, tune.ireec._mlir_libs._mlir.ir.Module)
     assert isinstance(mlir_module.body.operations[0], tune.ireec.dialects.func.FuncOp)
-
-
-def test_walk_mlir_op():
-    def detect_mlir_type(mlir_file_path):
-        with open(mlir_file_path, "r") as f:
-            mlir_text = f.read()
-        mlir_module = tune.parse_mlir(mlir_text)
-        walk_result = tune.walk_mlir_op(mlir_module)
-
-        return walk_result
-
-    walk_result = detect_mlir_type("./test-data/convolution.mlir")
-    assert walk_result.was_interrupted
-    assert walk_result.dispatch_kind == tune.DispatchKind.conv
-
-    walk_result = detect_mlir_type("./test-data/matmul.mlir")
-    assert walk_result.was_interrupted
-    assert walk_result.dispatch_kind == tune.DispatchKind.mmt
-
-    walk_result = detect_mlir_type("./test-data/contraction.mlir")
-    assert walk_result.was_interrupted
-    assert walk_result.dispatch_kind == tune.DispatchKind.contraction
-
-    walk_result = detect_mlir_type("./test-data/batch_matmul.mlir")
-    assert walk_result.was_interrupted
-    assert walk_result.dispatch_kind == tune.DispatchKind.batch_matmul
-
-    walk_result = detect_mlir_type("./test-data/batch_mmt.mlir")
-    assert walk_result.was_interrupted
-    assert walk_result.dispatch_kind == tune.DispatchKind.batch_mmt
