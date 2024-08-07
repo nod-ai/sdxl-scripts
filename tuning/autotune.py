@@ -18,10 +18,8 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Type, Optional, Callable, Iterable, Any
 import pickle
-from itertools import groupby
 import iree.runtime as ireert
 import random
-import tempfile
 
 """
 Sample Usage:
@@ -905,6 +903,7 @@ def benchmark_compiled_candidates(
     logging.info("benchmark_top_candidates()")
 
     if args.dry_run:
+        logging.info("generate_dryrun_dispatch_benchmark_results")
         benchmark_results = generate_dryrun_dispatch_benchmark_results(
             compiled_candidates
         )
@@ -1150,6 +1149,7 @@ def parse_grouped_benchmark_results(
 def generate_dryrun_unet_benchmark_results(
     unet_vmfb_paths: list[Path],
 ) -> list[TaskResult]:
+    logging.info("generate_dryrun_unet_benchmark_results")
     task_results = []
     start = random.uniform(100.0, 500.0)
     device_id = 0
