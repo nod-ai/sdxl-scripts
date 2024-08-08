@@ -213,6 +213,7 @@ def test_parse_dispatch_benchmark_results():
         time: float, i: int
     ) -> autotune.ParsedDisptachBenchmarkResult:
         return autotune.ParsedDisptachBenchmarkResult(
+            i,
             time,
             path_config.get_candidate_mlir_path(i),
             path_config.get_candidate_spec_mlir_path(i),
@@ -227,16 +228,29 @@ def test_parse_dispatch_benchmark_results():
         for i in random_order
     ]
 
-    candidate_trackers = [autotune.CandidateTracker(i) for i in range(total)]
-    candidate_trackers_before = [autotune.CandidateTracker(i) for i in range(total)]
+    path_config = autotune.PathConfig()
 
-    expect_candidate_trackers = [autotune.CandidateTracker(i) for i in range(total)]
+    candidate_trackers = [
+        autotune.CandidateTracker(i, mlir_path=path_config.get_candidate_mlir_path(i))
+        for i in range(total)
+    ]
+    candidate_trackers_before = [
+        autotune.CandidateTracker(i, mlir_path=path_config.get_candidate_mlir_path(i))
+        for i in range(total)
+    ]
+
+    expect_candidate_trackers = [
+        autotune.CandidateTracker(
+            i,
+            mlir_path=path_config.get_candidate_mlir_path(i),
+            mlir_spec_path=path_config.get_candidate_spec_mlir_path(i),
+        )
+        for i in range(total)
+    ]
     for i in range(total):
         expect_candidate_trackers[test_list[i][0]].first_benchmark_time = test_list[i][
             1
         ]
-
-    path_config = autotune.PathConfig()
 
     tmp = [generate_parsed_disptach_benchmark_result(t, i) for i, t in test_list]
     expect_parsed_results = [tmp[i] for i in random_order]
@@ -497,7 +511,7 @@ def test_validate_devices_with_invalid_device():
                 autotune.validate_devices(user_devices)
                 expected_call = call(
                     condition=True,
-                    msg=f"Invalid device specified: cuda://default",
+                    msg=f"Invalid device specified: cuda://default\nFetched available devices: ['hip://0', 'local-sync://default']",
                     error_type=argparse.ArgumentError,
                     exit_program=True,
                 )

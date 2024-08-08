@@ -18,7 +18,6 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Type, Optional, Callable, Iterable, Any
 import pickle
-from itertools import groupby
 import iree.runtime as ireert
 import random
 
@@ -67,6 +66,7 @@ class CandidateTracker:
     compiled_vmfb_hash: Optional[str] = None
     first_benchmark_time: Optional[float] = None
     first_benchmark_device_id: Optional[int] = None
+    mlir_spec_path: Optional[Path] = None
     unet_candidate_path: Optional[Path] = None
     unet_vmfb_hash: Optional[str] = None
     unet_benchmark_time: Optional[float] = None
@@ -95,16 +95,13 @@ class PathConfig:
     candidate_configs_pkl: Path = field(init=False)
     compiled_dir: Path = field(init=False)
     compilefailed_dir: Path = field(init=False)
-    candidate_vmfbs_txt: Path = field(init=False)
-    dispatch_benchmark_result_log: Path = field(init=False)
-    dispatch_benchmark_top_result_log: Path = field(init=False)
 
-    unet_benchmark_result_log: Path = field(init=False)
-    unet_result_log: Path = field(init=False)
+    output_unilog: Path = field(init=False)
+    result_summary_log: Path = field(init=False)
     candidate_trackers_pkl: Path = field(init=False)
 
     # To be set outside of class
-    log_file_path: Optional[Path] = field(init=False, default=None)
+    run_log: Optional[Path] = field(init=False, default=None)
 
     def __post_init__(self):
         object.__setattr__(self, "base_dir", self._name_base_dir())
@@ -121,19 +118,10 @@ class PathConfig:
         )
         object.__setattr__(self, "compiled_dir", self.candidates_dir / "compiled")
         object.__setattr__(self, "compilefailed_dir", self.candidates_dir / "failed")
+        object.__setattr__(self, "output_unilog", self.base_dir / "output.log")
         object.__setattr__(
-            self, "candidate_vmfbs_txt", self.base_dir / "candidate_vmfbs.txt"
+            self, "result_summary_log", self.base_dir / "result_summary.log"
         )
-        object.__setattr__(
-            self, "dispatch_benchmark_result_log", self.base_dir / "results.log"
-        )
-        object.__setattr__(
-            self, "dispatch_benchmark_top_result_log", self.base_dir / "best.log"
-        )
-        object.__setattr__(
-            self, "unet_benchmark_result_log", self.base_dir / "unet_results.log"
-        )
-        object.__setattr__(self, "unet_result_log", self.base_dir / "unet_result.log")
         object.__setattr__(
             self, "candidate_trackers_pkl", self.base_dir / "candidate_trackers.pkl"
         )
@@ -143,8 +131,8 @@ class PathConfig:
         base_dir = Path(f"./tuning_{timestamp}")
         return base_dir
 
-    def _set_log_file_path(self, log_file_path: Path):
-        object.__setattr__(self, "log_file_path", log_file_path)
+    def _set_run_log(self, run_log: Path):
+        object.__setattr__(self, "run_log", run_log)
 
     def get_candidate_mlir_path(self, candidate_id: int) -> Path:
         return self.candidates_dir / f"{candidate_id}.mlir"
@@ -174,6 +162,7 @@ class TaskResult:
 
 @dataclass
 class ParsedDisptachBenchmarkResult:
+    candidate_id: int
     benchmark_time_in_seconds: float
     candidate_mlir: Path
     candidate_spec_mlir: Path
@@ -344,7 +333,7 @@ def validate_devices(user_devices: list[str]) -> None:
     for device in user_devices:
         handle_error(
             condition=(device not in available_devices),
-            msg=f"Invalid device specified: {device}",
+            msg=f"Invalid device specified: {device}\nFetched available devices: {available_devices}",
             error_type=argparse.ArgumentError,
             exit_program=True,
         )
@@ -432,13 +421,13 @@ def parse_arguments() -> argparse.Namespace:
 
 def setup_logging(args: argparse.Namespace, path_config: PathConfig):
     log_file_name = f"autotune_{args.mode}_{args.input_file.stem}.log"
-    log_file_path = path_config.base_dir / log_file_name
-    path_config._set_log_file_path(log_file_path)
+    run_log_path = path_config.base_dir / log_file_name
+    path_config._set_run_log(run_log_path)
 
     # Create file handler for logging to a file
-    if path_config.log_file_path is None:
+    if path_config.run_log is None:
         raise
-    file_handler = logging.FileHandler(path_config.log_file_path)
+    file_handler = logging.FileHandler(path_config.run_log)
     file_handler.setLevel(logging.DEBUG)
 
     # Create stream handler for logging to the console (only warnings and higher)
@@ -477,16 +466,10 @@ def setup_logging(args: argparse.Namespace, path_config: PathConfig):
     tune_logger = logging.getLogger("tune")
     tune_logger.setLevel(logging.DEBUG)
 
-    logging.info(f"Input file: {args.input_file}")
-    logging.info(f"Mode: {args.mode}")
-    logging.info(f"Devices: {args.devices}")
-    logging.info(f"Number of candidates: {args.num_candidates}")
-    logging.info(
-        f"Extra options for tune.py: lhs-dims={args.lhs_dims}, rhs-dims={args.rhs_dims}, tile-dims={args.tile_dims}"
-    )
-    logging.info(
-        f"Device for Unet candidates: {args.devices[0]}"
-    )  # Default use the first gpu from the user input --device list
+    # Log all arguments
+    logging.info(f"Input Arguments:")
+    for arg, value in vars(args).items():
+        tune_logger.info(f"{arg}: {value}")
 
 
 def handle_error(
@@ -686,6 +669,15 @@ def load_pickle(file_path: Path) -> list[Any]:
     return loaded_array
 
 
+def append_to_file(lines: list[str], filepath: Path, title: str = "") -> None:
+    """Appends new content to the end of the output.log."""
+    title_str = "=" * 5 + f" {title} " + "=" * 5 + "\n" if title != "" else ""
+    with open(filepath, "a") as file:
+        file.write(title_str)
+        file.writelines(lines)
+        file.write("\n")
+
+
 def generate_candidates(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -819,11 +811,6 @@ def compile_candidates(
         f"Total: {total} | Compiled: {good} | Failed: {bad} | Compiling Rate: {compiling_rate:.1f}%"
     )
 
-    # Write compiled files to candidate_vmfbs.txt
-    with path_config.candidate_vmfbs_txt.open("w") as f:
-        for compiled_file in compiled_files:
-            f.write(f"{compiled_file}\n")
-
     # Update candidate tracker
     for failed_file in failed_files:
         index = int(failed_file.stem)
@@ -876,14 +863,21 @@ def parse_dispatch_benchmark_results(
         benchmark_time = res.get_benchmark_time()
         assert candidate_id is not None and benchmark_time is not None
         candidate_trackers[candidate_id].first_benchmark_time = benchmark_time
+        candidate_trackers[candidate_id].mlir_spec_path = (
+            path_config.get_candidate_spec_mlir_path(candidate_id)
+        )
+        mlir_path = candidate_trackers[candidate_id].mlir_path
+        mlir_spec_path = candidate_trackers[candidate_id].mlir_spec_path
+        assert mlir_path is not None and mlir_spec_path is not None
         dump_list.append(res_str)
 
         benchmark_result_configs.append(
             (
                 ParsedDisptachBenchmarkResult(
+                    candidate_id,
                     benchmark_time,
-                    path_config.get_candidate_mlir_path(candidate_id),
-                    path_config.get_candidate_spec_mlir_path(candidate_id),
+                    mlir_path,
+                    mlir_spec_path,
                 )
             )
         )
@@ -917,6 +911,7 @@ def benchmark_compiled_candidates(
     logging.info("benchmark_top_candidates()")
 
     if args.dry_run:
+        logging.info("generate_dryrun_dispatch_benchmark_results")
         benchmark_results = generate_dryrun_dispatch_benchmark_results(
             compiled_candidates
         )
@@ -949,9 +944,11 @@ def benchmark_compiled_candidates(
     ) = parse_dispatch_benchmark_results(
         path_config, benchmark_results, candidate_trackers
     )
-
-    with path_config.dispatch_benchmark_result_log.open("w") as log_file:
-        log_file.writelines(dispatch_benchmark_dump_list)
+    append_to_file(
+        dispatch_benchmark_dump_list,
+        filepath=path_config.output_unilog,
+        title="All Dispatch Benchmark Results",
+    )
 
     benchmarking_rate = (len(parsed_benchmark_results) / len(benchmark_results)) * 100
     logging.critical(
@@ -968,32 +965,42 @@ def benchmark_compiled_candidates(
     )[: args.num_unet_candidates]
     logging.critical(f"Selected top[{len(best_results)}]")
 
-    with path_config.dispatch_benchmark_top_result_log.open("w") as log_file:
-        for result in best_results:
-            log_file.write(
-                f"{result.benchmark_time_in_seconds}\t{result.candidate_mlir.as_posix()}\t{result.candidate_spec_mlir.as_posix()}\n"
-            )
+    dump_list = [
+        f"{result.benchmark_time_in_seconds}\t{result.candidate_mlir.as_posix()}\t{result.candidate_spec_mlir.as_posix()}\n"
+        for result in best_results
+    ]
+    append_to_file(
+        dump_list, filepath=path_config.output_unilog, title="Top Candidates Results"
+    )
+
+    top_candidates = [result.candidate_id for result in best_results]
+    return top_candidates
 
 
 def compile_unet_candidates(
     args: argparse.Namespace,
     path_config: PathConfig,
+    candidates: list[int],
     candidate_trackers: list[CandidateTracker],
 ) -> list[int]:
     """Compile U-Net candidates stored in best.log. Return the list of U-Net candidate files."""
     logging.info("compile_unet_candidates()")
 
+    if args.dry_run:
+        return candidates
+
     task_list = []
-    with path_config.dispatch_benchmark_top_result_log.open("r") as log_file:
-        for line in log_file:
-            if "/0.mlir" not in line:
-                input_file = line.strip().split()[2]
-                command = [
-                    path_config.get_exe_format(path_config.compile_unet_candidate_sh),
-                    args.mode,
-                    input_file,
-                ]
-                task_list.append(TaskTuple(args, command))
+    for index in candidates:
+        if index == 0:
+            continue
+        mlir_spec_path = candidate_trackers[index].mlir_spec_path
+        assert mlir_spec_path is not None
+        command = [
+            path_config.get_exe_format(path_config.compile_unet_candidate_sh),
+            args.mode,
+            mlir_spec_path.as_posix(),
+        ]
+        task_list.append(TaskTuple(args, command))
 
     num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
     multiprocess_progress_wrapper(
@@ -1007,11 +1014,10 @@ def compile_unet_candidates(
 
     # Update candidate tracker
     for unet_candidate in unet_candidates_files:
+        assert unet_candidate is not None
         index = int(unet_candidate.stem.split("_")[-1])
         candidate_trackers[index].unet_candidate_path = unet_candidate
-        unet_candidate_path = candidate_trackers[index].unet_candidate_path
-        assert unet_candidate_path is not None
-        hash_val = calculate_md5(unet_candidate_path)
+        hash_val = calculate_md5(unet_candidate)
         candidate_trackers[index].unet_vmfb_hash = hash_val
         unet_candidates_hash_list.append((index, hash_val))
         unet_candidates_indexes.append(index)
@@ -1154,6 +1160,7 @@ def parse_grouped_benchmark_results(
 def generate_dryrun_unet_benchmark_results(
     unet_vmfb_paths: list[Path],
 ) -> list[TaskResult]:
+    logging.info("generate_dryrun_unet_benchmark_results")
     task_results = []
     start = random.uniform(100.0, 500.0)
     device_id = 0
@@ -1179,22 +1186,19 @@ def dryrun_benchmark_unet(
     candidate_trackers: list[CandidateTracker],
 ):
 
-    unet_vmfb_paths = [path_config.unet_baseline_vmfb]
-    for i in unet_candidates:
-        unet_candidate_path = candidate_trackers[i].unet_candidate_path
-        assert unet_candidate_path is not None
-        unet_vmfb_paths.append(unet_candidate_path)
-
+    unet_vmfb_paths = [path_config.unet_baseline_vmfb] + [
+        Path(f"unet_candidate_{index}.vmfb") for index in unet_candidates
+    ]
     benchmark_results = generate_dryrun_unet_benchmark_results(unet_vmfb_paths)
     grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
 
-    # Update candidate_tracker and extract strings which will be stored in unet_result_log.
+    # Update candidate_tracker and extract strings which will be stored in output.log.
     dump_list = parse_grouped_benchmark_results(
         path_config, grouped_benchmark_results, candidate_trackers
     )
-
-    with path_config.unet_result_log.open("w") as log_file:
-        log_file.writelines(dump_list)
+    append_to_file(
+        dump_list, filepath=path_config.output_unilog, title="Unet Benchmark Results"
+    )
 
 
 def benchmark_unet(
@@ -1273,24 +1277,55 @@ def benchmark_unet(
         path_config, grouped_benchmark_results, candidate_trackers
     )
 
-    with path_config.unet_result_log.open("w") as log_file:
-        log_file.writelines(dump_list)
+    append_to_file(
+        dump_list, filepath=path_config.output_unilog, title="Unet Benchmark Results"
+    )
+
+
+def summerize_top_candidates(
+    path_config: PathConfig, candidate_trackers: list[CandidateTracker]
+):
+    dump_list = []
+    top_candidates = []
+    for candidate in candidate_trackers:
+        if candidate.candidate_id == 0 or candidate.unet_benchmark_time is None:
+            continue
+        top_candidates.append(
+            (candidate.candidate_id, candidate.unet_benchmark_time)
+        )  # collect (id, time)
+
+    top_candidates = sorted(
+        top_candidates, key=lambda x: x[1]
+    )  # sort the list in ascending benchmark time order
+    top_candidate_ids = [item[0] for item in top_candidates]  # get list of candidate id
+
+    for candidate_id in top_candidate_ids:
+        candidate = candidate_trackers[candidate_id]
+        assert candidate.mlir_config_path is not None
+        with open(candidate.mlir_config_path, "r") as file:
+            config_file_contents = file.read()
+        final_str = f"Candidate {candidate.candidate_id}:\nUnet benchmark time: {candidate.unet_benchmark_time} on device {candidate.unet_benchmark_device_id}\nDispatch benchmark time: {candidate.first_benchmark_time} on device {candidate.unet_benchmark_device_id}\nSpec file path: {candidate.mlir_spec_path}\nSpec contents:{config_file_contents}\n\n"
+        dump_list.append(final_str)
+
+    with open(path_config.result_summary_log, "w") as file:
+        file.writelines(dump_list)
 
 
 def autotune(args: argparse.Namespace) -> None:
     path_config = PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
+    path_config.output_unilog.touch()
 
     candidate_trackers: list[CandidateTracker] = []
     stop_after_phase: str = args.stop_after
 
     print("Setup logging")
     setup_logging(args, path_config)
-    print(path_config.log_file_path, end="\n\n")
+    print(path_config.run_log, end="\n\n")
 
     print("Validating devices")
     validate_devices(args.devices)
-    print("Validation successful!")
+    print("Validation successful!\n")
 
     print("Generating candidates...")
     candidates = generate_candidates(args, path_config, candidate_trackers)
@@ -1307,36 +1342,37 @@ def autotune(args: argparse.Namespace) -> None:
         return
 
     print("Benchmarking compiled candidates...")
-    benchmark_compiled_candidates(
+    top_candidates = benchmark_compiled_candidates(
         args, path_config, compiled_candidates, candidate_trackers
     )
-    print(
-        f"All dispatch benchmark results are stored in {path_config.dispatch_benchmark_result_log}"
-    )
-    print(
-        f"Top candidates results are stored in {path_config.dispatch_benchmark_top_result_log}\n"
-    )
+    print(f"Stored results in {path_config.output_unilog}\n")
+
     if stop_after_phase == ExecutionPhases.benchmark_candidates:
         return
 
     print(f"Compiling top unet candidates...")
-    unet_candidates = compile_unet_candidates(args, path_config, candidate_trackers)
+    unet_candidates = compile_unet_candidates(
+        args, path_config, top_candidates, candidate_trackers
+    )
     print(f"Unet candidates compiled in {path_config.base_dir}\n")
     if stop_after_phase == ExecutionPhases.compile_unet_candidates:
         return
 
     print("Benchmarking unet candidates...")
     benchmark_unet(args, path_config, unet_candidates, candidate_trackers)
-    print(f"Done, stored unet result in {path_config.unet_result_log}\n")
+    print(f"Stored results in {path_config.output_unilog}")
     if stop_after_phase == ExecutionPhases.benchmark_unet_candidates:
         return
+
+    summerize_top_candidates(path_config, candidate_trackers)
+    print(f"Stored top candidates info in {path_config.result_summary_log}\n")
 
     with open(path_config.candidate_trackers_pkl, "wb") as file:
         pickle.dump(candidate_trackers, file)
     print(f"Candidate trackers are saved in {path_config.candidate_trackers_pkl}\n")
 
-    print("Check the detailed log in:")
-    print(path_config.log_file_path)
+    print("Check the detailed execution logs in:")
+    print(path_config.run_log)
 
     for candidate in candidate_trackers:
         logging.debug(candidate)
