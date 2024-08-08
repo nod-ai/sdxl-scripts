@@ -1286,10 +1286,27 @@ def summerize_top_candidates(
     path_config: PathConfig, candidate_trackers: list[CandidateTracker]
 ):
     dump_list = []
+    top_candidates = []
     for candidate in candidate_trackers:
-        if candidate.unet_benchmark_time is not None:
-            final_str = f"Candidate {candidate.candidate_id}:\nUnet benchmark time: {candidate.unet_benchmark_time} on device {candidate.unet_benchmark_device_id}\nDispatch benchmark time: {candidate.first_benchmark_time} on device {candidate.unet_benchmark_device_id}\nSpec file: {candidate.mlir_spec_path}\n\n"
-            dump_list.append(final_str)
+        if candidate.candidate_id == 0 or candidate.unet_benchmark_time is None:
+            continue
+        top_candidates.append(
+            (candidate.candidate_id, candidate.unet_benchmark_time)
+        )  # collect (id, time)
+
+    top_candidates = sorted(
+        top_candidates, key=lambda x: x[1]
+    )  # sort the list in ascending benchmark time order
+    top_candidate_ids = [item[0] for item in top_candidates]  # get list of candidate id
+
+    for candidate_id in top_candidate_ids:
+        candidate = candidate_trackers[candidate_id]
+        assert candidate.mlir_config_path is not None
+        with open(candidate.mlir_config_path, "r") as file:
+            config_file_contents = file.read()
+        final_str = f"Candidate {candidate.candidate_id}:\nUnet benchmark time: {candidate.unet_benchmark_time} on device {candidate.unet_benchmark_device_id}\nDispatch benchmark time: {candidate.first_benchmark_time} on device {candidate.unet_benchmark_device_id}\nSpec file path: {candidate.mlir_spec_path}\nSpec contents:{config_file_contents}\n\n"
+        dump_list.append(final_str)
+
     with open(path_config.result_summary_log, "w") as file:
         file.writelines(dump_list)
 
