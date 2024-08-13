@@ -5,7 +5,7 @@
 // TODO: Figure out how to parameterize the tile sizes without duplicating
 // the attention function.
 
-#layout_f8 = #iree_gpu.mma_layout<MFMA_F8E4M3FNUZ_16x16x32_F32>
+#layout_f8 = #iree_gpu.mma_layout<MFMA_F8E4M3FNUZ_32x32x16_F32>
 #layout_16 = #iree_gpu.mma_layout<MFMA_F16_16x16x16_F32>
 #layout = #iree_gpu.mma_layout<MFMA_F16_32x32x8_F32>
 

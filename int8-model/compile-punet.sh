@@ -24,9 +24,11 @@ rm -rf "${WORKING_DIR}/sources/punet"
 rm -rf "${WORKING_DIR}/binaries/punet"
 rm -rf "${WORKING_DIR}/benchmarks/punet"
 
+# FP16: punet_07_18.mlir
+# FP8: sdxl_unet_fp8_bs1.mlir
 "${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
   "${SCRIPT_DIR}/specs/${TRANSFORM_PREFIX}attention_and_matmul_spec.mlir" \
-  "${SCRIPT_DIR}/base_ir/punet_07_18.mlir" \
+  "${SCRIPT_DIR}/base_ir/sdxl_unet_fp8_bs1.mlir" \
   --iree-hal-dump-executable-configurations-to="${WORKING_DIR}/configurations/punet" \
   --iree-hal-dump-executable-intermediates-to="${WORKING_DIR}/intermediates/punet" \
   --iree-hal-dump-executable-sources-to="${WORKING_DIR}/sources/punet" \
