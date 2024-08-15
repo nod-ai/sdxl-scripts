@@ -25,7 +25,7 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_1024x1024_fp16_vae_decode
     --iree-hal-dump-executable-binaries-to=binaries/vae \
     --iree-hal-dump-executable-benchmarks-to=benchmarks/vae \
     --iree-execution-model=async-external \
-    --iree-preprocessing-pass-pipeline="builtin.module(iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics))" \
+    --iree-preprocessing-pass-pipeline="builtin.module(iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics)" \
     -o $PWD/tmp/vae_decode.vmfb
     #--iree-codegen-transform-dialect-library=$PWD/specs/attention_and_matmul_spec.mlir \
     #--iree-hal-benchmark-dispatch-repeat-count=20 \

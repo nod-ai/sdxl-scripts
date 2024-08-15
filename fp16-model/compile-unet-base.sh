@@ -46,7 +46,7 @@ fi
 shift 5
 
 readonly DEFAULT_FLAGS=(
-  "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics))"
+  "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics)"
 )
 
 readonly WINOGRAD_PIPELINE=("builtin.module("

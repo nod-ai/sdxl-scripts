@@ -12,10 +12,10 @@ fi
 IRPA_PATH_PREFIX="${2:-/data/shark}"
 
 iree-benchmark-module \
-  --device=rocm://$1 \
+  --device=hip://$1 \
   --device_allocator=caching \
   --module=$PWD/tmp/vae_decode.vmfb \
-  --parameters=model=${IRPA_PATH_PREFIX}/vae_decode.irpa \
+  --parameters=model=${IRPA_PATH_PREFIX}/vae_decode_fp16.irpa \
   --function=main \
   --input=1x4x128x128xf16 \
   --benchmark_repetitions=3

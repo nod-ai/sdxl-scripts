@@ -12,7 +12,7 @@ fi
 IRPA_PATH_PREFIX="${2:-/data/shark}"
 
 iree-benchmark-module \
-  --device=rocm://$1 \
+  --device=hip://$1 \
   --device_allocator=caching \
   --module=$PWD/tmp/unet.vmfb \
   --parameters=model=${IRPA_PATH_PREFIX}/scheduled_unet.irpa \
