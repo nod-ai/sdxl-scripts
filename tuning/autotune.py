@@ -24,6 +24,8 @@ from typing import Type, Optional, Callable, Iterable, Any
 import pickle
 import iree.runtime as ireert
 import random
+from abc import ABC, abstractmethod
+
 
 """
 Sample Usage:
@@ -60,7 +62,7 @@ device_id = None
 
 
 @dataclass
-class CandidateTracker:
+class CandidateTracker(ABC):
     candidate_id: int
     mlir_path: Optional[Path] = None
     mlir_config_path: Optional[Path] = None
@@ -146,6 +148,25 @@ class PathConfig:
 
     def get_exe_format(self, path: Path) -> str:
         return f"./{path.as_posix()}"
+    
+
+@dataclass
+class TuningClient(ABC):
+    @abstractmethod
+    def get_dispatch_compile_command(self, candidate_tracker: CandidateTracker) -> list[str]:
+        pass
+
+    @abstractmethod
+    def get_dispatch_benchmark_command(self, candidate_tracker) -> list[str]:
+        pass
+    
+    @abstractmethod
+    def get_model_compile_command(self, candidate_tracker) -> list[str]:
+        pass
+
+    @abstractmethod
+    def get_model_benchmark_command(self, candidate_tracker) -> list[str]:
+        pass
 
 
 @dataclass
@@ -756,6 +777,8 @@ def generate_candidates(
         condition=(len(candidates) == 0), msg="Failed to generate any candidates"
     )
 
+    logging.critical(f"Generated [{len(candidates)}] candidates")
+
     return candidates
 
 
@@ -782,22 +805,17 @@ def compile_dispatches(
     path_config: PathConfig,
     candidates: list[int],
     candidate_trackers: list[CandidateTracker],
+    tuning_client: TuningClient
 ) -> list[int]:
     """Compile candidate files for tuning and record in candidate_vmfbs.txt. Returns the list of compiled candidate indexes."""
     logging.info("compile_candidates()")
 
-    task_list = []
-    for candidate_index in candidates:
-        mlir_path = candidate_trackers[candidate_index].mlir_path
-        assert mlir_path is not None
-        command = [
-            path_config.get_exe_format(path_config.compile_candidate_sh),
-            args.mode,
-            mlir_path.as_posix(),
-        ]
-        task_list.append(TaskTuple(args, command, check=False))
+    if not candidates:
+        logging.info("No candidates to compile.")
+        return []
 
-    num_worker = max(min(args.max_cpu_workers, len(task_list)), 1)  # at least 1 worker
+    task_list = [TaskTuple(args, tuning_client.get_dispatch_compile_command(candidate_trackers[i]), check=False) for i in candidates]
+    num_worker = min(args.max_cpu_workers, len(task_list))
     multiprocess_progress_wrapper(
         num_worker=num_worker, task_list=task_list, function=run_command_wrapper
     )
@@ -1321,6 +1339,7 @@ def autotune(args: argparse.Namespace) -> None:
     path_config.output_unilog.touch()
 
     candidate_trackers: list[CandidateTracker] = []
+    tuning_client = TuningClient()
     stop_after_phase: str = args.stop_after
 
     print("Setup logging")
@@ -1339,7 +1358,7 @@ def autotune(args: argparse.Namespace) -> None:
 
     print("Compiling candidates...")
     compiled_candidates = compile_dispatches(
-        args, path_config, candidates, candidate_trackers
+        args, path_config, candidates, candidate_trackers, tuning_client
     )
     print(f"Compiled files are stored in {path_config.compiled_dir}\n")
     if stop_after_phase == ExecutionPhases.compile_candidates:
