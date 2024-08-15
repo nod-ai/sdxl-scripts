@@ -177,7 +177,7 @@ module attributes { transform.with_named_sequence } {
 
     %contracts = transform.structured.match ops{["vector.contract"]} in %variant_op :  (!transform.any_op) -> !transform.any_op
     %contract1, %contract2 = transform.split_handle %contracts : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.iree.set_contraction_layout_attributes %contract1, %intrinsic { read_layout_indices = array<i64: 0, 1> } : !transform.any_op, !transform.any_param
+    transform.iree.set_contraction_layout_attributes %contract1, %intrinsic { force_vector_width = 8 } : !transform.any_op, !transform.any_param
     transform.iree.set_contraction_layout_attributes %contract2, %intrinsic : !transform.any_op, !transform.any_param
 
     %distribute_func = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
@@ -225,7 +225,7 @@ module attributes { transform.with_named_sequence } {
     // Tile and distribute to workgroups
     // ==========================================
     %blocked_elemwise, %elemwise_forall =
-    transform.structured.tile_using_forall %elemwise tile_sizes [1, 1, 128, 0]
+    transform.structured.tile_using_forall %elemwise tile_sizes [1, 1, 256, 0]
       ( mapping = [#gpu.block<x>, #gpu.block<y>, #gpu.block<z>] ) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 
     %blocked_att, %wg_forall = transform.structured.fuse_into_containing_op %attention into %elemwise_forall : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
@@ -263,16 +263,19 @@ module attributes { transform.with_named_sequence } {
     // Promote key and value operands
     // ==========================================
     %attt = transform.structured.match ops{["iree_linalg_ext.online_attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
+    // %promoted_att, %alloc0, %alloc1, %alloc2 = transform.iree.promote_operands %attt [0, 1, 2]
+    //   : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
     %promoted_att, %alloc0, %alloc1 = transform.iree.promote_operands %attt [1, 2]
       : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
+    transform.print %variant_op : !transform.any_op
 
     // This is a hack... We distribute the loop and the merging seperately and just assume they are fused.
     %warp_attention = transform.structured.match ops{["iree_linalg_ext.online_attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
     %generics = transform.structured.match ops{["linalg.generic"]} in %variant_op : (!transform.any_op) -> !transform.any_op
     %warp_merge, %warp_elemwise = transform.split_handle %generics : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.structured.tile_using_forall %warp_merge tile_sizes[0, 0, 32, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.structured.tile_using_forall %warp_elemwise tile_sizes[0, 0, 32, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.structured.tile_using_forall %warp_attention tile_sizes[0, 0, 32, 0, 0, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %warp_merge tile_sizes[0, 0, 64, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %warp_elemwise tile_sizes[0, 0, 64, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %warp_attention tile_sizes[0, 0, 64, 0, 0, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 
     transform.apply_patterns to %func {
       transform.apply_patterns.canonicalization
@@ -281,9 +284,9 @@ module attributes { transform.with_named_sequence } {
 
     %fills = transform.include @get_undistributed_fills failures(propagate) (%variant_op)  : (!transform.any_op) -> !transform.any_op
     %acc_fill, %max_fill, %sum_fill = transform.split_handle %fills : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
-    transform.structured.tile_using_forall %acc_fill tile_sizes[0, 0,32, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.structured.tile_using_forall %max_fill tile_sizes[0, 0, 32] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.structured.tile_using_forall %sum_fill tile_sizes[0, 0, 32] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %acc_fill tile_sizes[0, 0,64, 0] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %max_fill tile_sizes[0, 0, 64] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
+    transform.structured.tile_using_forall %sum_fill tile_sizes[0, 0, 64] (mapping = [#gpu.warp<linear_dim_0>]) : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 
     transform.apply_patterns to %func {
       transform.apply_patterns.canonicalization
@@ -307,6 +310,7 @@ module attributes { transform.with_named_sequence } {
       transform.apply_patterns.linalg.fold_unit_extent_dims_via_reshapes
       transform.apply_patterns.canonicalization
     } : !transform.any_op
+    transform.print %variant_op : !transform.any_op
     %func_3 = transform.structured.vectorize_children_and_apply_patterns %func2 : (!transform.any_op) -> (!transform.any_op)
 
     transform.apply_patterns to %func_3 {
@@ -355,6 +359,8 @@ module attributes { transform.with_named_sequence } {
     transform.apply_cse to %func_8 : !transform.any_op
     transform.memref.erase_dead_alloc_and_stores %func_8 : (!transform.any_op) -> ()
 
+    transform.print %variant_op : !transform.any_op
+
     // Apply chained matmul optimization.
     %func_9 = transform.apply_registered_pass "iree-amdgpu-prepare-chained-matmul" to %func_8 : (!transform.any_op) -> (!transform.any_op)
 
@@ -368,8 +374,9 @@ module attributes { transform.with_named_sequence } {
 
     %contracts = transform.structured.match ops{["vector.contract"]} in %variant_op :  (!transform.any_op) -> !transform.any_op
     %contract1, %contract2 = transform.split_handle %contracts : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
-    transform.iree.set_contraction_layout_attributes %contract1, %intrinsic { read_layout_indices = array<i64: 0, 1> } : !transform.any_op, !transform.any_param
-    transform.iree.set_contraction_layout_attributes %contract2, %intrinsic : !transform.any_op, !transform.any_param
+    transform.iree.set_contraction_layout_attributes %contract1, %intrinsic : !transform.any_op, !transform.any_param
+    transform.iree.set_contraction_layout_attributes %contract2, %intrinsic { force_vector_width = 4 } : !transform.any_op, !transform.any_param
+    transform.print %variant_op : !transform.any_op
 
     %distribute_func = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
 
@@ -402,6 +409,9 @@ module attributes { transform.with_named_sequence } {
 
     %func_11 = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
     transform.iree.reduce_shared_memory_bank_conflicts %func_11 : (!transform.any_op) -> ()
+
+    transform.print %variant_op : !transform.any_op
+
     transform.yield
   }
 
