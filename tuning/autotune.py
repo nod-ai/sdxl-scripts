@@ -777,7 +777,7 @@ def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, lis
     return collision_detected, unique_indexes
 
 
-def compile_candidates(
+def compile_dispatches(
     args: argparse.Namespace,
     path_config: PathConfig,
     candidates: list[int],
@@ -905,7 +905,7 @@ def generate_dryrun_dispatch_benchmark_results(
     return task_results
 
 
-def benchmark_compiled_candidates(
+def benchmark_dispatches(
     args: argparse.Namespace,
     path_config: PathConfig,
     compiled_candidates: list[int],
@@ -981,7 +981,7 @@ def benchmark_compiled_candidates(
     return top_candidates
 
 
-def compile_unet_candidates(
+def compile_models(
     args: argparse.Namespace,
     path_config: PathConfig,
     candidates: list[int],
@@ -1205,7 +1205,7 @@ def dryrun_benchmark_unet(
     )
 
 
-def benchmark_unet(
+def benchmark_model(
     args: argparse.Namespace,
     path_config: PathConfig,
     unet_candidates: list[int],
@@ -1338,7 +1338,7 @@ def autotune(args: argparse.Namespace) -> None:
         return
 
     print("Compiling candidates...")
-    compiled_candidates = compile_candidates(
+    compiled_candidates = compile_dispatches(
         args, path_config, candidates, candidate_trackers
     )
     print(f"Compiled files are stored in {path_config.compiled_dir}\n")
@@ -1346,7 +1346,7 @@ def autotune(args: argparse.Namespace) -> None:
         return
 
     print("Benchmarking compiled candidates...")
-    top_candidates = benchmark_compiled_candidates(
+    top_candidates = benchmark_dispatches(
         args, path_config, compiled_candidates, candidate_trackers
     )
     print(f"Stored results in {path_config.output_unilog}\n")
@@ -1355,7 +1355,7 @@ def autotune(args: argparse.Namespace) -> None:
         return
 
     print(f"Compiling top unet candidates...")
-    unet_candidates = compile_unet_candidates(
+    unet_candidates = compile_models(
         args, path_config, top_candidates, candidate_trackers
     )
     print(f"Unet candidates compiled in {path_config.base_dir}\n")
@@ -1363,7 +1363,7 @@ def autotune(args: argparse.Namespace) -> None:
         return
 
     print("Benchmarking unet candidates...")
-    benchmark_unet(args, path_config, unet_candidates, candidate_trackers)
+    benchmark_model(args, path_config, unet_candidates, candidate_trackers)
     print(f"Stored results in {path_config.output_unilog}")
     if stop_after_phase == ExecutionPhases.benchmark_unet_candidates:
         return
