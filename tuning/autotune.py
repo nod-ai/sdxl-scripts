@@ -147,7 +147,7 @@ class PathConfig:
         return self.candidates_dir / f"{candidate_id}.mlir"
 
     def get_candidate_spec_mlir_path(self, candidate_id: int) -> Path:
-        return self.candidates_dir / "configs" / f"{candidate_id}_spec.mlir"
+        return self.candidates_dir / "specs" / f"{candidate_id}_spec.mlir"
 
     def get_exe_format(self, path: Path) -> str:
         return f"./{path.as_posix()}"

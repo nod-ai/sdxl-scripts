@@ -91,8 +91,6 @@ def main():
         args, path_config, top_candidates, candidate_trackers, punet_client
     )
 
-    exit()
-
     autotune.benchmark_models(args, path_config, punet_candidates, candidate_trackers, punet_client)
 
 if __name__ == "__main__":
