@@ -1275,7 +1275,7 @@ def dryrun_benchmark_unet(
     )
 
 
-def benchmark_model(
+def benchmark_models(
     args: argparse.Namespace,
     path_config: PathConfig,
     unet_candidates: list[int],
@@ -1428,7 +1428,7 @@ def autotune(args: argparse.Namespace) -> None:
         return
 
     print("Benchmarking unet candidates...")
-    benchmark_model(
+    benchmark_models(
         args, path_config, unet_candidates, candidate_trackers, tuning_client
     )
     print(f"Stored results in {path_config.output_unilog}")
