@@ -151,18 +151,20 @@ class PathConfig:
 
     def get_exe_format(self, path: Path) -> str:
         return f"./{path.as_posix()}"
-    
+
 
 @dataclass
 class TuningClient(ABC):
     @abstractmethod
-    def get_dispatch_compile_command(self, candidate_tracker: CandidateTracker) -> list[str]:
+    def get_dispatch_compile_command(
+        self, candidate_tracker: CandidateTracker
+    ) -> list[str]:
         pass
 
     @abstractmethod
     def get_dispatch_benchmark_command(self, candidate_tracker) -> list[str]:
         pass
-    
+
     @abstractmethod
     def get_model_compile_command(self, candidate_tracker) -> list[str]:
         pass
@@ -171,14 +173,47 @@ class TuningClient(ABC):
     def get_model_benchmark_command(self, candidate_tracker) -> list[str]:
         pass
 
+    @abstractmethod
     def get_compiled_dispatch_index(self, file_path: Path) -> int:
         pass
 
-    def get_candidate_spec_filename(self, candidate_id: int) -> Path:
+    @abstractmethod
+    def get_candidate_spec_filename(self, candidate_id: int) -> str:
         pass
 
+    @abstractmethod
     def get_compiled_model_index(self, file_path: Path) -> int:
         pass
+
+
+@dataclass
+class DefaultTuningClient(TuningClient):
+    def get_dispatch_compile_command(
+        self, candidate_tracker: CandidateTracker
+    ) -> list[str]:
+        command = [""]
+        return command
+
+    def get_dispatch_benchmark_command(self, candidate_tracker) -> list[str]:
+        command = [""]
+        return command
+
+    def get_model_compile_command(self, candidate_tracker) -> list[str]:
+        command = [""]
+        return command
+
+    def get_model_benchmark_command(self, candidate_tracker) -> list[str]:
+        command = [""]
+        return command
+
+    def get_compiled_dispatch_index(self, file_path: Path) -> int:
+        return 0
+
+    def get_candidate_spec_filename(self, candidate_id: int) -> str:
+        return ""
+
+    def get_compiled_model_index(self, file_path: Path) -> int:
+        return 0
 
 
 @dataclass
@@ -719,7 +754,7 @@ def generate_candidates(
     args: argparse.Namespace,
     path_config: PathConfig,
     candidate_trackers: list[CandidateTracker],
-    tuning_client: TuningClient
+    tuning_client: TuningClient,
 ) -> list[int]:
     """Generate candidate files for tuning. Returns the list of candidate indexes"""
     logging.info("generate_candidates()")
@@ -818,7 +853,7 @@ def compile_dispatches(
     path_config: PathConfig,
     candidates: list[int],
     candidate_trackers: list[CandidateTracker],
-    tuning_client: TuningClient
+    tuning_client: TuningClient,
 ) -> list[int]:
     """Compile candidate files for tuning and record in candidate_vmfbs.txt. Returns the list of compiled candidate indexes."""
     logging.info("compile_candidates()")
@@ -827,7 +862,14 @@ def compile_dispatches(
         logging.info("No candidates to compile.")
         return []
 
-    task_list = [TaskTuple(args, tuning_client.get_dispatch_compile_command(candidate_trackers[i]), check=False) for i in candidates]
+    task_list = [
+        TaskTuple(
+            args,
+            tuning_client.get_dispatch_compile_command(candidate_trackers[i]),
+            check=False,
+        )
+        for i in candidates
+    ]
     num_worker = min(args.max_cpu_workers, len(task_list))
     multiprocess_progress_wrapper(
         num_worker=num_worker, task_list=task_list, function=run_command_wrapper
@@ -885,7 +927,7 @@ def parse_dispatch_benchmark_results(
     path_config: PathConfig,
     benchmark_results: list[TaskResult],
     candidate_trackers: list[CandidateTracker],
-    tuning_client: TuningClient
+    tuning_client: TuningClient,
 ) -> tuple[list[ParsedDisptachBenchmarkResult], list[str]]:
     benchmark_result_configs = []
     dump_list = []
@@ -899,7 +941,10 @@ def parse_dispatch_benchmark_results(
         benchmark_time = res.get_benchmark_time()
         assert candidate_id is not None and benchmark_time is not None
         candidate_trackers[candidate_id].first_benchmark_time = benchmark_time
-        candidate_trackers[candidate_id].mlir_spec_path = path_config.spec_dir / tuning_client.get_candidate_spec_filename(candidate_id)
+        candidate_trackers[candidate_id].mlir_spec_path = (
+            path_config.spec_dir
+            / tuning_client.get_candidate_spec_filename(candidate_id)
+        )
         mlir_path = candidate_trackers[candidate_id].mlir_path
         mlir_spec_path = candidate_trackers[candidate_id].mlir_spec_path
         assert mlir_path is not None and mlir_spec_path is not None
@@ -940,7 +985,7 @@ def benchmark_dispatches(
     path_config: PathConfig,
     compiled_candidates: list[int],
     candidate_trackers: list[CandidateTracker],
-    tuning_client: TuningClient
+    tuning_client: TuningClient,
 ):
     """Benchmark the candidate files and store the topN results in file (best.log)."""
     logging.info("benchmark_top_candidates()")
@@ -952,7 +997,15 @@ def benchmark_dispatches(
         )
     else:
         # Benchmarking dispatch candidates
-        task_list = [TaskTuple(args, tuning_client.get_dispatch_benchmark_command(candidate_trackers[i]), check=False, command_need_device_id=True) for i in compiled_candidates]
+        task_list = [
+            TaskTuple(
+                args,
+                tuning_client.get_dispatch_benchmark_command(candidate_trackers[i]),
+                check=False,
+                command_need_device_id=True,
+            )
+            for i in compiled_candidates
+        ]
         worker_context_queue = create_worker_context_queue(args.devices)
         benchmark_results = multiprocess_progress_wrapper(
             num_worker=len(args.devices),
@@ -1006,7 +1059,7 @@ def compile_models(
     path_config: PathConfig,
     candidates: list[int],
     candidate_trackers: list[CandidateTracker],
-    tuning_client: TuningClient
+    tuning_client: TuningClient,
 ) -> list[int]:
     """Compile U-Net candidates stored in best.log. Return the list of U-Net candidate files."""
     logging.info("compile_unet_candidates()")
@@ -1017,10 +1070,11 @@ def compile_models(
     if not candidates:
         logging.info("No model candidates to compile.")
         return []
-    
+
     task_list = [
-    TaskTuple(args, tuning_client.get_model_compile_command(candidate_trackers[i]))
-    for i in candidates if i != 0
+        TaskTuple(args, tuning_client.get_model_compile_command(candidate_trackers[i]))
+        for i in candidates
+        if i != 0
     ]
     num_worker = min(args.max_cpu_workers, len(task_list))
     multiprocess_progress_wrapper(
@@ -1226,7 +1280,7 @@ def benchmark_model(
     path_config: PathConfig,
     unet_candidates: list[int],
     candidate_trackers: list[CandidateTracker],
-    tuning_client: TuningClient
+    tuning_client: TuningClient,
 ):
     """Benchmark U-Net candidate files and log the results."""
     logging.info("benchmark_unet()")
@@ -1329,7 +1383,7 @@ def autotune(args: argparse.Namespace) -> None:
     path_config.output_unilog.touch()
 
     candidate_trackers: list[CandidateTracker] = []
-    tuning_client = TuningClient()
+    tuning_client = DefaultTuningClient()
     stop_after_phase: str = args.stop_after
 
     print("Setup logging")
@@ -1341,7 +1395,9 @@ def autotune(args: argparse.Namespace) -> None:
     print("Validation successful!\n")
 
     print("Generating candidates...")
-    candidates = generate_candidates(args, path_config, candidate_trackers, tuning_client)
+    candidates = generate_candidates(
+        args, path_config, candidate_trackers, tuning_client
+    )
     print(f"Generated [{len(candidates)}] candidates in {path_config.candidates_dir}\n")
     if stop_after_phase == ExecutionPhases.generate_candidates:
         return
@@ -1356,7 +1412,7 @@ def autotune(args: argparse.Namespace) -> None:
 
     print("Benchmarking compiled candidates...")
     top_candidates = benchmark_dispatches(
-        args, path_config, compiled_candidates, candidate_trackers
+        args, path_config, compiled_candidates, candidate_trackers, tuning_client
     )
     print(f"Stored results in {path_config.output_unilog}\n")
 
@@ -1365,14 +1421,16 @@ def autotune(args: argparse.Namespace) -> None:
 
     print(f"Compiling top unet candidates...")
     unet_candidates = compile_models(
-        args, path_config, top_candidates, candidate_trackers
+        args, path_config, top_candidates, candidate_trackers, tuning_client
     )
     print(f"Unet candidates compiled in {path_config.base_dir}\n")
     if stop_after_phase == ExecutionPhases.compile_unet_candidates:
         return
 
     print("Benchmarking unet candidates...")
-    benchmark_model(args, path_config, unet_candidates, candidate_trackers)
+    benchmark_model(
+        args, path_config, unet_candidates, candidate_trackers, tuning_client
+    )
     print(f"Stored results in {path_config.output_unilog}")
     if stop_after_phase == ExecutionPhases.benchmark_unet_candidates:
         return

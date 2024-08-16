@@ -265,7 +265,9 @@ def test_parse_dispatch_benchmark_results():
     ]
 
     mock_tuning_client = MagicMock()
-    mock_tuning_client.get_candidate_spec_filename.side_effect = lambda i: f'{i}_spec.mlir'
+    mock_tuning_client.get_candidate_spec_filename.side_effect = (
+        lambda i: f"{i}_spec.mlir"
+    )
     parsed_results, dump_list = autotune.parse_dispatch_benchmark_results(
         path_config, benchmark_results, candidate_trackers, mock_tuning_client
     )
