@@ -267,7 +267,7 @@ module attributes { transform.with_named_sequence } {
     //   : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
     %promoted_att, %alloc0, %alloc1 = transform.iree.promote_operands %attt [1, 2]
       : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
-    transform.print %variant_op : !transform.any_op
+    // transform.print %variant_op : !transform.any_op
 
     // This is a hack... We distribute the loop and the merging seperately and just assume they are fused.
     %warp_attention = transform.structured.match ops{["iree_linalg_ext.online_attention"]} in %variant_op : (!transform.any_op) -> !transform.any_op
@@ -310,7 +310,7 @@ module attributes { transform.with_named_sequence } {
       transform.apply_patterns.linalg.fold_unit_extent_dims_via_reshapes
       transform.apply_patterns.canonicalization
     } : !transform.any_op
-    transform.print %variant_op : !transform.any_op
+    // transform.print %variant_op : !transform.any_op
     %func_3 = transform.structured.vectorize_children_and_apply_patterns %func2 : (!transform.any_op) -> (!transform.any_op)
 
     transform.apply_patterns to %func_3 {
@@ -359,7 +359,7 @@ module attributes { transform.with_named_sequence } {
     transform.apply_cse to %func_8 : !transform.any_op
     transform.memref.erase_dead_alloc_and_stores %func_8 : (!transform.any_op) -> ()
 
-    transform.print %variant_op : !transform.any_op
+    // transform.print %variant_op : !transform.any_op
 
     // Apply chained matmul optimization.
     %func_9 = transform.apply_registered_pass "iree-amdgpu-prepare-chained-matmul" to %func_8 : (!transform.any_op) -> (!transform.any_op)
@@ -376,7 +376,7 @@ module attributes { transform.with_named_sequence } {
     %contract1, %contract2 = transform.split_handle %contracts : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
     transform.iree.set_contraction_layout_attributes %contract1, %intrinsic : !transform.any_op, !transform.any_param
     transform.iree.set_contraction_layout_attributes %contract2, %intrinsic { force_vector_width = 4 } : !transform.any_op, !transform.any_param
-    transform.print %variant_op : !transform.any_op
+    // transform.print %variant_op : !transform.any_op
 
     %distribute_func = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
 
@@ -410,7 +410,7 @@ module attributes { transform.with_named_sequence } {
     %func_11 = transform.structured.match ops{["func.func"]} in %variant_op : (!transform.any_op) -> !transform.any_op
     transform.iree.reduce_shared_memory_bank_conflicts %func_11 : (!transform.any_op) -> ()
 
-    transform.print %variant_op : !transform.any_op
+    // transform.print %variant_op : !transform.any_op
 
     transform.yield
   }
