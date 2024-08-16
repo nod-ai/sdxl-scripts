@@ -10,7 +10,7 @@ class PunetClient(autotune.TuningClient):
     def get_dispatch_compile_command(
         self, candidate_tracker: autotune.CandidateTracker
     ) -> list[str]:
-        mlir_path = candidate_tracker.mlir_path
+        mlir_path = candidate_tracker.dispatch_mlir_path
         assert mlir_path is not None
         command = [
             "./compile_candidate.sh",
@@ -22,7 +22,7 @@ class PunetClient(autotune.TuningClient):
     def get_dispatch_benchmark_command(
         self, candidate_tracker: autotune.CandidateTracker
     ) -> list[str]:
-        compiled_vmfb_path = candidate_tracker.compiled_vmfb_path
+        compiled_vmfb_path = candidate_tracker.compiled_dispatch_path
         assert compiled_vmfb_path is not None
         command = [
             "./benchmark_dispatch.sh",
@@ -33,7 +33,7 @@ class PunetClient(autotune.TuningClient):
     def get_model_compile_command(
         self, candidate_tracker: autotune.CandidateTracker
     ) -> list[str]:
-        mlir_spec_path = candidate_tracker.mlir_spec_path
+        mlir_spec_path = candidate_tracker.spec_path
         assert mlir_spec_path is not None
         command = [
             "./compile_unet_candidate.sh",
@@ -45,7 +45,7 @@ class PunetClient(autotune.TuningClient):
     def get_model_benchmark_command(
         self, candidate_tracker: autotune.CandidateTracker
     ) -> list[str]:
-        unet_candidate_path = candidate_tracker.unet_candidate_path
+        unet_candidate_path = candidate_tracker.model_path
         assert unet_candidate_path is not None
         command = [
             "./benchmark_unet_candidate.sh",

@@ -125,7 +125,7 @@ def test_UnetBenchmarkResult_get():
         "5",
         "items_per_second=5.50302/s",
     ]
-    assert res.get_unet_candidate_path() == "unet_candidate_12.vmfb"
+    assert res.get_model_candidate_path() == "unet_candidate_12.vmfb"
     assert res.get_candidate_id() == 12
     assert res.get_device_id() == 24
     assert res.get_benchmark_time() == 182.0
@@ -139,14 +139,14 @@ def test_UnetBenchmarkResult_get():
         "device",
         "24",
     ]
-    assert res.get_unet_candidate_path() == "unet_baseline.vmfb"
+    assert res.get_model_candidate_path() == "unet_baseline.vmfb"
     assert res.get_candidate_id() == None
     assert res.get_device_id() == 24
     assert res.get_benchmark_time() == None
     incomplete_str = ""
     res = autotune.UnetBenchmarkResult(incomplete_str)
     assert res.get_tokens() == []
-    assert res.get_unet_candidate_path() == None
+    assert res.get_model_candidate_path() == None
     assert res.get_candidate_id() == None
     assert res.get_device_id() == None
     assert res.get_benchmark_time() == None
@@ -154,7 +154,7 @@ def test_UnetBenchmarkResult_get():
     bad_str = 12345
     res = autotune.UnetBenchmarkResult(bad_str)
     assert res.get_tokens() == []
-    assert res.get_unet_candidate_path() == None
+    assert res.get_model_candidate_path() == None
     assert res.get_candidate_id() == None
     assert res.get_device_id() == None
     assert res.get_benchmark_time() == None
@@ -237,19 +237,23 @@ def test_parse_dispatch_benchmark_results():
     path_config = autotune.PathConfig()
 
     candidate_trackers = [
-        autotune.CandidateTracker(i, mlir_path=path_config.get_candidate_mlir_path(i))
+        autotune.CandidateTracker(
+            i, dispatch_mlir_path=path_config.get_candidate_mlir_path(i)
+        )
         for i in range(total)
     ]
     candidate_trackers_before = [
-        autotune.CandidateTracker(i, mlir_path=path_config.get_candidate_mlir_path(i))
+        autotune.CandidateTracker(
+            i, dispatch_mlir_path=path_config.get_candidate_mlir_path(i)
+        )
         for i in range(total)
     ]
 
     expect_candidate_trackers = [
         autotune.CandidateTracker(
             i,
-            mlir_path=path_config.get_candidate_mlir_path(i),
-            mlir_spec_path=path_config.get_candidate_spec_mlir_path(i),
+            dispatch_mlir_path=path_config.get_candidate_mlir_path(i),
+            spec_path=path_config.get_candidate_spec_mlir_path(i),
         )
         for i in range(total)
     ]
@@ -294,8 +298,8 @@ def test_parse_grouped_benchmark_results():
         baseline_benchmark_time: float,
         calibrated_benchmark_diff=float,
     ):
-        tracker.unet_benchmark_time = unet_benchmark_time
-        tracker.unet_benchmark_device_id = unet_benchmark_device_id
+        tracker.model_benchmark_time = unet_benchmark_time
+        tracker.model_benchmark_device_id = unet_benchmark_device_id
         tracker.baseline_benchmark_time = baseline_benchmark_time
         tracker.calibrated_benchmark_diff = calibrated_benchmark_diff
 
@@ -366,7 +370,7 @@ def test_parse_grouped_benchmark_results():
     b1 = "Benchmarking: some_dir/unet_baseline.vmfb on device 0 BM_main/process_time/real_time_median 60.7 ms 13.5 ms 5 items_per_second=16.4733/s"
     s1 = "Benchmarking: unet_candidate_1.vmfb on device 0"
     grouped_benchmark_results = [[generate_res(b1, 0), generate_res(s1, 0)]]
-    candidate_trackers[1].unet_candidate_path = "unet_candidate_1.vmfb"
+    candidate_trackers[1].model_path = "unet_candidate_1.vmfb"
     dump_list = autotune.parse_grouped_benchmark_results(
         path_config, grouped_benchmark_results, candidate_trackers
     )
@@ -380,7 +384,7 @@ def test_parse_grouped_benchmark_results():
     b1 = "Benchmarking: unet_baseline.vmfb on device 0"
     s1 = "Benchmarking: unet_candidate_1.vmfb on device 0"
     grouped_benchmark_results = [[generate_res(b1, 0), generate_res(s1, 0)]]
-    candidate_trackers[1].unet_candidate_path = "unet_candidate_1.vmfb"
+    candidate_trackers[1].model_path = "unet_candidate_1.vmfb"
     dump_list = autotune.parse_grouped_benchmark_results(
         path_config, grouped_benchmark_results, candidate_trackers
     )
