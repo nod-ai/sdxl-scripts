@@ -6,6 +6,7 @@ from pathlib import Path
 
 @dataclass
 class PunetClient(autotune.TuningClient):
+
     def get_dispatch_compile_command(self, candidate_tracker: autotune.CandidateTracker) -> list[str]:
         mlir_path = candidate_tracker.mlir_path
         assert mlir_path is not None
@@ -17,18 +18,16 @@ class PunetClient(autotune.TuningClient):
         return command
 
     def get_dispatch_benchmark_command(self, candidate_tracker: autotune.CandidateTracker) -> list[str]:
-        # Implement as needed
         pass
 
     def get_model_compile_command(self, candidate_tracker: autotune.CandidateTracker) -> list[str]:
-        # Implement as needed
         pass
 
     def get_model_benchmark_command(self, candidate_tracker: autotune.CandidateTracker) -> list[str]:
-        # Implement as needed
         pass
-    
-# command = TuningClient.get_candidate_compile_command(candidate_trackers[index])
+
+    def get_compiled_file_index(self, file_name: Path) -> int:
+       return int(file_name.stem)
 
 
 def main():
@@ -47,10 +46,10 @@ def main():
 
     candidates = autotune.generate_candidates(args, path_config, candidate_trackers)
 
-
     compiled_candidates = autotune.compile_dispatches(
         args, path_config, candidates, candidate_trackers, punet_candidates
     )
+    
     exit()
     top_candidates = autotune.benchmark_dispatches(
         args, path_config, compiled_candidates, candidate_trackers

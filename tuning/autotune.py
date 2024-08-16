@@ -100,7 +100,7 @@ class PathConfig:
     candidates_dir: Path = field(init=False)
     candidate_configs_pkl: Path = field(init=False)
     compiled_dir: Path = field(init=False)
-    compilefailed_dir: Path = field(init=False)
+    compile_failed_dir: Path = field(init=False)
 
     output_unilog: Path = field(init=False)
     result_summary_log: Path = field(init=False)
@@ -166,6 +166,9 @@ class TuningClient(ABC):
 
     @abstractmethod
     def get_model_benchmark_command(self, candidate_tracker) -> list[str]:
+        pass
+
+    def get_compiled_file_index(self, file_name: Path) -> int:
         pass
 
 
@@ -824,7 +827,7 @@ def compile_dispatches(
         path_config.compiled_dir.glob("*.vmfb"), key=numerical_sort_key
     )
     failed_files = sorted(
-        path_config.compilefailed_dir.glob("*.mlir"), key=numerical_sort_key
+        path_config.compile_failed_dir.glob("*.mlir"), key=numerical_sort_key
     )
 
     total, good, bad = len(task_list), len(compiled_files), len(failed_files)
@@ -835,12 +838,12 @@ def compile_dispatches(
 
     # Update candidate tracker
     for failed_file in failed_files:
-        index = int(failed_file.stem)
+        index = tuning_client.get_compiled_file_index(failed_file)
         candidate_trackers[index].compilation_successful = False
     compiled_candidates = []
     compiled_candidates_hash_list = []
     for compiled_file in compiled_files:
-        index = int(compiled_file.stem)
+        index = tuning_client.get_compiled_file_index(failed_file)
         compiled_candidates.append(index)
         candidate_trackers[index].compilation_successful = True
         candidate_trackers[index].compiled_vmfb_path = compiled_file
