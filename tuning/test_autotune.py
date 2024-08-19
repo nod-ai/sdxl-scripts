@@ -107,7 +107,7 @@ def test_DispatchBenchmarkResult_get():
     assert res.get_benchmark_time() == None
 
 
-def test_UnetBenchmarkResult_get():
+def test_ModelBenchmarkResult_get():
     normal_str = "Benchmarking: unet_candidate_12.vmfb on device 24\nBM_main/process_time/real_time_median 182 ms 183 ms 5 items_per_second=5.50302/s"
     res = autotune.ModelBenchmarkResult(normal_str)
     assert res.result_str == normal_str
@@ -293,13 +293,13 @@ def test_parse_grouped_benchmark_results():
 
     def set_tracker(
         tracker: autotune.CandidateTracker,
-        unet_benchmark_time: float,
-        unet_benchmark_device_id: int,
+        model_benchmark_time: float,
+        model_benchmark_device_id: int,
         baseline_benchmark_time: float,
         calibrated_benchmark_diff=float,
     ):
-        tracker.model_benchmark_time = unet_benchmark_time
-        tracker.model_benchmark_device_id = unet_benchmark_device_id
+        tracker.model_benchmark_time = model_benchmark_time
+        tracker.model_benchmark_device_id = model_benchmark_device_id
         tracker.baseline_benchmark_time = baseline_benchmark_time
         tracker.calibrated_benchmark_diff = calibrated_benchmark_diff
 
