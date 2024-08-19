@@ -86,7 +86,7 @@ class PathConfig:
     # Preset constants
     global_config_prolog_mlir: Path = Path("./config_prolog.mlir")
     global_config_epilog_mlir: Path = Path("./config_epilog.mlir")
-    model_baseline_vmfb: Path = Path("./unet_baseline.vmfb")
+    model_baseline_vmfb: Path = Path("./baseline.vmfb")
 
     # Dynamic paths
     base_dir: Path = field(init=False)
@@ -260,7 +260,7 @@ class DispatchBenchmarkResult:
 
 
 @dataclass
-class UnetBenchmarkResult:
+class ModelBenchmarkResult:
     result_str: Optional[str] = None
 
     def get_tokens(self) -> list[str]:
@@ -1155,7 +1155,7 @@ def parse_grouped_benchmark_results(
             if result_str is None:
                 continue
 
-            res = UnetBenchmarkResult(result_str)
+            res = ModelBenchmarkResult(result_str)
             device_id = res.get_device_id()
 
             # Record baseline benchmarking result.
@@ -1224,7 +1224,7 @@ def generate_dryrun_unet_benchmark_results(
         task_result = subprocess.CompletedProcess(
             args=[""],
             returncode=0,
-            stdout=UnetBenchmarkResult().generate_sample_result(
+            stdout=ModelBenchmarkResult().generate_sample_result(
                 candidate_vmfb_path_str=candidate_vmfb_path.as_posix(),
                 device_id=device_id,
                 t1=start,
