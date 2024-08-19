@@ -53,24 +53,6 @@ class PunetClient(autotune.TuningClient):
         ]
         return command
 
-    def get_compiled_dispatch_index(self, file_path: Path) -> int:
-        return int(file_path.stem)
-
-    def get_candidate_spec_filename(self, candidate_id: int) -> str:
-        return f"{candidate_id}_spec.mlir"
-
-    def get_compiled_model_index(self, file_path: Path) -> int:
-        return int(file_path.stem.split("_")[-1])
-
-
-def set_path_config(path_config: autotune.PathConfig) -> None:
-    path_config.model_baseline_vmfb = Path("./unet_baseline.vmfb")
-    path_config.candidates_dir = path_config.base_dir / "candidates"
-    path_config.candidate_configs_pkl = path_config.candidates_dir / "configs.pkl"
-    path_config.compiled_dir = path_config.candidates_dir / "compiled"
-    path_config.compile_failed_dir = path_config.candidates_dir / "failed"
-    path_config.spec_dir = path_config.candidates_dir / "configs"
-
 
 def main():
     args = autotune.parse_arguments()
@@ -79,8 +61,6 @@ def main():
     path_config.output_unilog.touch()
     candidate_trackers: list[autotune.CandidateTracker] = []
     punet_client = PunetClient()
-
-    set_path_config(path_config)
 
     autotune.setup_logging(args, path_config)
 

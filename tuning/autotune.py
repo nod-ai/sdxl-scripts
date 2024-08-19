@@ -62,7 +62,7 @@ device_id = None
 
 
 @dataclass
-class CandidateTracker(ABC):
+class CandidateTracker:
     candidate_id: int
     dispatch_mlir_path: Optional[Path] = None
     dispatch_config_path: Optional[Path] = None
@@ -81,7 +81,7 @@ class CandidateTracker(ABC):
     calibrated_benchmark_diff: Optional[float] = None
 
 
-# @dataclass(frozen=True)
+@dataclass(frozen=True)
 @dataclass
 class PathConfig:
     # Preset constants
@@ -148,6 +148,15 @@ class PathConfig:
     def get_exe_format(self, path: Path) -> str:
         return f"./{path.as_posix()}"
 
+    def get_compiled_dispatch_index(self, file_path: Path) -> int:
+        return int(file_path.stem)
+
+    def get_candidate_spec_filename(self, candidate_id: int) -> str:
+        return f"{candidate_id}_spec.mlir"
+
+    def get_compiled_model_index(self, file_path: Path) -> int:
+        return int(file_path.stem.split("_")[-1])
+
 
 @dataclass
 class TuningClient(ABC):
@@ -167,18 +176,6 @@ class TuningClient(ABC):
 
     @abstractmethod
     def get_model_benchmark_command(self, candidate_tracker) -> list[str]:
-        pass
-
-    @abstractmethod
-    def get_compiled_dispatch_index(self, file_path: Path) -> int:
-        pass
-
-    @abstractmethod
-    def get_candidate_spec_filename(self, candidate_id: int) -> str:
-        pass
-
-    @abstractmethod
-    def get_compiled_model_index(self, file_path: Path) -> int:
         pass
 
 
@@ -201,15 +198,6 @@ class DefaultTuningClient(TuningClient):
     def get_model_benchmark_command(self, candidate_tracker) -> list[str]:
         command = [""]
         return command
-
-    def get_compiled_dispatch_index(self, file_path: Path) -> int:
-        return 0
-
-    def get_candidate_spec_filename(self, candidate_id: int) -> str:
-        return ""
-
-    def get_compiled_model_index(self, file_path: Path) -> int:
-        return 0
 
 
 @dataclass
@@ -886,12 +874,12 @@ def compile_dispatches(
 
     # Update candidate tracker
     for failed_file in failed_files:
-        index = tuning_client.get_compiled_dispatch_index(failed_file)
+        index = path_config.get_compiled_dispatch_index(failed_file)
         candidate_trackers[index].compilation_successful = False
     compiled_candidates = []
     compiled_candidates_hash_list = []
     for compiled_file in compiled_files:
-        index = tuning_client.get_compiled_dispatch_index(failed_file)
+        index = path_config.get_compiled_dispatch_index(failed_file)
         compiled_candidates.append(index)
         candidate_trackers[index].compilation_successful = True
         candidate_trackers[index].compiled_dispatch_path = compiled_file
@@ -938,8 +926,7 @@ def parse_dispatch_benchmark_results(
         assert candidate_id is not None and benchmark_time is not None
         candidate_trackers[candidate_id].first_benchmark_time = benchmark_time
         candidate_trackers[candidate_id].spec_path = (
-            path_config.spec_dir
-            / tuning_client.get_candidate_spec_filename(candidate_id)
+            path_config.spec_dir / path_config.get_candidate_spec_filename(candidate_id)
         )
         mlir_path = candidate_trackers[candidate_id].dispatch_mlir_path
         spec_path = candidate_trackers[candidate_id].spec_path
@@ -1085,7 +1072,7 @@ def compile_models(
     # Update candidate tracker
     for model_candidate in model_candidates_files:
         assert model_candidate is not None
-        index = tuning_client.get_compiled_model_index(model_candidate)
+        index = path_config.get_compiled_model_index(model_candidate)
         candidate_trackers[index].model_path = model_candidate
         hash_val = calculate_md5(model_candidate)
         candidate_trackers[index].compiled_model_hash = hash_val
