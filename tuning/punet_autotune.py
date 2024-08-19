@@ -1,0 +1,151 @@
+# Copyright 2024 Advanced Micro Devices, Inc
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+import libtuner
+from pathlib import Path
+
+
+"""
+Sample Usage:
+
+python punet_autotune.py winograd 1286.mlir --lhs-dims=bmk --rhs-dims=bkn --tile-dims=*mnk --devices=hip://0,hip://1 --num-candidates=64
+
+
+Recommended Trial Run:
+
+python punet_autotune.py winograd 1286.mlir --num-candidates=1
+
+
+Dry Run Test (no gpu requried):
+
+python punet_autotune.py winograd 1286.mlir --num-candidates=64 --num-model-candidates=10 --dry-run
+
+"""
+
+
+class PunetClient(libtuner.TuningClient):
+
+    def get_dispatch_compile_command(
+        self, candidate_tracker: libtuner.CandidateTracker
+    ) -> list[str]:
+        mlir_path = candidate_tracker.dispatch_mlir_path
+        assert mlir_path is not None
+        command = [
+            "./compile_candidate.sh",
+            "winograd",
+            mlir_path.as_posix(),
+        ]
+        return command
+
+    def get_dispatch_benchmark_command(
+        self, candidate_tracker: libtuner.CandidateTracker
+    ) -> list[str]:
+        compiled_vmfb_path = candidate_tracker.compiled_dispatch_path
+        assert compiled_vmfb_path is not None
+        command = [
+            "./benchmark_dispatch.sh",
+            compiled_vmfb_path.as_posix(),
+        ]
+        return command
+
+    def get_model_compile_command(
+        self, candidate_tracker: libtuner.CandidateTracker
+    ) -> list[str]:
+        mlir_spec_path = candidate_tracker.spec_path
+        assert mlir_spec_path is not None
+        command = [
+            "./compile_unet_candidate.sh",
+            "winograd",
+            mlir_spec_path.as_posix(),
+        ]
+        return command
+
+    def get_model_benchmark_command(
+        self, candidate_tracker: libtuner.CandidateTracker
+    ) -> list[str]:
+        unet_candidate_path = candidate_tracker.model_path
+        assert unet_candidate_path is not None
+        command = [
+            "./benchmark_unet_candidate.sh",
+            unet_candidate_path.as_posix(),
+        ]
+        return command
+
+
+def main():
+    args = libtuner.parse_arguments()
+    path_config = libtuner.PathConfig()
+    path_config.base_dir.mkdir(parents=True, exist_ok=True)
+    path_config.output_unilog.touch()
+    candidate_trackers: list[libtuner.CandidateTracker] = []
+    punet_client = PunetClient()
+    stop_after_phase: str = args.stop_after
+
+    print("Setup logging")
+    libtuner.setup_logging(args, path_config)
+    print(path_config.run_log, end="\n\n")
+
+    print("Validating devices")
+    libtuner.validate_devices(args.devices)
+    print("Validation successful!\n")
+
+    print("Generating candidates...")
+    candidates = libtuner.generate_candidates(
+        args, path_config, candidate_trackers, punet_client
+    )
+    print(f"Generated [{len(candidates)}] candidates in {path_config.candidates_dir}\n")
+    if stop_after_phase == libtuner.ExecutionPhases.generate_candidates:
+        return
+
+    print("Compiling candidates...")
+    compiled_candidates = libtuner.compile_dispatches(
+        args, path_config, candidates, candidate_trackers, punet_client
+    )
+    print(f"Compiled files are stored in {path_config.compiled_dir}\n")
+    if stop_after_phase == libtuner.ExecutionPhases.compile_dispatches:
+        return
+
+    print("Benchmarking compiled candidates...")
+    top_candidates = libtuner.benchmark_dispatches(
+        args, path_config, compiled_candidates, candidate_trackers, punet_client
+    )
+    print(f"Stored results in {path_config.output_unilog}\n")
+    if stop_after_phase == libtuner.ExecutionPhases.benchmark_dispatches:
+        return
+
+    print(f"Compiling top model candidates...")
+    punet_candidates = libtuner.compile_models(
+        args, path_config, top_candidates, candidate_trackers, punet_client
+    )
+    print(f"Model candidates compiled in {path_config.base_dir}\n")
+    if stop_after_phase == libtuner.ExecutionPhases.compile_models:
+        return
+
+    print("Benchmarking model candidates...")
+    libtuner.benchmark_models(
+        args, path_config, punet_candidates, candidate_trackers, punet_client
+    )
+    print(f"Stored results in {path_config.output_unilog}")
+    if stop_after_phase == libtuner.ExecutionPhases.benchmark_models:
+        return
+
+    libtuner.summerize_top_candidates(path_config, candidate_trackers)
+    print(f"Stored top candidates info in {path_config.result_summary_log}\n")
+
+    libtuner.save_pickle(path_config.candidate_trackers_pkl, candidate_trackers)
+    print(f"Candidate trackers are saved in {path_config.candidate_trackers_pkl}\n")
+
+    print("Check the detailed execution logs in:")
+    print(path_config.run_log)
+
+    for candidate in candidate_trackers:
+        libtuner.logging.debug(candidate)
+        if args.verbose:
+            print(candidate)
+
+
+if __name__ == "__main__":
+    main()
