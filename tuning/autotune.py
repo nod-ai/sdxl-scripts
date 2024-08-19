@@ -27,24 +27,6 @@ import random
 from abc import ABC, abstractmethod
 
 
-"""
-Sample Usage:
-
-python autotune.py winograd 1286.mlir --lhs-dims=bmk --rhs-dims=bkn --tile-dims=*mnk --devices=1,3,5 --num-candidates=64
-
-
-Recommended Trial Run:
-
-python autotune.py winograd 1286.mlir --num-candidates=1
-
-
-Dry Run Test (no gpu requried):
-
-python autotune.py winograd 1286.mlir --num-candidates=64 --num-model-candidates=10 --dry-run
-
-"""
-
-
 # Default values for num_candidates and devices, change it as needed
 DEFAULT_NUM_CANDIDATES = 2048
 DEFAULT_DEVICE_LIST = ["hip://0"]
@@ -1340,82 +1322,3 @@ def summerize_top_candidates(
 
     with open(path_config.result_summary_log, "w") as file:
         file.writelines(dump_list)
-
-
-def autotune(args: argparse.Namespace, tuning_client: TuningClient) -> None:
-    path_config = PathConfig()
-    path_config.base_dir.mkdir(parents=True, exist_ok=True)
-    path_config.output_unilog.touch()
-
-    candidate_trackers: list[CandidateTracker] = []
-    stop_after_phase: str = args.stop_after
-
-    print("Setup logging")
-    setup_logging(args, path_config)
-    print(path_config.run_log, end="\n\n")
-
-    print("Validating devices")
-    validate_devices(args.devices)
-    print("Validation successful!\n")
-
-    print("Generating candidates...")
-    candidates = generate_candidates(
-        args, path_config, candidate_trackers, tuning_client
-    )
-    print(f"Generated [{len(candidates)}] candidates in {path_config.candidates_dir}\n")
-    if stop_after_phase == ExecutionPhases.generate_candidates:
-        return
-
-    print("Compiling candidates...")
-    compiled_candidates = compile_dispatches(
-        args, path_config, candidates, candidate_trackers, tuning_client
-    )
-    print(f"Compiled files are stored in {path_config.compiled_dir}\n")
-    if stop_after_phase == ExecutionPhases.compile_dispatches:
-        return
-
-    print("Benchmarking compiled candidates...")
-    top_candidates = benchmark_dispatches(
-        args, path_config, compiled_candidates, candidate_trackers, tuning_client
-    )
-    print(f"Stored results in {path_config.output_unilog}\n")
-    if stop_after_phase == ExecutionPhases.benchmark_dispatches:
-        return
-
-    print(f"Compiling top model candidates...")
-    model_candidates = compile_models(
-        args, path_config, top_candidates, candidate_trackers, tuning_client
-    )
-    print(f"Model candidates compiled in {path_config.base_dir}\n")
-    if stop_after_phase == ExecutionPhases.compile_models:
-        return
-
-    print("Benchmarking model candidates...")
-    benchmark_models(
-        args, path_config, model_candidates, candidate_trackers, tuning_client
-    )
-    print(f"Stored results in {path_config.output_unilog}")
-    if stop_after_phase == ExecutionPhases.benchmark_models:
-        return
-
-    summerize_top_candidates(path_config, candidate_trackers)
-    print(f"Stored top candidates info in {path_config.result_summary_log}\n")
-
-    save_pickle(path_config.candidate_trackers_pkl, candidate_trackers)
-    print(f"Candidate trackers are saved in {path_config.candidate_trackers_pkl}\n")
-
-    print("Check the detailed execution logs in:")
-    print(path_config.run_log)
-
-    for candidate in candidate_trackers:
-        logging.debug(candidate)
-        if args.verbose:
-            print(candidate)
-
-
-def main():
-    autotune(parse_arguments())
-
-
-if __name__ == "__main__":
-    main()

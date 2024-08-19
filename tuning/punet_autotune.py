@@ -8,6 +8,24 @@ import autotune
 from pathlib import Path
 
 
+"""
+Sample Usage:
+
+python punet_autotune.py winograd 1286.mlir --lhs-dims=bmk --rhs-dims=bkn --tile-dims=*mnk --devices=hip://0,hip://1 --num-candidates=64
+
+
+Recommended Trial Run:
+
+python punet_autotune.py winograd 1286.mlir --num-candidates=1
+
+
+Dry Run Test (no gpu requried):
+
+python punet_autotune.py winograd 1286.mlir --num-candidates=64 --num-model-candidates=10 --dry-run
+
+"""
+
+
 class PunetClient(autotune.TuningClient):
 
     def get_dispatch_compile_command(
