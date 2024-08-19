@@ -157,7 +157,6 @@ class PathConfig:
         return int(file_path.stem.split("_")[-1])
 
 
-@dataclass
 class TuningClient(ABC):
     @abstractmethod
     def get_dispatch_compile_command(

@@ -5,11 +5,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import autotune
-from dataclasses import dataclass
 from pathlib import Path
 
 
-@dataclass
 class PunetClient(autotune.TuningClient):
 
     def get_dispatch_compile_command(
@@ -97,7 +95,7 @@ def main():
         args, path_config, compiled_candidates, candidate_trackers, punet_client
     )
     print(f"Stored results in {path_config.output_unilog}\n")
-    if stop_after_phase == ExecutionPhases.benchmark_dispatches:
+    if stop_after_phase == autotune.ExecutionPhases.benchmark_dispatches:
         return
 
     print(f"Compiling top model candidates...")
