@@ -109,7 +109,7 @@ def test_DispatchBenchmarkResult_get():
 
 def test_UnetBenchmarkResult_get():
     normal_str = "Benchmarking: unet_candidate_12.vmfb on device 24\nBM_main/process_time/real_time_median 182 ms 183 ms 5 items_per_second=5.50302/s"
-    res = autotune.UnetBenchmarkResult(normal_str)
+    res = autotune.ModelBenchmarkResult(normal_str)
     assert res.result_str == normal_str
     assert res.get_tokens() == [
         "Benchmarking:",
@@ -131,7 +131,7 @@ def test_UnetBenchmarkResult_get():
     assert res.get_benchmark_time() == 182.0
 
     incomplete_str = "Benchmarking: unet_baseline.vmfb on device 24\n"
-    res = autotune.UnetBenchmarkResult(incomplete_str)
+    res = autotune.ModelBenchmarkResult(incomplete_str)
     assert res.get_tokens() == [
         "Benchmarking:",
         "unet_baseline.vmfb",
@@ -144,7 +144,7 @@ def test_UnetBenchmarkResult_get():
     assert res.get_device_id() == 24
     assert res.get_benchmark_time() == None
     incomplete_str = ""
-    res = autotune.UnetBenchmarkResult(incomplete_str)
+    res = autotune.ModelBenchmarkResult(incomplete_str)
     assert res.get_tokens() == []
     assert res.get_model_candidate_path() == None
     assert res.get_candidate_id() == None
@@ -152,7 +152,7 @@ def test_UnetBenchmarkResult_get():
     assert res.get_benchmark_time() == None
 
     bad_str = 12345
-    res = autotune.UnetBenchmarkResult(bad_str)
+    res = autotune.ModelBenchmarkResult(bad_str)
     assert res.get_tokens() == []
     assert res.get_model_candidate_path() == None
     assert res.get_candidate_id() == None
@@ -166,7 +166,7 @@ def test_generate_sample_result():
     expected = f"1\tMean Time: 3.1\n"
     assert output == expected, "DispatchBenchmarkResult generates invalid sample string"
 
-    res = autotune.UnetBenchmarkResult()
+    res = autotune.ModelBenchmarkResult()
     output = res.generate_sample_result(
         1, "some_dir/tuning_2024_07_24_20_06/unet_candidate_60.vmfb.vmfb", 576.89
     )
@@ -179,7 +179,7 @@ def test_UnetBenchmarkResult_get_calibrated_result_str():
     res_time = 304
     result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {float(res_time)} ms	    305 ms	      5 items_per_second=1.520000/s"
     change = (res_time - baseline_time) / baseline_time
-    output_str = autotune.UnetBenchmarkResult(result_str).get_calibrated_result_str(
+    output_str = autotune.ModelBenchmarkResult(result_str).get_calibrated_result_str(
         change
     )
     expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median\t    {float(res_time)} ms (-28.132%)\t    305 ms\t      5 items_per_second=1.520000/s"
@@ -189,7 +189,7 @@ def test_UnetBenchmarkResult_get_calibrated_result_str():
     res_time = 218
     result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {float(res_time)} ms	    305 ms	      5 items_per_second=1.520000/s"
     change = (res_time - baseline_time) / baseline_time
-    output_str = autotune.UnetBenchmarkResult(result_str).get_calibrated_result_str(
+    output_str = autotune.ModelBenchmarkResult(result_str).get_calibrated_result_str(
         change
     )
     expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median\t    {float(res_time)} ms (+0.000%)\t    305 ms\t      5 items_per_second=1.520000/s"
@@ -199,7 +199,7 @@ def test_UnetBenchmarkResult_get_calibrated_result_str():
     res_time = 345
     result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {float(res_time)} ms	    305 ms	      5 items_per_second=1.520000/s"
     change = (res_time - baseline_time) / baseline_time
-    output_str = autotune.UnetBenchmarkResult(result_str).get_calibrated_result_str(
+    output_str = autotune.ModelBenchmarkResult(result_str).get_calibrated_result_str(
         change
     )
     expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median\t    {float(res_time)} ms (+180.488%)\t    305 ms\t      5 items_per_second=1.520000/s"
