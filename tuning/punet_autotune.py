@@ -66,28 +66,69 @@ def main():
     path_config.output_unilog.touch()
     candidate_trackers: list[autotune.CandidateTracker] = []
     punet_client = PunetClient()
+    stop_after_phase: str = args.stop_after
 
+    print("Setup logging")
     autotune.setup_logging(args, path_config)
+    print(path_config.run_log, end="\n\n")
 
+    print("Validating devices")
+    autotune.validate_devices(args.devices)
+    print("Validation successful!\n")
+
+    print("Generating candidates...")
     candidates = autotune.generate_candidates(
         args, path_config, candidate_trackers, punet_client
     )
+    print(f"Generated [{len(candidates)}] candidates in {path_config.candidates_dir}\n")
+    if stop_after_phase == autotune.ExecutionPhases.generate_candidates:
+        return
 
+    print("Compiling candidates...")
     compiled_candidates = autotune.compile_dispatches(
         args, path_config, candidates, candidate_trackers, punet_client
     )
+    print(f"Compiled files are stored in {path_config.compiled_dir}\n")
+    if stop_after_phase == autotune.ExecutionPhases.compile_dispatches:
+        return
 
+    print("Benchmarking compiled candidates...")
     top_candidates = autotune.benchmark_dispatches(
         args, path_config, compiled_candidates, candidate_trackers, punet_client
     )
+    print(f"Stored results in {path_config.output_unilog}\n")
+    if stop_after_phase == ExecutionPhases.benchmark_dispatches:
+        return
 
+    print(f"Compiling top model candidates...")
     punet_candidates = autotune.compile_models(
         args, path_config, top_candidates, candidate_trackers, punet_client
     )
+    print(f"Model candidates compiled in {path_config.base_dir}\n")
+    if stop_after_phase == autotune.ExecutionPhases.compile_models:
+        return
 
+    print("Benchmarking model candidates...")
     autotune.benchmark_models(
         args, path_config, punet_candidates, candidate_trackers, punet_client
     )
+    print(f"Stored results in {path_config.output_unilog}")
+    if stop_after_phase == autotune.ExecutionPhases.benchmark_models:
+        return
+
+    autotune.summerize_top_candidates(path_config, candidate_trackers)
+    print(f"Stored top candidates info in {path_config.result_summary_log}\n")
+
+    autotune.save_pickle(path_config.candidate_trackers_pkl, candidate_trackers)
+    print(f"Candidate trackers are saved in {path_config.candidate_trackers_pkl}\n")
+
+    print("Check the detailed execution logs in:")
+    print(path_config.run_log)
+
+    for candidate in candidate_trackers:
+        autotune.logging.debug(candidate)
+        if args.verbose:
+            print(candidate)
 
 
 if __name__ == "__main__":

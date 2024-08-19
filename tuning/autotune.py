@@ -179,27 +179,6 @@ class TuningClient(ABC):
 
 
 @dataclass
-class DefaultTuningClient(TuningClient):
-    def get_dispatch_compile_command(
-        self, candidate_tracker: CandidateTracker
-    ) -> list[str]:
-        command = [""]
-        return command
-
-    def get_dispatch_benchmark_command(self, candidate_tracker) -> list[str]:
-        command = [""]
-        return command
-
-    def get_model_compile_command(self, candidate_tracker) -> list[str]:
-        command = [""]
-        return command
-
-    def get_model_benchmark_command(self, candidate_tracker) -> list[str]:
-        command = [""]
-        return command
-
-
-@dataclass
 class TaskTuple:
     args: argparse.Namespace
     command: list[str]
@@ -722,6 +701,11 @@ def load_pickle(file_path: Path) -> list[Any]:
     with open(file_path, "rb") as file:
         loaded_array = pickle.load(file)
     return loaded_array
+
+
+def save_pickle(file_path: Path, input_list: list[Any]) -> None:
+    with open(file_path, "wb") as file:
+        pickle.dump(input_list, file)
 
 
 def append_to_file(lines: list[str], filepath: Path, title: str = "") -> None:
@@ -1359,13 +1343,12 @@ def summerize_top_candidates(
         file.writelines(dump_list)
 
 
-def autotune(args: argparse.Namespace) -> None:
+def autotune(args: argparse.Namespace, tuning_client: TuningClient) -> None:
     path_config = PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
     path_config.output_unilog.touch()
 
     candidate_trackers: list[CandidateTracker] = []
-    tuning_client = DefaultTuningClient()
     stop_after_phase: str = args.stop_after
 
     print("Setup logging")
@@ -1397,7 +1380,6 @@ def autotune(args: argparse.Namespace) -> None:
         args, path_config, compiled_candidates, candidate_trackers, tuning_client
     )
     print(f"Stored results in {path_config.output_unilog}\n")
-
     if stop_after_phase == ExecutionPhases.benchmark_dispatches:
         return
 
@@ -1420,8 +1402,7 @@ def autotune(args: argparse.Namespace) -> None:
     summerize_top_candidates(path_config, candidate_trackers)
     print(f"Stored top candidates info in {path_config.result_summary_log}\n")
 
-    with open(path_config.candidate_trackers_pkl, "wb") as file:
-        pickle.dump(candidate_trackers, file)
+    save_pickle(path_config.candidate_trackers_pkl, candidate_trackers)
     print(f"Candidate trackers are saved in {path_config.candidate_trackers_pkl}\n")
 
     print("Check the detailed execution logs in:")
