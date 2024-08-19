@@ -82,7 +82,6 @@ class CandidateTracker:
 
 
 @dataclass(frozen=True)
-@dataclass
 class PathConfig:
     # Preset constants
     global_config_prolog_mlir: Path = Path("./config_prolog.mlir")
