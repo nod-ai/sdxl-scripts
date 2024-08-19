@@ -24,7 +24,7 @@ from iree.compiler import ir
 from iree.compiler.dialects import _linalg_ops_gen, _util_ops_gen
 
 """
-Usage: ./tune.py 121.mlir -o "tuning/candidates" -l 1024 --lhs-dims=mk --rhs-dims=nk --tile-dims=mnk
+Usage: ./candidate_gen.py 121.mlir -o "tuning/candidates" -l 1024 --lhs-dims=mk --rhs-dims=nk --tile-dims=mnk
 """
 
 tune_logger = logging.getLogger("tune")
