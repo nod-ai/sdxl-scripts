@@ -216,7 +216,6 @@ class DispatchBenchmarkResult:
 def generate_sample_DBR(
     candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
 ) -> str:
-    # Legacy format
     # time unit is implicit and dependent on the output of iree-benchmark-module
     return f"{candidate_id}\tMean Time: {mean_time:.1f}\n"
 
@@ -574,8 +573,6 @@ def run_command(
 
 def run_command_wrapper(task_tuple: TaskTuple) -> TaskResult:
     """pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments"""
-    assert device_id is not None
-
     if task_tuple.command_need_device_id:
         # worker searches for special symbol and substitute to correct device_id
         pattern = re.compile(re.escape(DEVICE_ID_RE))
@@ -587,7 +584,9 @@ def run_command_wrapper(task_tuple: TaskTuple) -> TaskResult:
     if res is None:
         raise
 
-    task_result = TaskResult(res, task_tuple.candidate_id, device_id)
+    task_result = TaskResult(res, task_tuple.candidate_id, device_id=-1) # main process
+    if device_id:
+        task_result = TaskResult(res, task_tuple.candidate_id, device_id) # sub process
 
     time.sleep(task_tuple.cooling_time)
 
@@ -848,7 +847,7 @@ def compile_dispatches(
     compiled_candidates = []
     compiled_candidates_hash_list = []
     for compiled_file in compiled_files:
-        index = path_config.get_compiled_dispatch_index(failed_file)
+        index = path_config.get_compiled_dispatch_index(compiled_file)
         compiled_candidates.append(index)
         candidate_trackers[index].compilation_successful = True
         candidate_trackers[index].compiled_dispatch_path = compiled_file
@@ -899,7 +898,7 @@ def parse_dispatch_benchmark_results(
         mlir_path = candidate_trackers[candidate_id].dispatch_mlir_path
         spec_path = candidate_trackers[candidate_id].spec_path
         assert mlir_path is not None and spec_path is not None
-        dump_list.append(res_str)
+        dump_list.append(generate_sample_DBR(candidate_id, benchmark_time))
 
         benchmark_result_configs.append(
             (
