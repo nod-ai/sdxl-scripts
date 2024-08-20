@@ -73,132 +73,55 @@ def test_collision_handler():
     assert libtuner.collision_handler(input) == (False, [])
 
 
-def test_DispatchBenchmarkResult_get():
+def test_IREEBenchmarkResult_get():
     # Time is int
     normal_str = r"""
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     Benchmark                                                                                                                                      Time             CPU   Iterations UserCounters...
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time               274 us          275 us         3000 items_per_second=3.65611k/s
+    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time               271 us          275 us         3000 items_per_second=3.65611k/s
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time               274 us          275 us         3000 items_per_second=3.65481k/s
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time               273 us          275 us         3000 items_per_second=3.65671k/s
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_mean          274 us          275 us            3 items_per_second=3.65587k/s
-    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_median        274 us          275 us            3 items_per_second=3.65611k/s
+    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_median        275 us          275 us            3 items_per_second=3.65611k/s
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_stddev      0.073 us        0.179 us            3 items_per_second=0.971769/s
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_cv           0.03 %          0.07 %             3 items_per_second=0.03%
     """
     res = libtuner.IREEBenchmarkResult(candidate_id=1, result_str=normal_str)
     assert res.get_mean_time() == float(274)
+    assert res.get_median_time() == float(275)
 
     # Time is float
     res = libtuner.IREEBenchmarkResult(
-        candidate_id=2, result_str="process_time/real_time_mean 123.45 us"
+        candidate_id=2,
+        result_str="process_time/real_time_mean 123.45 us, process_time/real_time_median 246.78 us",
     )
     assert res.get_mean_time() == 123.45
+    assert res.get_median_time() == 246.78
 
     # Invalid str
     res = libtuner.IREEBenchmarkResult(candidate_id=3, result_str="hello world")
     assert res.get_mean_time() == None
+    assert res.get_median_time() == None
     res = libtuner.IREEBenchmarkResult(candidate_id=4, result_str="")
     assert res.get_mean_time() == None
+    assert res.get_median_time() == None
 
 
-def test_ModelBenchmarkResult_get():
-    normal_str = "Benchmarking: unet_candidate_12.vmfb on device 24\nBM_main/process_time/real_time_median 182 ms 183 ms 5 items_per_second=5.50302/s"
-    res = libtuner.ModelBenchmarkResult(normal_str)
-    assert res.result_str == normal_str
-    assert res.get_tokens() == [
-        "Benchmarking:",
-        "unet_candidate_12.vmfb",
-        "on",
-        "device",
-        "24",
-        "BM_main/process_time/real_time_median",
-        "182",
-        "ms",
-        "183",
-        "ms",
-        "5",
-        "items_per_second=5.50302/s",
-    ]
-    assert res.get_model_candidate_path() == "unet_candidate_12.vmfb"
-    assert res.get_candidate_id() == 12
-    assert res.get_device_id() == 24
-    assert res.get_benchmark_time() == 182.0
-
-    incomplete_str = "Benchmarking: baseline.vmfb on device 24\n"
-    res = libtuner.ModelBenchmarkResult(incomplete_str)
-    assert res.get_tokens() == [
-        "Benchmarking:",
-        "baseline.vmfb",
-        "on",
-        "device",
-        "24",
-    ]
-    assert res.get_model_candidate_path() == "baseline.vmfb"
-    assert res.get_candidate_id() == None
-    assert res.get_device_id() == 24
-    assert res.get_benchmark_time() == None
-    incomplete_str = ""
-    res = libtuner.ModelBenchmarkResult(incomplete_str)
-    assert res.get_tokens() == []
-    assert res.get_model_candidate_path() == None
-    assert res.get_candidate_id() == None
-    assert res.get_device_id() == None
-    assert res.get_benchmark_time() == None
-
-    bad_str = 12345
-    res = libtuner.ModelBenchmarkResult(bad_str)
-    assert res.get_tokens() == []
-    assert res.get_model_candidate_path() == None
-    assert res.get_candidate_id() == None
-    assert res.get_device_id() == None
-    assert res.get_benchmark_time() == None
-
-
-def test_generate_sample_result():
-    output = libtuner.generate_sample_DBR(1, 3.14)
+def test_generate_display_BR():
+    output = libtuner.generate_display_DBR(1, 3.14)
     expected = f"1\tMean Time: 3.1\n"
     assert output == expected, "DispatchBenchmarkResult generates invalid sample string"
 
-    res = libtuner.ModelBenchmarkResult()
-    output = res.generate_sample_result(
-        1, "some_dir/tuning_2024_07_24_20_06/unet_candidate_60.vmfb.vmfb", 576.89
-    )
-    expected = f"Benchmarking: 1 on device some_dir/tuning_2024_07_24_20_06/unet_candidate_60.vmfb.vmfb\nBM_run_forward/process_time/real_time_median\t    577 ms\t    578 ms\t      5 items_per_second=2.884450/s\n\n"
-    assert output == expected, "UnetBenchmarkResult generates invalid sample string"
-
-
-def test_ModelBenchmarkResult_get_calibrated_result_str():
-    baseline_time = 423
-    res_time = 304
-    result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {float(res_time)} ms	    305 ms	      5 items_per_second=1.520000/s"
-    change = (res_time - baseline_time) / baseline_time
-    output_str = libtuner.ModelBenchmarkResult(result_str).get_calibrated_result_str(
-        change
-    )
-    expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median\t    {float(res_time)} ms (-28.132%)\t    305 ms\t      5 items_per_second=1.520000/s"
-    assert output_str == expect_str
-
-    baseline_time = 218
-    res_time = 218
-    result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {float(res_time)} ms	    305 ms	      5 items_per_second=1.520000/s"
-    change = (res_time - baseline_time) / baseline_time
-    output_str = libtuner.ModelBenchmarkResult(result_str).get_calibrated_result_str(
-        change
-    )
-    expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median\t    {float(res_time)} ms (+0.000%)\t    305 ms\t      5 items_per_second=1.520000/s"
-    assert output_str == expect_str
-
-    baseline_time = 123
-    res_time = 345
-    result_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median	    {float(res_time)} ms	    305 ms	      5 items_per_second=1.520000/s"
-    change = (res_time - baseline_time) / baseline_time
-    output_str = libtuner.ModelBenchmarkResult(result_str).get_calibrated_result_str(
-        change
-    )
-    expect_str = f"Benchmarking: tuning_2024_07_22_16_29/unet_candidate_16.vmfb on device 0\nBM_run_forward/process_time/real_time_median\t    {float(res_time)} ms (+180.488%)\t    305 ms\t      5 items_per_second=1.520000/s"
-    assert output_str == expect_str
+    output = libtuner.generate_display_MBR("baseline.vmfb", str(1), 567.89)
+    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_median\t    568 ms\n\n"
+    assert output == expected, "ModelBenchmarkResult generates invalid sample string"
+    output = libtuner.generate_display_MBR("baseline.vmfb", str(1), 567.89, 0.0314)
+    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_median\t    568 ms (+3.140%)\n\n"
+    assert output == expected, "ModelBenchmarkResult generates invalid sample string"
+    output = libtuner.generate_display_MBR("baseline.vmfb", str(1), 567.89, -3.14)
+    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_median\t    568 ms (-314.000%)\n\n"
+    assert output == expected, "ModelBenchmarkResult generates invalid sample string"
 
 
 def test_parse_dispatch_benchmark_results():
@@ -238,8 +161,8 @@ def test_parse_dispatch_benchmark_results():
         ),
     ]
     expected_dump_list = [
-        "process_time/real_time_mean 100.0 us",
-        "process_time/real_time_mean 200.0 us",
+        "1\tMean Time: 100.0\n",
+        "2\tMean Time: 200.0\n",
     ]
 
     parsed_results, dump_list = libtuner.parse_dispatch_benchmark_results(
@@ -258,122 +181,87 @@ def test_parse_dispatch_benchmark_results():
     )
 
 
-def test_parse_grouped_benchmark_results():
-    def generate_res(stdout: str, device_id: int) -> libtuner.TaskResult:
-        result = libtuner.subprocess.CompletedProcess(
-            args=[""],
-            stdout=stdout,
-            returncode=0,
-        )
-        candidate_id = 0
-        return libtuner.TaskResult(
-            result=result, candidate_id=candidate_id, device_id=str(device_id)
-        )
+def test_parse_model_benchmark_results():
+    # Setup mock data for candidate_trackers
+    tracker0 = MagicMock(spec=libtuner.CandidateTracker)
+    tracker0.compiled_model_path = MagicMock(
+        return_value=libtuner.Path("/path/to/baseline.vmfb")
+    )
 
-    def set_tracker(
-        tracker: libtuner.CandidateTracker,
-        model_benchmark_time: float,
-        model_benchmark_device_id: str,
-        baseline_benchmark_time: float,
-        calibrated_benchmark_diff=float,
+    tracker1 = MagicMock(spec=libtuner.CandidateTracker)
+    tracker1.compiled_model_path = MagicMock(
+        return_value=libtuner.Path("/path/to/model_1.vmfb")
+    )
+
+    tracker2 = MagicMock(spec=libtuner.CandidateTracker)
+    tracker2.compiled_model_path = MagicMock(
+        return_value=libtuner.Path("/path/to/model_2.vmfb")
+    )
+
+    candidate_trackers = [tracker0, tracker1, tracker2]
+
+    # Setup mock data for task results
+    result1 = MagicMock(spec=libtuner.TaskResult)
+    result1.result = MagicMock(stdout="1.23")
+    result1.candidate_id = 1
+    result1.device_id = "device1"
+
+    result2 = MagicMock(spec=libtuner.TaskResult)
+    result2.result = MagicMock(stdout="4.56")
+    result2.candidate_id = 2
+    result2.device_id = "device2"
+
+    result3 = MagicMock(spec=libtuner.TaskResult)
+    result3.result = MagicMock(stdout="0.98")
+    result3.candidate_id = 0
+    result3.device_id = "device1"
+
+    result4 = MagicMock(spec=libtuner.TaskResult)
+    result4.result = MagicMock(stdout="4.13")
+    result4.candidate_id = 0
+    result4.device_id = "device2"
+
+    candidate_results = [result1, result2]
+    baseline_results = [result3, result4]
+
+    # Mock IREEBenchmarkResult to return float value from stdout
+    def mock_get_median_time(self):
+        return float(self.result_str)
+
+    # Mock IREEBenchmarkResult to return specific benchmark times
+    with patch(
+        "libtuner.IREEBenchmarkResult.get_median_time", new=mock_get_median_time
     ):
-        tracker.model_benchmark_time = model_benchmark_time
-        tracker.model_benchmark_device_id = model_benchmark_device_id
-        tracker.baseline_benchmark_time = baseline_benchmark_time
-        tracker.calibrated_benchmark_diff = calibrated_benchmark_diff
+        # Mock generate_display_MBR to return a fixed display string
+        with patch(
+            "libtuner.generate_display_MBR",
+            side_effect=lambda *args, **kwargs: "display_str",
+        ):
+            # Mock handle_error to avoid actual logging during tests
+            with patch("libtuner.handle_error") as mock_handle_error:
+                # Call the function
+                result = libtuner.parse_model_benchmark_results(
+                    candidate_trackers, candidate_results, baseline_results
+                )
 
-    b1 = "Benchmarking: some_dir/baseline.vmfb on device 0 BM_main/process_time/real_time_median 60.7 ms 13.5 ms 5 items_per_second=16.4733/s"
-    b2 = "Benchmarking: baseline.vmfb on device 1 BM_main/process_time/real_time_median 59.8 ms 15.1 ms 5 items_per_second=16.7114/s"
-    s1 = "Benchmarking: unet_candidate_1.vmfb on device 0 BM_main/process_time/real_time_median 62.4 ms 15.4 ms 5 items_per_second=16.0223/s"
-    s2 = "Benchmarking: some_dir/unet_candidate_2.vmfb on device 1 BM_main/process_time/real_time_median 61.4 ms 11.0 ms 5 items_per_second=16.2958/s"
-    s3 = "Benchmarking: unet_candidate_4.vmfb on device 1 BM_main/process_time/real_time_median 57.4 ms 11.0 ms 5 items_per_second=16.2958/s"
+                # Verify interactions with candidate_trackers
+                assert tracker1.model_benchmark_time == 1.23
+                assert tracker1.model_benchmark_device_id == "device1"
+                assert tracker1.baseline_benchmark_time == 0.98
+                assert tracker1.calibrated_benchmark_diff == (1.23 - 0.98) / 0.98
 
-    grouped_benchmark_results = [
-        [generate_res(b1, 0), generate_res(s1, 0)],
-        [
-            generate_res(b2, 1),
-            generate_res(None, 1),
-            generate_res(s2, 1),
-            generate_res(s3, 1),
-        ],
-    ]
+                assert tracker2.model_benchmark_time == 4.56
+                assert tracker2.model_benchmark_device_id == "device2"
+                assert tracker2.baseline_benchmark_time == 4.13
+                assert tracker2.calibrated_benchmark_diff == (4.56 - 4.13) / 4.13
 
-    path_config = libtuner.PathConfig()
-
-    candidate_trackers = [libtuner.CandidateTracker(i) for i in range(5)]
-
-    candidate_trackers_before = [libtuner.CandidateTracker(i) for i in range(5)]
-    expect_candidate_trackers = [libtuner.CandidateTracker(i) for i in range(5)]
-    set_tracker(expect_candidate_trackers[1], 62.4, 0, 60.7, 0.028006589785831888)
-    set_tracker(expect_candidate_trackers[2], 61.4, 1, 59.8, 0.02675585284280939)
-    set_tracker(expect_candidate_trackers[4], 57.4, 1, 59.8, -0.04013377926421403)
-
-    expect_dump_list = [
-        "Benchmarking: some_dir/baseline.vmfb on device 0 "
-        "BM_main/process_time/real_time_median 60.7 ms 13.5 ms 5 items_per_second=16.4733/s",
-        "Benchmarking: unet_candidate_1.vmfb on device 0 "
-        "BM_main/process_time/real_time_median 62.4 ms (+2.801%) 15.4 ms 5 items_per_second=16.0223/s",
-        "Benchmarking: baseline.vmfb on device 1 "
-        "BM_main/process_time/real_time_median 59.8 ms 15.1 ms 5 items_per_second=16.7114/s",
-        "Benchmarking: unet_candidate_4.vmfb on device 1 "
-        "BM_main/process_time/real_time_median 57.4 ms (-4.013%) 11.0 ms 5 items_per_second=16.2958/s",
-        "Benchmarking: some_dir/unet_candidate_2.vmfb on device 1 "
-        "BM_main/process_time/real_time_median 61.4 ms (+2.676%) 11.0 ms 5 items_per_second=16.2958/s",
-    ]
-
-    dump_list = libtuner.parse_grouped_benchmark_results(
-        path_config, grouped_benchmark_results, candidate_trackers
-    )
-
-    assert dump_list == expect_dump_list, "basic parsing is incorrect"
-    assert (
-        candidate_trackers != candidate_trackers_before
-    ), "candidate_trackers should be modified"
-    assert (
-        candidate_trackers == expect_candidate_trackers
-    ), "candidate_trackers did not change as expected"
-
-    b1 = "Benchmarking: baseline.vmfb on device 0"
-    s1 = "Benchmarking: unet_candidate_1.vmfb on device 0 BM_main/process_time/real_time_median 62.4 ms 15.4 ms 5 items_per_second=16.0223/s"
-    grouped_benchmark_results = [[generate_res(b1, 0), generate_res(s1, 0)]]
-    dump_list = libtuner.parse_grouped_benchmark_results(
-        path_config, grouped_benchmark_results, candidate_trackers
-    )
-    expect_dump_list = [
-        "Benchmarking: unet_candidate_1.vmfb on device 0 "
-        "BM_main/process_time/real_time_median 62.4 ms 15.4 ms 5 items_per_second=16.0223/s",
-        "Benchmarking result of baseline.vmfb on deivce 0 is incomplete\n",
-    ]
-    assert dump_list == expect_dump_list, "fail to parse incomplete baselines"
-
-    b1 = "Benchmarking: some_dir/baseline.vmfb on device 0 BM_main/process_time/real_time_median 60.7 ms 13.5 ms 5 items_per_second=16.4733/s"
-    s1 = "Benchmarking: unet_candidate_1.vmfb on device 0"
-    grouped_benchmark_results = [[generate_res(b1, 0), generate_res(s1, 0)]]
-    candidate_trackers[1].compiled_model_path = "unet_candidate_1.vmfb"
-    dump_list = libtuner.parse_grouped_benchmark_results(
-        path_config, grouped_benchmark_results, candidate_trackers
-    )
-    expect_dump_list = [
-        "Benchmarking: some_dir/baseline.vmfb on device 0 "
-        "BM_main/process_time/real_time_median 60.7 ms 13.5 ms 5 items_per_second=16.4733/s",
-        "Benchmarking result of unet_candidate_1.vmfb on deivce 0 is incomplete\n",
-    ]
-    assert dump_list == expect_dump_list, "fail to parse incomplete candidates"
-
-    b1 = "Benchmarking: baseline.vmfb on device 0"
-    s1 = "Benchmarking: unet_candidate_1.vmfb on device 0"
-    grouped_benchmark_results = [[generate_res(b1, 0), generate_res(s1, 0)]]
-    candidate_trackers[1].compiled_model_path = "unet_candidate_1.vmfb"
-    dump_list = libtuner.parse_grouped_benchmark_results(
-        path_config, grouped_benchmark_results, candidate_trackers
-    )
-    expect_dump_list = [
-        "Benchmarking result of baseline.vmfb on deivce 0 is incomplete\n",
-        "Benchmarking result of unet_candidate_1.vmfb on deivce 0 is incomplete\n",
-    ]
-    assert (
-        dump_list == expect_dump_list
-    ), "fail to parse incomplete baseline and candidates"
+                assert result == [
+                    "display_str",
+                    "display_str",
+                    "display_str",
+                    "display_str",
+                ]  # Adjust this based on the actual expected result
+                assert len(result) == 4  # Update based on expected result length
 
 
 def test_extract_driver_names():
