@@ -87,20 +87,20 @@ def test_DispatchBenchmarkResult_get():
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_stddev      0.073 us        0.179 us            3 items_per_second=0.971769/s
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_cv           0.03 %          0.07 %             3 items_per_second=0.03%
     """
-    res = libtuner.DispatchBenchmarkResult(candidate_id=1, result_str=normal_str)
-    assert res.get_benchmark_time() == float(274)
+    res = libtuner.IREEBenchmarkResult(candidate_id=1, result_str=normal_str)
+    assert res.get_mean_time() == float(274)
 
     # Time is float
-    res = libtuner.DispatchBenchmarkResult(
+    res = libtuner.IREEBenchmarkResult(
         candidate_id=2, result_str="process_time/real_time_mean 123.45 us"
     )
-    assert res.get_benchmark_time() == 123.45
+    assert res.get_mean_time() == 123.45
 
     # Invalid str
-    res = libtuner.DispatchBenchmarkResult(candidate_id=3, result_str="hello world")
-    assert res.get_benchmark_time() == None
-    res = libtuner.DispatchBenchmarkResult(candidate_id=4, result_str="")
-    assert res.get_benchmark_time() == None
+    res = libtuner.IREEBenchmarkResult(candidate_id=3, result_str="hello world")
+    assert res.get_mean_time() == None
+    res = libtuner.IREEBenchmarkResult(candidate_id=4, result_str="")
+    assert res.get_mean_time() == None
 
 
 def test_ModelBenchmarkResult_get():
@@ -349,7 +349,7 @@ def test_parse_grouped_benchmark_results():
     b1 = "Benchmarking: some_dir/baseline.vmfb on device 0 BM_main/process_time/real_time_median 60.7 ms 13.5 ms 5 items_per_second=16.4733/s"
     s1 = "Benchmarking: unet_candidate_1.vmfb on device 0"
     grouped_benchmark_results = [[generate_res(b1, 0), generate_res(s1, 0)]]
-    candidate_trackers[1].model_path = "unet_candidate_1.vmfb"
+    candidate_trackers[1].compiled_model_path = "unet_candidate_1.vmfb"
     dump_list = libtuner.parse_grouped_benchmark_results(
         path_config, grouped_benchmark_results, candidate_trackers
     )
@@ -363,7 +363,7 @@ def test_parse_grouped_benchmark_results():
     b1 = "Benchmarking: baseline.vmfb on device 0"
     s1 = "Benchmarking: unet_candidate_1.vmfb on device 0"
     grouped_benchmark_results = [[generate_res(b1, 0), generate_res(s1, 0)]]
-    candidate_trackers[1].model_path = "unet_candidate_1.vmfb"
+    candidate_trackers[1].compiled_model_path = "unet_candidate_1.vmfb"
     dump_list = libtuner.parse_grouped_benchmark_results(
         path_config, grouped_benchmark_results, candidate_trackers
     )

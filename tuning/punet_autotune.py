@@ -76,11 +76,27 @@ class PunetClient(libtuner.TuningClient):
     def get_model_benchmark_command(
         self, candidate_tracker: libtuner.CandidateTracker
     ) -> list[str]:
-        unet_candidate_path = candidate_tracker.model_path
+        unet_candidate_path = candidate_tracker.compiled_model_path
         assert unet_candidate_path is not None
+
         command = [
-            "./benchmark_unet_candidate.sh",
-            unet_candidate_path.as_posix(),
+            "timeout",
+            "180s",
+            "tools/iree-benchmark-module",
+            f"--device={libtuner.DEVICE_ID_RE}",
+            "--hip_use_streams=true",
+            "--hip_allow_inline_execution=true",
+            "--device_allocator=caching",
+            f"--module={unet_candidate_path.resolve()}",
+            "--parameters=model=punet.irpa",
+            "--function=main",
+            "--input=1x4x128x128xf16",
+            "--input=1xsi32",
+            "--input=2x64x2048xf16",
+            "--input=2x1280xf16",
+            "--input=2x6xf16",
+            "--input=1xf16",
+            "--benchmark_repetitions=5",
         ]
         return command
 
