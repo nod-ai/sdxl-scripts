@@ -214,7 +214,7 @@ class DispatchBenchmarkResult:
 
 
 def generate_sample_DBR(
-    self, candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
+    candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
 ) -> str:
     # Legacy format
     # time unit is implicit and dependent on the output of iree-benchmark-module

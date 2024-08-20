@@ -15,36 +15,28 @@ Usage: python -m pytest test_libtuner.py
 
 
 def test_group_benchmark_results_by_device_id():
-    def generate_res(res_arg: str, device_id: int) -> libtuner.TaskResult:
-        result: libtuner.subprocess.CompletedProcess = (
-            libtuner.subprocess.CompletedProcess(
-                args=[res_arg],
-                returncode=0,
-            )
-        )
-        return libtuner.TaskResult(result=result, device_id=device_id)
+    # Create mock TaskResult objects with device_id attributes
+    task_result_1 = MagicMock()
+    task_result_1.device_id = "device_1"
 
-    test_input = [
-        generate_res("str1", 3),
-        generate_res("str7", 4),
-        generate_res("str2", 1),
-        generate_res("str5", 3),
-        generate_res("str5", 7),
-        generate_res("str3", 4),
-    ]
-    expect_output = [
-        [generate_res("str2", 1)],
-        [generate_res("str1", 3), generate_res("str5", 3)],
-        [generate_res("str7", 4), generate_res("str3", 4)],
-        [generate_res("str5", 7)],
+    task_result_2 = MagicMock()
+    task_result_2.device_id = "device_2"
+
+    task_result_3 = MagicMock()
+    task_result_3.device_id = "device_1"
+
+    benchmark_results = [task_result_1, task_result_2, task_result_3]
+
+    expected_grouped_results = [
+        [task_result_1, task_result_3],  # Grouped by device_1
+        [task_result_2],  # Grouped by device_2
     ]
 
-    actual_output = libtuner.group_benchmark_results_by_device_id(test_input)
+    grouped_results = libtuner.group_benchmark_results_by_device_id(benchmark_results)
 
-    for a, e in zip(actual_output, expect_output):
-        for res1, res2 in zip(a, e):
-            assert res1.result.args == res2.result.args
-            assert res1.device_id == res2.device_id
+    assert grouped_results == expected_grouped_results
+    assert grouped_results[0][0].device_id == "device_1"
+    assert grouped_results[1][0].device_id == "device_2"
 
 
 def test_sort_candidates_by_first_benchmark_times():
@@ -82,28 +74,32 @@ def test_collision_handler():
 
 
 def test_DispatchBenchmarkResult_get():
-    normal_str = "2	Mean Time: 586.0"
-    res = libtuner.DispatchBenchmarkResult(normal_str)
-    assert res.result_str == normal_str
-    assert res.get_tokens() == ["2", "Mean", "Time:", "586.0"]
-    assert res.get_candidate_id() == 2
-    assert res.get_benchmark_time() == 586.0
+    # Time is int
+    normal_str = r"""
+    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    Benchmark                                                                                                                                      Time             CPU   Iterations UserCounters...
+    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time               274 us          275 us         3000 items_per_second=3.65611k/s
+    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time               274 us          275 us         3000 items_per_second=3.65481k/s
+    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time               273 us          275 us         3000 items_per_second=3.65671k/s
+    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_mean          274 us          275 us            3 items_per_second=3.65587k/s
+    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_median        274 us          275 us            3 items_per_second=3.65611k/s
+    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_stddev      0.073 us        0.179 us            3 items_per_second=0.971769/s
+    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_cv           0.03 %          0.07 %             3 items_per_second=0.03%
+    """
+    res = libtuner.DispatchBenchmarkResult(candidate_id=1, result_str=normal_str)
+    assert res.get_benchmark_time() == float(274)
 
-    incomplete_str = "2	Mean Time:"
-    res = libtuner.DispatchBenchmarkResult(incomplete_str)
-    assert res.get_tokens() == ["2", "Mean", "Time:"]
-    assert res.get_candidate_id() == 2
-    assert res.get_benchmark_time() == None
-    incomplete_str = ""
-    res = libtuner.DispatchBenchmarkResult(incomplete_str)
-    assert res.get_tokens() == []
-    assert res.get_candidate_id() == None
-    assert res.get_benchmark_time() == None
+    # Time is float
+    res = libtuner.DispatchBenchmarkResult(
+        candidate_id=2, result_str="process_time/real_time_mean 123.45 us"
+    )
+    assert res.get_benchmark_time() == 123.45
 
-    bad_str = 12345
-    res = libtuner.DispatchBenchmarkResult(bad_str)
-    assert res.get_tokens() == []
-    assert res.get_candidate_id() == None
+    # Invalid str
+    res = libtuner.DispatchBenchmarkResult(candidate_id=3, result_str="hello world")
+    assert res.get_benchmark_time() == None
+    res = libtuner.DispatchBenchmarkResult(candidate_id=4, result_str="")
     assert res.get_benchmark_time() == None
 
 
@@ -161,8 +157,7 @@ def test_ModelBenchmarkResult_get():
 
 
 def test_generate_sample_result():
-    res = libtuner.DispatchBenchmarkResult()
-    output = res.generate_sample_result(1, 3.14)
+    output = libtuner.generate_sample_DBR(1, 3.14)
     expected = f"1\tMean Time: 3.1\n"
     assert output == expected, "DispatchBenchmarkResult generates invalid sample string"
 
@@ -207,79 +202,60 @@ def test_ModelBenchmarkResult_get_calibrated_result_str():
 
 
 def test_parse_dispatch_benchmark_results():
-    def generate_res(stdout: str) -> libtuner.TaskResult:
-        result = libtuner.subprocess.CompletedProcess(
-            args=[""],
-            stdout=stdout,
-            returncode=0,
-        )
-        return libtuner.TaskResult(result)
-
-    def generate_parsed_disptach_benchmark_result(
-        time: float, i: int
-    ) -> libtuner.ParsedDisptachBenchmarkResult:
-        return libtuner.ParsedDisptachBenchmarkResult(
-            i,
-            time,
-            path_config.get_candidate_mlir_path(i),
-            path_config.get_candidate_spec_mlir_path(i),
-        )
-
-    test_list = [(0, 369.0), (1, 301.0), (2, 457.0), (3, 322.0), (4, 479.0)]
-    random_order = [2, 0, 3, 1, 4]
-    total = 5
-
-    benchmark_results = [
-        generate_res(f"{test_list[i][0]}	Mean Time: {test_list[i][1]}")
-        for i in random_order
-    ]
-
+    base_path = libtuner.Path("/mock/base/dir")
+    spec_dir = base_path / "specs"
     path_config = libtuner.PathConfig()
+    object.__setattr__(path_config, "spec_dir", spec_dir)
 
-    candidate_trackers = [
-        libtuner.CandidateTracker(
-            i, dispatch_mlir_path=path_config.get_candidate_mlir_path(i)
-        )
-        for i in range(total)
+    mock_result_1 = MagicMock()
+    mock_result_1.result.stdout = "process_time/real_time_mean 100.0 us"
+    mock_result_1.candidate_id = 1
+    mock_result_2 = MagicMock()
+    mock_result_2.result.stdout = "process_time/real_time_mean 200.0 us"
+    mock_result_2.candidate_id = 2
+    benchmark_results = [mock_result_1, mock_result_2]
+
+    candidate_tracker_0 = libtuner.CandidateTracker(candidate_id=0)
+    candidate_tracker_0.dispatch_mlir_path = libtuner.Path("/mock/mlir/path/0.mlir")
+    candidate_tracker_1 = libtuner.CandidateTracker(candidate_id=1)
+    candidate_tracker_1.dispatch_mlir_path = libtuner.Path("/mock/mlir/path/1.mlir")
+    candidate_tracker_2 = libtuner.CandidateTracker(candidate_id=2)
+    candidate_tracker_2.dispatch_mlir_path = libtuner.Path("/mock/mlir/path/2.mlir")
+    candidate_trackers = [candidate_tracker_0, candidate_tracker_1, candidate_tracker_2]
+
+    expected_parsed_results = [
+        libtuner.ParsedDisptachBenchmarkResult(
+            candidate_id=1,
+            benchmark_time_in_seconds=100.0,
+            candidate_mlir=libtuner.Path("/mock/mlir/path/1.mlir"),
+            candidate_spec_mlir=libtuner.Path("/mock/base/dir/specs/1_spec.mlir"),
+        ),
+        libtuner.ParsedDisptachBenchmarkResult(
+            candidate_id=2,
+            benchmark_time_in_seconds=200.0,
+            candidate_mlir=libtuner.Path("/mock/mlir/path/2.mlir"),
+            candidate_spec_mlir=libtuner.Path("/mock/base/dir/specs/2_spec.mlir"),
+        ),
     ]
-    candidate_trackers_before = [
-        libtuner.CandidateTracker(
-            i, dispatch_mlir_path=path_config.get_candidate_mlir_path(i)
-        )
-        for i in range(total)
+    expected_dump_list = [
+        "process_time/real_time_mean 100.0 us",
+        "process_time/real_time_mean 200.0 us",
     ]
 
-    expect_candidate_trackers = [
-        libtuner.CandidateTracker(
-            i,
-            dispatch_mlir_path=path_config.get_candidate_mlir_path(i),
-            spec_path=path_config.get_candidate_spec_mlir_path(i),
-        )
-        for i in range(total)
-    ]
-    for i in range(total):
-        expect_candidate_trackers[test_list[i][0]].first_benchmark_time = test_list[i][
-            1
-        ]
-
-    tmp = [generate_parsed_disptach_benchmark_result(t, i) for i, t in test_list]
-    expect_parsed_results = [tmp[i] for i in random_order]
-    expect_dump_list = [
-        f"{test_list[i][0]}	Mean Time: {test_list[i][1]}" for i in random_order
-    ]
-
-    mock_tuning_client = MagicMock()
-    mock_tuning_client.get_candidate_spec_filename.side_effect = (
-        lambda i: f"{i}_spec.mlir"
-    )
     parsed_results, dump_list = libtuner.parse_dispatch_benchmark_results(
-        path_config, benchmark_results, candidate_trackers, mock_tuning_client
+        path_config, benchmark_results, candidate_trackers
     )
 
-    assert parsed_results == expect_parsed_results
-    assert dump_list == expect_dump_list
-    assert candidate_trackers != candidate_trackers_before
-    assert candidate_trackers == expect_candidate_trackers
+    assert parsed_results == expected_parsed_results
+    assert dump_list == expected_dump_list
+    assert candidate_trackers[1].first_benchmark_time == 100.0
+    assert candidate_trackers[1].spec_path == libtuner.Path(
+        "/mock/base/dir/specs/1_spec.mlir"
+    )
+    assert candidate_trackers[2].first_benchmark_time == 200.0
+    assert candidate_trackers[2].spec_path == libtuner.Path(
+        "/mock/base/dir/specs/2_spec.mlir"
+    )
 
 
 def test_parse_grouped_benchmark_results():
@@ -289,7 +265,10 @@ def test_parse_grouped_benchmark_results():
             stdout=stdout,
             returncode=0,
         )
-        return libtuner.TaskResult(result=result, device_id=device_id)
+        candidate_id = 0
+        return libtuner.TaskResult(
+            result=result, candidate_id=candidate_id, device_id=str(device_id)
+        )
 
     def set_tracker(
         tracker: libtuner.CandidateTracker,
