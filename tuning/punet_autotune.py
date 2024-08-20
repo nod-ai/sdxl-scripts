@@ -41,14 +41,24 @@ class PunetClient(libtuner.TuningClient):
         return command
 
     def get_dispatch_benchmark_command(
-        self, candidate_tracker: libtuner.CandidateTracker
+        self,
+        candidate_tracker: libtuner.CandidateTracker,
     ) -> list[str]:
         compiled_vmfb_path = candidate_tracker.compiled_dispatch_path
         assert compiled_vmfb_path is not None
+
         command = [
-            "./benchmark_dispatch.sh",
-            compiled_vmfb_path.as_posix(),
+            "timeout",
+            "16s",
+            "./tools/iree-benchmark-module",
+            f"--device={libtuner.DEVICE_ID_RE}",
+            f"--module={compiled_vmfb_path.resolve()}",
+            "--hip_use_streams=true",
+            "--hip_allow_inline_execution=true",
+            "--batch_size=1000",
+            "--benchmark_repetitions=3",
         ]
+
         return command
 
     def get_model_compile_command(

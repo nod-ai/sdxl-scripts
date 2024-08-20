@@ -42,6 +42,9 @@ worker_id = None
 device_id = None
 """Do not need to change"""
 
+# Declare special symbols for libtuner to search and locate
+DEVICE_ID_RE = "DEVICE_ID_RE"
+
 
 @dataclass
 class CandidateTracker:
@@ -147,32 +150,39 @@ class TuningClient(ABC):
         pass
 
     @abstractmethod
-    def get_dispatch_benchmark_command(self, candidate_tracker) -> list[str]:
+    def get_dispatch_benchmark_command(
+        self, candidate_tracker: CandidateTracker
+    ) -> list[str]:
         pass
 
     @abstractmethod
-    def get_model_compile_command(self, candidate_tracker) -> list[str]:
+    def get_model_compile_command(
+        self, candidate_tracker: CandidateTracker
+    ) -> list[str]:
         pass
 
     @abstractmethod
-    def get_model_benchmark_command(self, candidate_tracker) -> list[str]:
+    def get_model_benchmark_command(
+        self, candidate_tracker: CandidateTracker
+    ) -> list[str]:
         pass
 
 
 @dataclass
 class TaskTuple:
     args: argparse.Namespace
+    candidate_id: int
     command: list[str]
     check: bool = True
     command_need_device_id: bool = False
     cooling_time: int = 0
-    result_need_device_id: bool = False
 
 
 @dataclass
 class TaskResult:
     result: subprocess.CompletedProcess
-    device_id: Optional[int] = None
+    candidate_id: int
+    device_id: str
 
 
 @dataclass
@@ -185,38 +195,30 @@ class ParsedDisptachBenchmarkResult:
 
 @dataclass
 class DispatchBenchmarkResult:
-    result_str: Optional[str] = None
-
-    def get_tokens(self) -> list[str]:
-        # e.g. ['0', 'Mean', 'Time:', '694.0']
-        if self.result_str is None:
-            return []
-        try:
-            return self.result_str.split()
-        except:
-            return []
-
-    def get_candidate_id(self) -> Optional[int]:
-        if len(self.get_tokens()) < 1:
-            return None
-        try:
-            return int(self.get_tokens()[0])
-        except ValueError:
-            return None
+    # Default format follows output of iree-benchmark-module
+    candidate_id: int
+    result_str: str
 
     def get_benchmark_time(self) -> Optional[float]:
-        if len(self.get_tokens()) < 4:
+        if not self.result_str:
+            return None
+
+        pattern = r"process_time/real_time_mean\s+([\d.]+) us"
+        match = re.search(pattern, self.result_str)
+        if not match:
             return None
         try:
-            return float(self.get_tokens()[3])
+            return float(match.group(1))
         except ValueError:
             return None
 
-    def generate_sample_result(
-        self, candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
-    ) -> str:
-        # time unit is implicit and dependent on the output of iree-benchmark-module
-        return f"{candidate_id}\tMean Time: {mean_time:.1f}\n"
+
+def generate_sample_DBR(
+    self, candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
+) -> str:
+    # Legacy format
+    # time unit is implicit and dependent on the output of iree-benchmark-module
+    return f"{candidate_id}\tMean Time: {mean_time:.1f}\n"
 
 
 @dataclass
@@ -555,11 +557,9 @@ def run_command(
         if result.stdout:
             logging.info(f"stdout: {result.stdout}")
         if result.stderr:
-            logging.error(f"stderr: {result.stderr}")
+            logging.info(f"stderr: {result.stderr}")
     except subprocess.CalledProcessError as e:
-        print(f"Command '{e.cmd}' returned non-zero exit status {e.returncode}.")
         print(e.output)
-
         logging.error(
             f"Command '{command_str}' returned non-zero exit status {e.returncode}."
         )
@@ -574,16 +574,20 @@ def run_command(
 
 def run_command_wrapper(task_tuple: TaskTuple) -> TaskResult:
     """pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments"""
+    assert device_id is not None
+
     if task_tuple.command_need_device_id:
-        # worker add its device_id to the end of command list
-        task_tuple.command.append(str(device_id))
+        # worker searches for special symbol and substitute to correct device_id
+        pattern = re.compile(re.escape(DEVICE_ID_RE))
+        task_tuple.command = [
+            pattern.sub(str(device_id), s) for s in task_tuple.command
+        ]
 
     res = run_command(task_tuple.args, task_tuple.command, task_tuple.check)
     if res is None:
         raise
 
-    task_result = TaskResult(res)
-    task_result.device_id = device_id if task_tuple.result_need_device_id else None
+    task_result = TaskResult(res, task_tuple.candidate_id, device_id)
 
     time.sleep(task_tuple.cooling_time)
 
@@ -813,7 +817,8 @@ def compile_dispatches(
     task_list = [
         TaskTuple(
             args,
-            tuning_client.get_dispatch_compile_command(candidate_trackers[i]),
+            candidate_id=i,
+            command=tuning_client.get_dispatch_compile_command(candidate_trackers[i]),
             check=False,
         )
         for i in candidates
@@ -875,19 +880,18 @@ def parse_dispatch_benchmark_results(
     path_config: PathConfig,
     benchmark_results: list[TaskResult],
     candidate_trackers: list[CandidateTracker],
-    tuning_client: TuningClient,
 ) -> tuple[list[ParsedDisptachBenchmarkResult], list[str]]:
     benchmark_result_configs = []
     dump_list = []
 
     for benchmark_result in benchmark_results:
         res_str = benchmark_result.result.stdout
+        candidate_id = benchmark_result.candidate_id
         if res_str is None:
             continue
-        res = DispatchBenchmarkResult(res_str)
-        candidate_id = res.get_candidate_id()
+        res = DispatchBenchmarkResult(candidate_id, res_str)
         benchmark_time = res.get_benchmark_time()
-        assert candidate_id is not None and benchmark_time is not None
+        assert benchmark_time is not None
         candidate_trackers[candidate_id].first_benchmark_time = benchmark_time
         candidate_trackers[candidate_id].spec_path = (
             path_config.spec_dir / path_config.get_candidate_spec_filename(candidate_id)
@@ -918,12 +922,14 @@ def generate_dryrun_dispatch_benchmark_results(
         task_result = subprocess.CompletedProcess(
             args=[""],
             returncode=0,
-            stdout=DispatchBenchmarkResult().generate_sample_result(
+            stdout=generate_sample_DBR(
                 candidate_id, mean_time=random.uniform(100.0, 500.0)
             ),
             stderr="",
         )
-        task_results.append(TaskResult(task_result))
+        task_results.append(
+            TaskResult(task_result, candidate_id, device_id=str(random.randint(0, 8)))
+        )
     return task_results
 
 
@@ -947,7 +953,10 @@ def benchmark_dispatches(
         task_list = [
             TaskTuple(
                 args,
-                tuning_client.get_dispatch_benchmark_command(candidate_trackers[i]),
+                candidate_id=i,
+                command=tuning_client.get_dispatch_benchmark_command(
+                    candidate_trackers[i]
+                ),
                 check=False,
                 command_need_device_id=True,
             )
@@ -966,7 +975,7 @@ def benchmark_dispatches(
         parsed_benchmark_results,
         dispatch_benchmark_dump_list,
     ) = parse_dispatch_benchmark_results(
-        path_config, benchmark_results, candidate_trackers, tuning_client
+        path_config, benchmark_results, candidate_trackers
     )
     append_to_file(
         dispatch_benchmark_dump_list,
@@ -1019,7 +1028,11 @@ def compile_models(
         return []
 
     task_list = [
-        TaskTuple(args, tuning_client.get_model_compile_command(candidate_trackers[i]))
+        TaskTuple(
+            args,
+            candidate_id=i,
+            command=tuning_client.get_model_compile_command(candidate_trackers[i]),
+        )
         for i in candidates
         if i != 0
     ]
@@ -1087,7 +1100,7 @@ def group_benchmark_results_by_device_id(
     ----->
     [ [TaskResult(res1, device_1), TaskResult(res3, device_1)], [TaskResult(res2, device_2)] ]
     """
-    grouped_results: dict[int, list[TaskResult]] = {}
+    grouped_results: dict[str, list[TaskResult]] = {}
     for result in benchmark_results:
         assert result.device_id is not None
         if result.device_id not in grouped_results:
@@ -1185,7 +1198,7 @@ def generate_dryrun_unet_benchmark_results(
     task_results = []
     start = random.uniform(100.0, 500.0)
     device_id = 0
-    for candidate_vmfb_path in unet_vmfb_paths:
+    for i, candidate_vmfb_path in enumerate(unet_vmfb_paths):
         task_result = subprocess.CompletedProcess(
             args=[""],
             returncode=0,
@@ -1197,7 +1210,7 @@ def generate_dryrun_unet_benchmark_results(
             stderr="",
         )
         start += random.uniform(-5.0, 8.0)
-        task_results.append(TaskResult(task_result, device_id))
+        task_results.append(TaskResult(task_result, i, str(device_id)))
     return task_results
 
 
@@ -1241,11 +1254,11 @@ def benchmark_models(
     benchmark_task_list = [
         TaskTuple(
             args,
-            tuning_client.get_model_benchmark_command(candidate_trackers[i]),
+            candidate_id=i,
+            command=tuning_client.get_model_benchmark_command(candidate_trackers[i]),
             check=False,
             command_need_device_id=True,
             cooling_time=10,
-            result_need_device_id=True,
         )
         for i in model_candidates
     ]
@@ -1265,10 +1278,10 @@ def benchmark_models(
     baseline_task_list = [
         TaskTuple(
             args,
-            tuning_client.get_model_benchmark_command(candidate_trackers[0]),
+            candidate_id=0,
+            command=tuning_client.get_model_benchmark_command(candidate_trackers[0]),
             check=False,
             command_need_device_id=True,
-            result_need_device_id=True,
         )
     ] * len(grouped_benchmark_results)
     baseline_results = multiprocess_progress_wrapper(
@@ -1322,3 +1335,9 @@ def summerize_top_candidates(
 
     with open(path_config.result_summary_log, "w") as file:
         file.writelines(dump_list)
+
+
+def sanitize_filename(filename: str) -> str:
+    # Replace invalid characters by an underscore
+    sanitized = re.sub(r"[^\w\.-]", "_", filename)
+    return sanitized
