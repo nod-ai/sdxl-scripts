@@ -208,7 +208,7 @@ class IREEBenchmarkResult:
         return match.group(1)
 
     def get_mean_time(self) -> Optional[float]:
-        pattern = r"process_time/real_time_mean\s+([\d.]+) us"
+        pattern = r"process_time/real_time_mean\s+([\d.]+)\s\w{2}"
         time_str = self.extract_key(pattern)
         if not time_str:
             return None
@@ -218,7 +218,7 @@ class IREEBenchmarkResult:
             return None
 
     def get_median_time(self) -> Optional[float]:
-        pattern = r"process_time/real_time_median\s+([\d.]+) us"
+        pattern = r"process_time/real_time_median\s+([\d.]+)\s\w{2}"
         time_str = self.extract_key(pattern)
         if not time_str:
             return None
@@ -249,7 +249,7 @@ def generate_sample_MBR(
     if calibrated_diff:
         percentage_change = calibrated_diff * 100
         change_str = f"({percentage_change:+.3f}%)"
-        res_str = f"process_time/real_time_median\t    {t1:.3g} ms ({change_str})\n\n"
+        res_str = f"process_time/real_time_median\t    {t1:.3g} ms {change_str}\n\n"
     return head_str + res_str
 
 
@@ -948,23 +948,54 @@ def parse_dispatch_benchmark_results(
     return benchmark_result_configs, dump_list
 
 
+def generate_sample_task_result(
+    stdout: str, candidate_id: int, device_id: str
+) -> TaskResult:
+    res = subprocess.CompletedProcess(
+        args=[""],
+        stdout=stdout,
+        returncode=0,
+    )
+    return TaskResult(result=res, candidate_id=candidate_id, device_id=device_id)
+
+
 def generate_dryrun_dispatch_benchmark_results(
     compiled_candidates: list[int],
 ) -> list[TaskResult]:
-    task_results = []
-    for candidate_id in compiled_candidates:
-        task_result = subprocess.CompletedProcess(
-            args=[""],
-            returncode=0,
-            stdout=generate_sample_DBR(
-                candidate_id, mean_time=random.uniform(100.0, 500.0)
-            ),
-            stderr="",
+    logging.info("generate_dryrun_dispatch_benchmark_results")
+
+    task_results = [
+        generate_sample_task_result(
+            f"process_time/real_time_mean    {random.uniform(100.0, 500.0):.3g} ms",
+            i,
+            str(0),
         )
-        task_results.append(
-            TaskResult(task_result, candidate_id, device_id=str(random.randint(0, 8)))
-        )
+        for i in compiled_candidates
+    ]
+
     return task_results
+
+
+def generate_dryrun_model_benchmark_results(
+    model_candidates: list[int],
+) -> tuple[list[TaskResult], list[TaskResult]]:
+    candidate_results = []
+    for i, j in enumerate(model_candidates):
+        stdout = (
+            f"process_time/real_time_median    {random.uniform(100.0, 500.0):.3g} ms"
+        )
+        candidate_results.append(generate_sample_task_result(stdout, j, str(i % 3)))
+
+    baseline_results = [
+        generate_sample_task_result(
+            f"process_time/real_time_median    {random.uniform(100.0, 500.0):.3g} ms",
+            0,
+            str(i),
+        )
+        for i in range(3)
+    ]
+
+    return candidate_results, baseline_results
 
 
 def benchmark_dispatches(
@@ -978,7 +1009,6 @@ def benchmark_dispatches(
     logging.info("benchmark_top_candidates()")
 
     if args.dry_run:
-        logging.info("generate_dryrun_dispatch_benchmark_results")
         benchmark_results = generate_dryrun_dispatch_benchmark_results(
             compiled_candidates
         )
@@ -1054,7 +1084,11 @@ def compile_models(
     """Compile U-Net candidates stored in best.log. Return the list of U-Net candidate files."""
     logging.info("compile_models()")
 
+    candidate_trackers[0].compiled_model_path = path_config.model_baseline_vmfb
+
     if args.dry_run:
+        for i in candidates:
+            candidate_trackers[i].compiled_model_path = Path(f"model_{i}.vmfb")
         return candidates
 
     if not candidates:
@@ -1194,7 +1228,16 @@ def parse_model_benchmark_results(
             # Record baseline benchmarking result and skip rest processes
             if candidate_id == 0:
                 baseline_time = benchmark_time
-                dump_list.append(result_str)
+                baseline_vmfb_path = candidate_trackers[
+                    candidate_id
+                ].compiled_model_path
+                assert baseline_vmfb_path is not None
+                dump_str = generate_sample_MBR(
+                    candidate_vmfb_path_str=baseline_vmfb_path.as_posix(),
+                    device_id=device_id,
+                    t1=benchmark_time,
+                )
+                dump_list.append(dump_str)
                 continue
 
             # Update candidate_tracker
@@ -1213,7 +1256,7 @@ def parse_model_benchmark_results(
                 calibrated_benchmark_diff
             )
 
-            # Collect dump str
+            # Collect candidate dump str
             candidate_vmfb_path = candidate_trackers[candidate_id].compiled_model_path
             assert candidate_vmfb_path is not None
             dump_str = generate_sample_MBR(
@@ -1241,51 +1284,6 @@ def parse_model_benchmark_results(
     return dump_list
 
 
-def generate_dryrun_unet_benchmark_results(
-    unet_vmfb_paths: list[Path],
-) -> list[TaskResult]:
-    logging.info("generate_dryrun_unet_benchmark_results")
-    task_results = []
-    # start = random.uniform(100.0, 500.0)
-    # device_id = 0
-    # for i, candidate_vmfb_path in enumerate(unet_vmfb_paths):
-    #     task_result = subprocess.CompletedProcess(
-    #         args=[""],
-    #         returncode=0,
-    #         stdout=ModelBenchmarkResult().generate_sample_result(
-    #             candidate_vmfb_path_str=candidate_vmfb_path.as_posix(),
-    #             device_id=device_id,
-    #             t1=start,
-    #         ),
-    #         stderr="",
-    #     )
-    #     start += random.uniform(-5.0, 8.0)
-    #     task_results.append(TaskResult(task_result, i, str(device_id)))
-    return task_results
-
-
-def dryrun_benchmark_unet(
-    path_config: PathConfig,
-    unet_candidates: list[int],
-    candidate_trackers: list[CandidateTracker],
-):
-
-    # unet_vmfb_paths = [path_config.model_baseline_vmfb] + [
-    #     Path(f"unet_candidate_{index}.vmfb") for index in unet_candidates
-    # ]
-    # benchmark_results = generate_dryrun_unet_benchmark_results(unet_vmfb_paths)
-    # grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
-
-    # # Update candidate_tracker and extract strings which will be stored in output.log.
-    # dump_list = parse_grouped_benchmark_results(
-    #     path_config, grouped_benchmark_results, candidate_trackers
-    # )
-    # append_to_file(
-    #     dump_list, filepath=path_config.output_unilog, title="Unet Benchmark Results"
-    # )
-    pass
-
-
 def benchmark_models(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -1297,49 +1295,54 @@ def benchmark_models(
     logging.info("benchmark_models()")
 
     if args.dry_run:
-        dryrun_benchmark_unet(path_config, model_candidates, candidate_trackers)
-        return
-
-    # Benchmarking model candidates
-    worker_context_queue = create_worker_context_queue(args.devices)
-    benchmark_task_list = [
-        TaskTuple(
-            args,
-            candidate_id=i,
-            command=tuning_client.get_model_benchmark_command(candidate_trackers[i]),
-            check=False,
-            command_need_device_id=True,
-            cooling_time=10,
+        candidate_results, baseline_results = generate_dryrun_model_benchmark_results(
+            model_candidates
         )
-        for i in model_candidates
-    ]
-    candidate_results = multiprocess_progress_wrapper(
-        num_worker=len(args.devices),
-        task_list=benchmark_task_list,
-        function=run_command_wrapper,
-        initializer=init_worker_context,
-        initializer_inputs=(worker_context_queue,),
-    )
-
-    # Benchmarking baselines on each involved device
-    candidate_trackers[0].compiled_model_path = path_config.model_baseline_vmfb
-    worker_context_queue = create_worker_context_queue(args.devices)
-    baseline_task_list = [
-        TaskTuple(
-            args,
-            candidate_id=0,
-            command=tuning_client.get_model_benchmark_command(candidate_trackers[0]),
-            check=False,
-            command_need_device_id=True,
+    else:
+        # Benchmarking model candidates
+        worker_context_queue = create_worker_context_queue(args.devices)
+        benchmark_task_list = [
+            TaskTuple(
+                args,
+                candidate_id=i,
+                command=tuning_client.get_model_benchmark_command(
+                    candidate_trackers[i]
+                ),
+                check=False,
+                command_need_device_id=True,
+                cooling_time=10,
+            )
+            for i in model_candidates
+        ]
+        candidate_results = multiprocess_progress_wrapper(
+            num_worker=len(args.devices),
+            task_list=benchmark_task_list,
+            function=run_command_wrapper,
+            initializer=init_worker_context,
+            initializer_inputs=(worker_context_queue,),
         )
-    ] * len(group_benchmark_results_by_device_id(candidate_results))
-    baseline_results = multiprocess_progress_wrapper(
-        num_worker=len(args.devices),
-        task_list=baseline_task_list,
-        function=run_command_wrapper,
-        initializer=init_worker_context,
-        initializer_inputs=(worker_context_queue,),
-    )
+
+        # Benchmarking baselines on each involved device
+        candidate_trackers[0].compiled_model_path = path_config.model_baseline_vmfb
+        worker_context_queue = create_worker_context_queue(args.devices)
+        baseline_task_list = [
+            TaskTuple(
+                args,
+                candidate_id=0,
+                command=tuning_client.get_model_benchmark_command(
+                    candidate_trackers[0]
+                ),
+                check=False,
+                command_need_device_id=True,
+            )
+        ] * len(group_benchmark_results_by_device_id(candidate_results))
+        baseline_results = multiprocess_progress_wrapper(
+            num_worker=len(args.devices),
+            task_list=baseline_task_list,
+            function=run_command_wrapper,
+            initializer=init_worker_context,
+            initializer_inputs=(worker_context_queue,),
+        )
 
     dump_list = parse_model_benchmark_results(
         path_config, candidate_trackers, candidate_results, baseline_results

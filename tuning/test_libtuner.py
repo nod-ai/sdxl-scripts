@@ -273,7 +273,7 @@ def test_parse_grouped_benchmark_results():
     def set_tracker(
         tracker: libtuner.CandidateTracker,
         model_benchmark_time: float,
-        model_benchmark_device_id: int,
+        model_benchmark_device_id: str,
         baseline_benchmark_time: float,
         calibrated_benchmark_diff=float,
     ):

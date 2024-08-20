@@ -122,7 +122,7 @@ def main():
     candidates = libtuner.generate_candidates(
         args, path_config, candidate_trackers, punet_client
     )
-    print(f"Generated [{len(candidates)}] candidates in {path_config.candidates_dir}\n")
+    print(f"Stored candidates in {path_config.candidates_dir}\n")
     if stop_after_phase == libtuner.ExecutionPhases.generate_candidates:
         return
 
