@@ -831,14 +831,16 @@ def parse_dispatch_benchmark_results(
 ) -> tuple[list[ParsedDisptachBenchmarkResult], list[str]]:
     benchmark_result_configs = []
     dump_list = []
+    incomplete_list = []
 
     for benchmark_result in benchmark_results:
         res_str = benchmark_result.result.stdout
         candidate_id = benchmark_result.candidate_id
-        if res_str is None:
-            continue
         res = IREEBenchmarkResult(candidate_id, res_str)
         benchmark_time = res.get_mean_time()
+        if benchmark_time is None:
+            incomplete_list.append(candidate_id)
+            continue
         assert benchmark_time is not None
         candidate_trackers[candidate_id].first_benchmark_time = benchmark_time
         candidate_trackers[candidate_id].spec_path = (
@@ -860,6 +862,10 @@ def parse_dispatch_benchmark_results(
                 )
             )
         )
+
+    if incomplete_list:
+        dump_list += [f"Candidate {i} not incompleted" for i in incomplete_list]
+
     return benchmark_result_configs, dump_list
 
 
@@ -1055,22 +1061,6 @@ def compile_models(
     )
 
 
-def sort_candidates_by_first_benchmark_times(
-    candidate_indexes: list[int], candidate_trackers: list[CandidateTracker]
-) -> list[int]:
-    """Sorts candidate indexes based on their first benchmark times in ascending order"""
-    # Get the first benchmark times, defaulting to a large number if None
-    first_benchmark_times = [
-        candidate_trackers[index].first_benchmark_time or float("inf")
-        for index in candidate_indexes
-    ]
-    combined = list(zip(candidate_indexes, first_benchmark_times))
-    combined_sorted = sorted(combined, key=lambda x: x[1])
-    sorted_indexes, _ = zip(*combined_sorted)
-
-    return list(sorted_indexes)
-
-
 def group_benchmark_results_by_device_id(
     benchmark_results: list[TaskResult],
 ) -> list[list[TaskResult]]:
@@ -1101,6 +1091,7 @@ def parse_model_benchmark_results(
     candidate_results: list[TaskResult],
     baseline_results: list[TaskResult],
 ):
+    """Update candidate_tracker and format a list of result strings to be saved later."""
     candidate_results = sorted(candidate_results, key=lambda br: br.device_id)
     baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
 
@@ -1115,7 +1106,7 @@ def parse_model_benchmark_results(
     dump_list = []
     incomplete_list: list[tuple[int, Optional[str]]] = (
         []
-    )  # format: [(candidate_id, device_id)], baseline will have candidate_id=0
+    )  # format: [(candidate_id, device_id)]
 
     baseline_time = None
     for same_device_results in grouped_benchmark_results:
@@ -1128,17 +1119,12 @@ def parse_model_benchmark_results(
             # Check if benchmarking has completed
             if result_str is None:
                 incomplete_list.append((candidate_id, device_id))
+                if candidate_id == 0:
+                    baseline_time = None
                 continue
 
             res = IREEBenchmarkResult(candidate_id, result_str)
             benchmark_time = res.get_mean_time()
-            if benchmark_time == None:
-                handle_error(
-                    condition=True,
-                    msg="Failed to extract benchmark time for candidate {candidate_id}",
-                    level=logging.WARNING,
-                )
-                continue
             assert benchmark_time is not None
 
             # Record baseline benchmarking result and skip rest processes
@@ -1163,17 +1149,17 @@ def parse_model_benchmark_results(
             candidate_trackers[candidate_id].model_benchmark_time = benchmark_time
             candidate_trackers[candidate_id].model_benchmark_device_id = device_id
 
-            # Skip improvement calculation if no baseline data.
-            if baseline_time is None:
-                dump_unsort_list.append((benchmark_time, result_str))
-                continue
-
             # Calculate candidate improvement based on baseline.
-            candidate_trackers[candidate_id].baseline_benchmark_time = baseline_time
-            calibrated_benchmark_diff = (benchmark_time - baseline_time) / baseline_time
-            candidate_trackers[candidate_id].calibrated_benchmark_diff = (
-                calibrated_benchmark_diff
-            )
+            if baseline_time:
+                candidate_trackers[candidate_id].baseline_benchmark_time = baseline_time
+                calibrated_benchmark_diff = (
+                    benchmark_time - baseline_time
+                ) / baseline_time
+                candidate_trackers[candidate_id].calibrated_benchmark_diff = (
+                    calibrated_benchmark_diff
+                )
+            else:
+                calibrated_benchmark_diff = None
 
             # Collect candidate dump str
             candidate_vmfb_path = candidate_trackers[candidate_id].compiled_model_path
@@ -1199,7 +1185,7 @@ def parse_model_benchmark_results(
     for index, device in incomplete_list:
         file_path = candidate_trackers[index].compiled_model_path
         assert file_path is not None
-        error_msg = f"Benchmarking result of {file_path.as_posix()} on deivce {device} is incomplete"
+        error_msg = f"Benchmarking result of {file_path.as_posix()} on device {device} is incomplete"
         handle_error(condition=True, msg=error_msg, level=logging.WARNING)
         dump_list.append(error_msg + "\n")
 
