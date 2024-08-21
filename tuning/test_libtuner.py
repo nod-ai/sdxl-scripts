@@ -83,29 +83,25 @@ def test_IREEBenchmarkResult_get():
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time               274 us          275 us         3000 items_per_second=3.65481k/s
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time               273 us          275 us         3000 items_per_second=3.65671k/s
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_mean          274 us          275 us            3 items_per_second=3.65587k/s
-    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_median        275 us          275 us            3 items_per_second=3.65611k/s
+    BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_mean        275 us          275 us            3 items_per_second=3.65611k/s
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_stddev      0.073 us        0.179 us            3 items_per_second=0.971769/s
     BM_main$async_dispatch_311_rocm_hsaco_fb_main$async_dispatch_311_matmul_like_2x1024x1280x5120_i8xi8xi32/process_time/real_time_cv           0.03 %          0.07 %             3 items_per_second=0.03%
     """
     res = libtuner.IREEBenchmarkResult(candidate_id=1, result_str=normal_str)
     assert res.get_mean_time() == float(274)
-    assert res.get_median_time() == float(275)
 
     # Time is float
     res = libtuner.IREEBenchmarkResult(
         candidate_id=2,
-        result_str="process_time/real_time_mean 123.45 us, process_time/real_time_median 246.78 us",
+        result_str="process_time/real_time_mean 123.45 us, process_time/real_time_mean 246.78 us",
     )
     assert res.get_mean_time() == 123.45
-    assert res.get_median_time() == 246.78
 
     # Invalid str
     res = libtuner.IREEBenchmarkResult(candidate_id=3, result_str="hello world")
     assert res.get_mean_time() == None
-    assert res.get_median_time() == None
     res = libtuner.IREEBenchmarkResult(candidate_id=4, result_str="")
     assert res.get_mean_time() == None
-    assert res.get_median_time() == None
 
 
 def test_generate_display_BR():
@@ -114,13 +110,13 @@ def test_generate_display_BR():
     assert output == expected, "DispatchBenchmarkResult generates invalid sample string"
 
     output = libtuner.generate_display_MBR("baseline.vmfb", str(1), 567.89)
-    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_median\t    568 ms\n\n"
+    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_mean\t    568 ms\n\n"
     assert output == expected, "ModelBenchmarkResult generates invalid sample string"
     output = libtuner.generate_display_MBR("baseline.vmfb", str(1), 567.89, 0.0314)
-    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_median\t    568 ms (+3.140%)\n\n"
+    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_mean\t    568 ms (+3.140%)\n\n"
     assert output == expected, "ModelBenchmarkResult generates invalid sample string"
     output = libtuner.generate_display_MBR("baseline.vmfb", str(1), 567.89, -3.14)
-    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_median\t    568 ms (-314.000%)\n\n"
+    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_mean\t    568 ms (-314.000%)\n\n"
     assert output == expected, "ModelBenchmarkResult generates invalid sample string"
 
 
@@ -225,13 +221,11 @@ def test_parse_model_benchmark_results():
     baseline_results = [result3, result4]
 
     # Mock IREEBenchmarkResult to return float value from stdout
-    def mock_get_median_time(self):
+    def mock_get_mean_time(self):
         return float(self.result_str)
 
     # Mock IREEBenchmarkResult to return specific benchmark times
-    with patch(
-        "libtuner.IREEBenchmarkResult.get_median_time", new=mock_get_median_time
-    ):
+    with patch("libtuner.IREEBenchmarkResult.get_mean_time", new=mock_get_mean_time):
         # Mock generate_display_MBR to return a fixed display string
         with patch(
             "libtuner.generate_display_MBR",
@@ -248,12 +242,16 @@ def test_parse_model_benchmark_results():
                 assert tracker1.model_benchmark_time == 1.23
                 assert tracker1.model_benchmark_device_id == "device1"
                 assert tracker1.baseline_benchmark_time == 0.98
-                assert tracker1.calibrated_benchmark_diff == (1.23 - 0.98) / 0.98
+                assert tracker1.calibrated_benchmark_diff == pytest.approx(
+                    (1.23 - 0.98) / 0.98, rel=1e-6
+                )
 
                 assert tracker2.model_benchmark_time == 4.56
                 assert tracker2.model_benchmark_device_id == "device2"
                 assert tracker2.baseline_benchmark_time == 4.13
-                assert tracker2.calibrated_benchmark_diff == (4.56 - 4.13) / 4.13
+                assert tracker2.calibrated_benchmark_diff == pytest.approx(
+                    (4.56 - 4.13) / 4.13, rel=1e-6
+                )
 
                 assert result == [
                     "display_str",

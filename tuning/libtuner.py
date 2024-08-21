@@ -43,7 +43,7 @@ device_id = None
 """Do not need to change"""
 
 # Declare special symbols for libtuner to search and locate
-DEVICE_ID_RE = "DEVICE_ID_RE"
+DEVICE_ID_PLACEHOLDER = "!IREE!"
 
 
 @dataclass
@@ -199,31 +199,15 @@ class IREEBenchmarkResult:
     candidate_id: int
     result_str: str
 
-    def extract_key(self, pattern: str) -> Optional[str]:
+    def get_mean_time(self) -> Optional[float]:
         if not self.result_str:
             return None
+        pattern = r"process_time/real_time_mean\s+([\d.]+)\s\w{2}"
         match = re.search(pattern, self.result_str)
         if not match:
             return None
-        return match.group(1)
-
-    def get_mean_time(self) -> Optional[float]:
-        pattern = r"process_time/real_time_mean\s+([\d.]+)\s\w{2}"
-        time_str = self.extract_key(pattern)
-        if not time_str:
-            return None
         try:
-            return float(time_str)
-        except ValueError:
-            return None
-
-    def get_median_time(self) -> Optional[float]:
-        pattern = r"process_time/real_time_median\s+([\d.]+)\s\w{2}"
-        time_str = self.extract_key(pattern)
-        if not time_str:
-            return None
-        try:
-            return float(time_str)
+            return float(match.group(1))
         except ValueError:
             return None
 
@@ -232,7 +216,6 @@ def generate_display_DBR(
     candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
 ) -> str:
     """Generate dispatch_benchmark_result string for displaying"""
-    # time unit is implicit and dependent on the output of iree-benchmark-module
     return f"{candidate_id}\tMean Time: {mean_time:.1f}\n"
 
 
@@ -243,13 +226,12 @@ def generate_display_MBR(
     calibrated_diff: Optional[float] = None,
 ) -> str:
     """Generate model_benchmark_result string for displaying"""
-    # time unit is implicit and dependent on the output of iree-benchmark-module
     head_str = f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}\n"
-    res_str = f"process_time/real_time_median\t    {t1:.3g} ms\n\n"
+    res_str = f"process_time/real_time_mean\t    {t1:.3g} ms\n\n"
     if calibrated_diff:
         percentage_change = calibrated_diff * 100
         change_str = f"({percentage_change:+.3f}%)"
-        res_str = f"process_time/real_time_median\t    {t1:.3g} ms {change_str}\n\n"
+        res_str = f"process_time/real_time_mean\t    {t1:.3g} ms {change_str}\n\n"
     return head_str + res_str
 
 
@@ -534,7 +516,7 @@ def run_command_wrapper(task_tuple: TaskPack) -> TaskResult:
     """pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments"""
     if task_tuple.command_need_device_id:
         # worker searches for special symbol and substitute to correct device_id
-        pattern = re.compile(re.escape(DEVICE_ID_RE))
+        pattern = re.compile(re.escape(DEVICE_ID_PLACEHOLDER))
         task_tuple.command = [
             pattern.sub(str(device_id), s) for s in task_tuple.command
         ]
@@ -907,14 +889,12 @@ def generate_dryrun_model_benchmark_results(
 ) -> tuple[list[TaskResult], list[TaskResult]]:
     candidate_results = []
     for i, j in enumerate(model_candidates):
-        stdout = (
-            f"process_time/real_time_median    {random.uniform(100.0, 500.0):.3g} ms"
-        )
+        stdout = f"process_time/real_time_mean    {random.uniform(100.0, 500.0):.3g} ms"
         candidate_results.append(generate_sample_task_result(stdout, j, str(i % 3)))
 
     baseline_results = [
         generate_sample_task_result(
-            f"process_time/real_time_median    {random.uniform(100.0, 500.0):.3g} ms",
+            f"process_time/real_time_mean    {random.uniform(100.0, 500.0):.3g} ms",
             0,
             str(i),
         )
@@ -1142,7 +1122,7 @@ def parse_model_benchmark_results(
                 continue
 
             res = IREEBenchmarkResult(candidate_id, result_str)
-            benchmark_time = res.get_median_time()
+            benchmark_time = res.get_mean_time()
 
             # Check completion
             if benchmark_time == None:
