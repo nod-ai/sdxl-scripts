@@ -82,7 +82,7 @@ class PathConfig:
     candidate_configs_pkl: Path = field(init=False)
     compiled_dir: Path = field(init=False)
     compile_failed_dir: Path = field(init=False)
-    spec_dir: Path = field(init=False)
+    specs_dir: Path = field(init=False)
 
     output_unilog: Path = field(init=False)
     result_summary_log: Path = field(init=False)
@@ -106,7 +106,7 @@ class PathConfig:
         )
         object.__setattr__(self, "compiled_dir", self.candidates_dir / "compiled")
         object.__setattr__(self, "compile_failed_dir", self.candidates_dir / "failed")
-        object.__setattr__(self, "spec_dir", self.candidates_dir / "specs")
+        object.__setattr__(self, "specs_dir", self.candidates_dir / "specs")
         object.__setattr__(self, "output_unilog", self.base_dir / "output.log")
         object.__setattr__(
             self, "result_summary_log", self.base_dir / "result_summary.log"
@@ -756,6 +756,10 @@ def compile_dispatches(
         logging.info("No candidates to compile.")
         return []
 
+    path_config.compiled_dir.mkdir(parents=True, exist_ok=True)
+    path_config.compile_failed_dir.mkdir(parents=True, exist_ok=True)
+    path_config.specs_dir.mkdir(parents=True, exist_ok=True)
+
     task_list = [
         TaskPack(
             args,
@@ -836,7 +840,8 @@ def parse_dispatch_benchmark_results(
         assert benchmark_time is not None
         candidate_trackers[candidate_id].first_benchmark_time = benchmark_time
         candidate_trackers[candidate_id].spec_path = (
-            path_config.spec_dir / path_config.get_candidate_spec_filename(candidate_id)
+            path_config.specs_dir
+            / path_config.get_candidate_spec_filename(candidate_id)
         )
         mlir_path = candidate_trackers[candidate_id].dispatch_mlir_path
         spec_path = candidate_trackers[candidate_id].spec_path

@@ -124,7 +124,7 @@ def test_parse_dispatch_benchmark_results():
     base_path = libtuner.Path("/mock/base/dir")
     spec_dir = base_path / "specs"
     path_config = libtuner.PathConfig()
-    object.__setattr__(path_config, "spec_dir", spec_dir)
+    object.__setattr__(path_config, "specs_dir", spec_dir)
 
     mock_result_1 = MagicMock()
     mock_result_1.result.stdout = "process_time/real_time_mean 100.0 us"
