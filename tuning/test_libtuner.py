@@ -110,13 +110,13 @@ def test_generate_display_BR():
     assert output == expected, "DispatchBenchmarkResult generates invalid sample string"
 
     output = libtuner.generate_display_MBR("baseline.vmfb", str(1), 567.89)
-    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_mean\t    568 ms\n\n"
+    expected = "Benchmarking: baseline.vmfb on device 1: 568\n\n"
     assert output == expected, "ModelBenchmarkResult generates invalid sample string"
     output = libtuner.generate_display_MBR("baseline.vmfb", str(1), 567.89, 0.0314)
-    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_mean\t    568 ms (+3.140%)\n\n"
+    expected = "Benchmarking: baseline.vmfb on device 1: 568 (+3.140%)\n\n"
     assert output == expected, "ModelBenchmarkResult generates invalid sample string"
     output = libtuner.generate_display_MBR("baseline.vmfb", str(1), 567.89, -3.14)
-    expected = "Benchmarking: baseline.vmfb on device 1\nprocess_time/real_time_mean\t    568 ms (-314.000%)\n\n"
+    expected = "Benchmarking: baseline.vmfb on device 1: 568 (-314.000%)\n\n"
     assert output == expected, "ModelBenchmarkResult generates invalid sample string"
 
 

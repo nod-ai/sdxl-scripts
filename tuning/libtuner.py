@@ -43,7 +43,7 @@ device_id = None
 """Do not need to change"""
 
 # Declare special symbols for libtuner to search and locate
-DEVICE_ID_PLACEHOLDER = "!IREE!"
+DEVICE_ID_PLACEHOLDER = "!DEVICE_ID!"
 
 
 @dataclass
@@ -226,13 +226,13 @@ def generate_display_MBR(
     calibrated_diff: Optional[float] = None,
 ) -> str:
     """Generate model_benchmark_result string for displaying"""
-    head_str = f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}\n"
-    res_str = f"process_time/real_time_mean\t    {t1:.3g} ms\n\n"
     if calibrated_diff:
         percentage_change = calibrated_diff * 100
         change_str = f"({percentage_change:+.3f}%)"
-        res_str = f"process_time/real_time_mean\t    {t1:.3g} ms {change_str}\n\n"
-    return head_str + res_str
+        res_str = f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}: {t1:.3g} {change_str}\n\n"
+    else:
+        res_str = f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}: {t1:.3g}\n\n"
+    return res_str
 
 
 def extract_driver_names(user_devices: list[str]) -> set[str]:
