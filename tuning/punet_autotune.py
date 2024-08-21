@@ -66,12 +66,8 @@ class PunetClient(libtuner.TuningClient):
     ) -> list[str]:
         mlir_spec_path = candidate_tracker.spec_path
         assert mlir_spec_path is not None
-        script_dir = Path(__file__).resolve().parent
-        command = [
-            "./compile_unet_candidate.sh",
-            "winograd",
-            mlir_spec_path.as_posix(),
-        ]
+        target_dir = mlir_spec_path.resolve().parent.parent.parent
+        output_name = f"unet_candidate_{candidate_tracker.candidate_id}.vmfb"
         command = [
             "timeout",
             "300s",
@@ -81,9 +77,7 @@ class PunetClient(libtuner.TuningClient):
             f"{mlir_spec_path.resolve()}",
             "./punet.mlir",
             "-o",
-            (
-                script_dir / "unet_candidate_{candidate_tracker.candidate_id}.vmfb"
-            ).as_posix(),
+            (target_dir / output_name).as_posix()
         ]
         return command
 
