@@ -529,9 +529,9 @@ def run_command_wrapper(task_tuple: TaskPack) -> TaskResult:
 
     task_result = TaskResult(
         res, task_tuple.candidate_id, device_id=str(-1)
-    )  # main process
+    )  # Main process
     if device_id:
-        task_result = TaskResult(res, task_tuple.candidate_id, device_id)  # sub process
+        task_result = TaskResult(res, task_tuple.candidate_id, device_id)  # Subprocess
 
     time.sleep(task_tuple.cooling_time)
 
@@ -1095,7 +1095,7 @@ def parse_model_benchmark_results(
     candidate_results = sorted(candidate_results, key=lambda br: br.device_id)
     baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
 
-    # Assign candidates to same groups by device_id
+    # Assign candidates to the same groups by device_id
     grouped_candidate_results = group_benchmark_results_by_device_id(candidate_results)
 
     # Insert baseline results to the head of each list
