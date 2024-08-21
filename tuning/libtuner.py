@@ -216,7 +216,7 @@ def generate_display_DBR(
     candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
 ) -> str:
     """Generate dispatch_benchmark_result string for displaying"""
-    return f"{candidate_id}\tMean Time: {mean_time:.1f}\n"
+    return f"{candidate_id}\tMean Time: {mean_time:.1f}"
 
 
 def generate_display_MBR(
@@ -229,9 +229,11 @@ def generate_display_MBR(
     if calibrated_diff:
         percentage_change = calibrated_diff * 100
         change_str = f"({percentage_change:+.3f}%)"
-        res_str = f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}: {t1:.3g} {change_str}\n\n"
+        res_str = f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}: {t1:.3g} {change_str}"
     else:
-        res_str = f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}: {t1:.3g}\n\n"
+        res_str = (
+            f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}: {t1:.3g}"
+        )
     return res_str
 
 
@@ -515,7 +517,7 @@ def run_command(
 def run_command_wrapper(task_tuple: TaskPack) -> TaskResult:
     """pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments"""
     if task_tuple.command_need_device_id:
-        # worker searches for special symbol and substitute to correct device_id
+        # Worker searches for the special symbol and substitutes it with the actual device_id
         pattern = re.compile(re.escape(DEVICE_ID_PLACEHOLDER))
         task_tuple.command = [
             pattern.sub(str(device_id), s) for s in task_tuple.command
@@ -846,7 +848,7 @@ def parse_dispatch_benchmark_results(
         mlir_path = candidate_trackers[candidate_id].dispatch_mlir_path
         spec_path = candidate_trackers[candidate_id].spec_path
         assert mlir_path is not None and spec_path is not None
-        dump_list.append(generate_display_DBR(candidate_id, benchmark_time))
+        dump_list.append(generate_display_DBR(candidate_id, benchmark_time) + "\n")
 
         benchmark_result_configs.append(
             (
@@ -1115,24 +1117,27 @@ def parse_model_benchmark_results(
         []
     )  # format: [(candidate_id, device_id)], baseline will have candidate_id=0
 
+    baseline_time = None
     for same_device_results in grouped_benchmark_results:
         dump_unsort_list: list[tuple[float, str]] = []
         for task_result in same_device_results:
-            # Skip if benchmark failed.
             result_str = task_result.result.stdout
             candidate_id = task_result.candidate_id
             device_id = task_result.device_id
 
+            # Check if benchmarking has completed
             if result_str is None:
-                # TODO: change incomplete process detection
+                incomplete_list.append((candidate_id, device_id))
                 continue
 
             res = IREEBenchmarkResult(candidate_id, result_str)
             benchmark_time = res.get_mean_time()
-
-            # Check completion
             if benchmark_time == None:
-                incomplete_list.append((candidate_id, device_id))
+                handle_error(
+                    condition=True,
+                    msg="Failed to extract benchmark time for candidate {candidate_id}",
+                    level=logging.WARNING,
+                )
                 continue
             assert benchmark_time is not None
 
@@ -1143,10 +1148,13 @@ def parse_model_benchmark_results(
                     candidate_id
                 ].compiled_model_path
                 assert baseline_vmfb_path is not None
-                dump_str = generate_display_MBR(
-                    candidate_vmfb_path_str=baseline_vmfb_path.as_posix(),
-                    device_id=device_id,
-                    t1=benchmark_time,
+                dump_str = (
+                    generate_display_MBR(
+                        candidate_vmfb_path_str=baseline_vmfb_path.as_posix(),
+                        device_id=device_id,
+                        t1=benchmark_time,
+                    )
+                    + "\n\n"
                 )
                 dump_list.append(dump_str)
                 continue
@@ -1170,11 +1178,14 @@ def parse_model_benchmark_results(
             # Collect candidate dump str
             candidate_vmfb_path = candidate_trackers[candidate_id].compiled_model_path
             assert candidate_vmfb_path is not None
-            dump_str = generate_display_MBR(
-                candidate_vmfb_path_str=candidate_vmfb_path.as_posix(),
-                device_id=device_id,
-                t1=benchmark_time,
-                calibrated_diff=calibrated_benchmark_diff,
+            dump_str = (
+                generate_display_MBR(
+                    candidate_vmfb_path_str=candidate_vmfb_path.as_posix(),
+                    device_id=device_id,
+                    t1=benchmark_time,
+                    calibrated_diff=calibrated_benchmark_diff,
+                )
+                + "\n\n"
             )
 
             dump_unsort_list.append((benchmark_time, dump_str))
