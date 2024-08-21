@@ -1011,7 +1011,7 @@ def compile_models(
             args,
             candidate_id=i,
             command=tuning_client.get_model_compile_command(candidate_trackers[i]),
-            check=False
+            check=False,
         )
         for i in candidates
         if i != 0

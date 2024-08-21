@@ -77,7 +77,7 @@ class PunetClient(libtuner.TuningClient):
             f"{mlir_spec_path.resolve()}",
             "./punet.mlir",
             "-o",
-            (target_dir / output_name).as_posix()
+            (target_dir / output_name).as_posix(),
         ]
         return command
 
