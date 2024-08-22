@@ -72,7 +72,7 @@ class PunetClient(libtuner.TuningClient):
         command = [
             "timeout",
             "300s",
-            (script_dir / "../int8-model/...").as_posix(),
+            (script_dir / "../int8-model/compile-punet-base.sh").as_posix(),
             "./tools/iree-compile",
             "gfx942",
             f"{mlir_spec_path.resolve()}",
