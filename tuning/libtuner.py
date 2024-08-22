@@ -42,6 +42,9 @@ worker_id = None
 device_id = None
 """Do not need to change"""
 
+# Declare special symbols for libtuner to search and locate
+DEVICE_ID_PLACEHOLDER = "!DEVICE_ID!"
+
 
 @dataclass
 class CandidateTracker:
@@ -53,12 +56,12 @@ class CandidateTracker:
     compiled_dispatch_path: Optional[Path] = None
     compiled_dispatch_hash: Optional[str] = None
     first_benchmark_time: Optional[float] = None
-    first_benchmark_device_id: Optional[int] = None
+    first_benchmark_device_id: Optional[str] = None
     spec_path: Optional[Path] = None
-    model_path: Optional[Path] = None
+    compiled_model_path: Optional[Path] = None
     compiled_model_hash: Optional[str] = None
     model_benchmark_time: Optional[float] = None
-    model_benchmark_device_id: Optional[int] = None
+    model_benchmark_device_id: Optional[str] = None
     baseline_benchmark_time: Optional[float] = None
     calibrated_benchmark_diff: Optional[float] = None
 
@@ -79,7 +82,7 @@ class PathConfig:
     candidate_configs_pkl: Path = field(init=False)
     compiled_dir: Path = field(init=False)
     compile_failed_dir: Path = field(init=False)
-    spec_dir: Path = field(init=False)
+    specs_dir: Path = field(init=False)
 
     output_unilog: Path = field(init=False)
     result_summary_log: Path = field(init=False)
@@ -103,7 +106,7 @@ class PathConfig:
         )
         object.__setattr__(self, "compiled_dir", self.candidates_dir / "compiled")
         object.__setattr__(self, "compile_failed_dir", self.candidates_dir / "failed")
-        object.__setattr__(self, "spec_dir", self.candidates_dir / "specs")
+        object.__setattr__(self, "specs_dir", self.candidates_dir / "specs")
         object.__setattr__(self, "output_unilog", self.base_dir / "output.log")
         object.__setattr__(
             self, "result_summary_log", self.base_dir / "result_summary.log"
@@ -147,32 +150,39 @@ class TuningClient(ABC):
         pass
 
     @abstractmethod
-    def get_dispatch_benchmark_command(self, candidate_tracker) -> list[str]:
+    def get_dispatch_benchmark_command(
+        self, candidate_tracker: CandidateTracker
+    ) -> list[str]:
         pass
 
     @abstractmethod
-    def get_model_compile_command(self, candidate_tracker) -> list[str]:
+    def get_model_compile_command(
+        self, candidate_tracker: CandidateTracker
+    ) -> list[str]:
         pass
 
     @abstractmethod
-    def get_model_benchmark_command(self, candidate_tracker) -> list[str]:
+    def get_model_benchmark_command(
+        self, candidate_tracker: CandidateTracker
+    ) -> list[str]:
         pass
 
 
 @dataclass
-class TaskTuple:
+class TaskPack:
     args: argparse.Namespace
+    candidate_id: int
     command: list[str]
     check: bool = True
     command_need_device_id: bool = False
     cooling_time: int = 0
-    result_need_device_id: bool = False
 
 
 @dataclass
 class TaskResult:
     result: subprocess.CompletedProcess
-    device_id: Optional[int] = None
+    candidate_id: int
+    device_id: str
 
 
 @dataclass
@@ -184,113 +194,47 @@ class ParsedDisptachBenchmarkResult:
 
 
 @dataclass
-class DispatchBenchmarkResult:
-    result_str: Optional[str] = None
+class IREEBenchmarkResult:
+    # Default format follows output of iree-benchmark-module
+    candidate_id: int
+    result_str: str
 
-    def get_tokens(self) -> list[str]:
-        # e.g. ['0', 'Mean', 'Time:', '694.0']
-        if self.result_str is None:
-            return []
-        try:
-            return self.result_str.split()
-        except:
-            return []
-
-    def get_candidate_id(self) -> Optional[int]:
-        if len(self.get_tokens()) < 1:
+    def get_mean_time(self) -> Optional[float]:
+        if not self.result_str:
+            return None
+        pattern = r"process_time/real_time_mean\s+([\d.]+)\s\w{2}"
+        match = re.search(pattern, self.result_str)
+        if not match:
             return None
         try:
-            return int(self.get_tokens()[0])
+            return float(match.group(1))
         except ValueError:
             return None
 
-    def get_benchmark_time(self) -> Optional[float]:
-        if len(self.get_tokens()) < 4:
-            return None
-        try:
-            return float(self.get_tokens()[3])
-        except ValueError:
-            return None
 
-    def generate_sample_result(
-        self, candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
-    ) -> str:
-        # time unit is implicit and dependent on the output of iree-benchmark-module
-        return f"{candidate_id}\tMean Time: {mean_time:.1f}\n"
+def generate_display_DBR(
+    candidate_id: int = 0, mean_time: float = random.uniform(100.0, 500.0)
+) -> str:
+    """Generate dispatch_benchmark_result string for displaying"""
+    return f"{candidate_id}\tMean Time: {mean_time:.1f}"
 
 
-@dataclass
-class ModelBenchmarkResult:
-    result_str: Optional[str] = None
-
-    def get_tokens(self) -> list[str]:
-        # e.g. ['Benchmarking:', '/sdxl-scripts/tuning/tuning_2024_07_19_08_55/unet_candidate_12.vmfb', 'on', 'device', '4', 'BM_main/process_time/real_time_median', '65.3', 'ms', '66.7', 'ms', '5', 'items_per_second=15.3201/s']
-        if self.result_str is None:
-            return []
-        try:
-            return self.result_str.split()
-        except:
-            return []
-
-    def get_model_candidate_path(self) -> Optional[str]:
-        if len(self.get_tokens()) < 2:
-            return None
-        return self.get_tokens()[1]
-
-    def get_candidate_id(self) -> Optional[int]:
-        if self.get_model_candidate_path():
-            try:
-                path_str = self.get_model_candidate_path()
-                return int(path_str.split("_")[-1].split(".")[0]) if path_str else None
-            except ValueError:
-                return None
-        return None
-
-    def get_device_id(self) -> Optional[int]:
-        if len(self.get_tokens()) < 5:
-            return None
-        try:
-            return int(self.get_tokens()[4])
-        except ValueError:
-            return None
-
-    def get_benchmark_time(self) -> Optional[int | float]:
-        if len(self.get_tokens()) < 7:
-            return None
-        try:
-            return float(self.get_tokens()[6])
-        except ValueError:
-            return None
-
-    def get_calibrated_result_str(self, change: float) -> Optional[str]:
-        if self.result_str is None:
-            return self.result_str
-
-        benchmark_time = self.get_benchmark_time()
-        if benchmark_time is None:
-            return self.result_str
-
-        # Format the change to be added to the string
-        percentage_change = change * 100
+def generate_display_MBR(
+    candidate_vmfb_path_str: str = "baseline.vmfb",
+    device_id: str = "0",
+    t1: float = random.uniform(100.0, 500.0),
+    calibrated_diff: Optional[float] = None,
+) -> str:
+    """Generate model_benchmark_result string for displaying"""
+    if calibrated_diff:
+        percentage_change = calibrated_diff * 100
         change_str = f"({percentage_change:+.3f}%)"
-
-        # Use regex to find and replace the old benchmark time with the new one
-        new_result_str = re.sub(
-            r"(\d+(\.\d+)?)\s*ms",
-            lambda m: f"{self.get_benchmark_time()} ms {change_str}",
-            self.result_str,
-            count=1,
+        res_str = f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}: {t1:.3g} {change_str}"
+    else:
+        res_str = (
+            f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}: {t1:.3g}"
         )
-
-        return new_result_str
-
-    def generate_sample_result(
-        self,
-        candidate_vmfb_path_str: str = "unet_baseline.vmfb",
-        device_id: int = 0,
-        t1: float = random.uniform(100.0, 500.0),  # time in ms
-    ) -> str:
-        return f"Benchmarking: {candidate_vmfb_path_str} on device {device_id}\nBM_run_forward/process_time/real_time_median\t    {t1:.3g} ms\t    {(t1+1):.3g} ms\t      5 items_per_second={t1/200:5f}/s\n\n"
+    return res_str
 
 
 def extract_driver_names(user_devices: list[str]) -> set[str]:
@@ -555,11 +499,9 @@ def run_command(
         if result.stdout:
             logging.info(f"stdout: {result.stdout}")
         if result.stderr:
-            logging.error(f"stderr: {result.stderr}")
+            logging.info(f"stderr: {result.stderr}")
     except subprocess.CalledProcessError as e:
-        print(f"Command '{e.cmd}' returned non-zero exit status {e.returncode}.")
         print(e.output)
-
         logging.error(
             f"Command '{command_str}' returned non-zero exit status {e.returncode}."
         )
@@ -572,18 +514,24 @@ def run_command(
     return result
 
 
-def run_command_wrapper(task_tuple: TaskTuple) -> TaskResult:
+def run_command_wrapper(task_tuple: TaskPack) -> TaskResult:
     """pool.imap_unordered can't iterate an iterable of iterables input, this function helps dividing arguments"""
     if task_tuple.command_need_device_id:
-        # worker add its device_id to the end of command list
-        task_tuple.command.append(str(device_id))
+        # Worker searches for the special symbol and substitutes it with the actual device_id
+        pattern = re.compile(re.escape(DEVICE_ID_PLACEHOLDER))
+        task_tuple.command = [
+            pattern.sub(str(device_id), s) for s in task_tuple.command
+        ]
 
     res = run_command(task_tuple.args, task_tuple.command, task_tuple.check)
     if res is None:
         raise
 
-    task_result = TaskResult(res)
-    task_result.device_id = device_id if task_tuple.result_need_device_id else None
+    task_result = TaskResult(
+        res, task_tuple.candidate_id, device_id=str(-1)
+    )  # Main process
+    if device_id:
+        task_result = TaskResult(res, task_tuple.candidate_id, device_id)  # Subprocess
 
     time.sleep(task_tuple.cooling_time)
 
@@ -702,7 +650,6 @@ def generate_candidates(
     args: argparse.Namespace,
     path_config: PathConfig,
     candidate_trackers: list[CandidateTracker],
-    tuning_client: TuningClient,
 ) -> list[int]:
     """Generate candidate files for tuning. Returns the list of candidate indexes"""
     logging.info("generate_candidates()")
@@ -803,17 +750,21 @@ def compile_dispatches(
     candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
 ) -> list[int]:
-    """Compile candidate files for tuning and record in candidate_vmfbs.txt. Returns the list of compiled candidate indexes."""
-    logging.info("compile_candidates()")
+    logging.info("compile_dispatches()")
 
     if not candidates:
         logging.info("No candidates to compile.")
         return []
 
+    path_config.compiled_dir.mkdir(parents=True, exist_ok=True)
+    path_config.compile_failed_dir.mkdir(parents=True, exist_ok=True)
+    path_config.specs_dir.mkdir(parents=True, exist_ok=True)
+
     task_list = [
-        TaskTuple(
+        TaskPack(
             args,
-            tuning_client.get_dispatch_compile_command(candidate_trackers[i]),
+            candidate_id=i,
+            command=tuning_client.get_dispatch_compile_command(candidate_trackers[i]),
             check=False,
         )
         for i in candidates
@@ -843,7 +794,7 @@ def compile_dispatches(
     compiled_candidates = []
     compiled_candidates_hash_list = []
     for compiled_file in compiled_files:
-        index = path_config.get_compiled_dispatch_index(failed_file)
+        index = path_config.get_compiled_dispatch_index(compiled_file)
         compiled_candidates.append(index)
         candidate_trackers[index].compilation_successful = True
         candidate_trackers[index].compiled_dispatch_path = compiled_file
@@ -875,27 +826,29 @@ def parse_dispatch_benchmark_results(
     path_config: PathConfig,
     benchmark_results: list[TaskResult],
     candidate_trackers: list[CandidateTracker],
-    tuning_client: TuningClient,
 ) -> tuple[list[ParsedDisptachBenchmarkResult], list[str]]:
     benchmark_result_configs = []
     dump_list = []
+    incomplete_list = []
 
     for benchmark_result in benchmark_results:
         res_str = benchmark_result.result.stdout
-        if res_str is None:
+        candidate_id = benchmark_result.candidate_id
+        res = IREEBenchmarkResult(candidate_id, res_str)
+        benchmark_time = res.get_mean_time()
+        if benchmark_time is None:
+            incomplete_list.append(candidate_id)
             continue
-        res = DispatchBenchmarkResult(res_str)
-        candidate_id = res.get_candidate_id()
-        benchmark_time = res.get_benchmark_time()
-        assert candidate_id is not None and benchmark_time is not None
+        assert benchmark_time is not None
         candidate_trackers[candidate_id].first_benchmark_time = benchmark_time
         candidate_trackers[candidate_id].spec_path = (
-            path_config.spec_dir / path_config.get_candidate_spec_filename(candidate_id)
+            path_config.specs_dir
+            / path_config.get_candidate_spec_filename(candidate_id)
         )
         mlir_path = candidate_trackers[candidate_id].dispatch_mlir_path
         spec_path = candidate_trackers[candidate_id].spec_path
         assert mlir_path is not None and spec_path is not None
-        dump_list.append(res_str)
+        dump_list.append(generate_display_DBR(candidate_id, benchmark_time) + "\n")
 
         benchmark_result_configs.append(
             (
@@ -907,24 +860,59 @@ def parse_dispatch_benchmark_results(
                 )
             )
         )
+
+    if incomplete_list:
+        dump_list += [f"Candidate {i} not incompleted" for i in incomplete_list]
+
     return benchmark_result_configs, dump_list
+
+
+def generate_sample_task_result(
+    stdout: str, candidate_id: int, device_id: str
+) -> TaskResult:
+    res = subprocess.CompletedProcess(
+        args=[""],
+        stdout=stdout,
+        returncode=0,
+    )
+    return TaskResult(result=res, candidate_id=candidate_id, device_id=device_id)
 
 
 def generate_dryrun_dispatch_benchmark_results(
     compiled_candidates: list[int],
 ) -> list[TaskResult]:
-    task_results = []
-    for candidate_id in compiled_candidates:
-        task_result = subprocess.CompletedProcess(
-            args=[""],
-            returncode=0,
-            stdout=DispatchBenchmarkResult().generate_sample_result(
-                candidate_id, mean_time=random.uniform(100.0, 500.0)
-            ),
-            stderr="",
+    logging.info("generate_dryrun_dispatch_benchmark_results")
+
+    task_results = [
+        generate_sample_task_result(
+            f"process_time/real_time_mean    {random.uniform(100.0, 500.0):.3g} ms",
+            i,
+            str(0),
         )
-        task_results.append(TaskResult(task_result))
+        for i in compiled_candidates
+    ]
+
     return task_results
+
+
+def generate_dryrun_model_benchmark_results(
+    model_candidates: list[int],
+) -> tuple[list[TaskResult], list[TaskResult]]:
+    candidate_results = []
+    for i, j in enumerate(model_candidates):
+        stdout = f"process_time/real_time_mean    {random.uniform(100.0, 500.0):.3g} ms"
+        candidate_results.append(generate_sample_task_result(stdout, j, str(i % 3)))
+
+    baseline_results = [
+        generate_sample_task_result(
+            f"process_time/real_time_mean    {random.uniform(100.0, 500.0):.3g} ms",
+            0,
+            str(i),
+        )
+        for i in range(3)
+    ]
+
+    return candidate_results, baseline_results
 
 
 def benchmark_dispatches(
@@ -934,20 +922,21 @@ def benchmark_dispatches(
     candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
 ):
-    """Benchmark the candidate files and store the topN results in file (best.log)."""
-    logging.info("benchmark_top_candidates()")
+    logging.info("benchmark_dispatches()")
 
     if args.dry_run:
-        logging.info("generate_dryrun_dispatch_benchmark_results")
         benchmark_results = generate_dryrun_dispatch_benchmark_results(
             compiled_candidates
         )
     else:
         # Benchmarking dispatch candidates
         task_list = [
-            TaskTuple(
+            TaskPack(
                 args,
-                tuning_client.get_dispatch_benchmark_command(candidate_trackers[i]),
+                candidate_id=i,
+                command=tuning_client.get_dispatch_benchmark_command(
+                    candidate_trackers[i]
+                ),
                 check=False,
                 command_need_device_id=True,
             )
@@ -966,7 +955,7 @@ def benchmark_dispatches(
         parsed_benchmark_results,
         dispatch_benchmark_dump_list,
     ) = parse_dispatch_benchmark_results(
-        path_config, benchmark_results, candidate_trackers, tuning_client
+        path_config, benchmark_results, candidate_trackers
     )
     append_to_file(
         dispatch_benchmark_dump_list,
@@ -1008,10 +997,13 @@ def compile_models(
     candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
 ) -> list[int]:
-    """Compile U-Net candidates stored in best.log. Return the list of U-Net candidate files."""
     logging.info("compile_models()")
 
+    candidate_trackers[0].compiled_model_path = path_config.model_baseline_vmfb
+
     if args.dry_run:
+        for i in candidates:
+            candidate_trackers[i].compiled_model_path = Path(f"model_{i}.vmfb")
         return candidates
 
     if not candidates:
@@ -1019,7 +1011,12 @@ def compile_models(
         return []
 
     task_list = [
-        TaskTuple(args, tuning_client.get_model_compile_command(candidate_trackers[i]))
+        TaskPack(
+            args,
+            candidate_id=i,
+            command=tuning_client.get_model_compile_command(candidate_trackers[i]),
+            check=False,
+        )
         for i in candidates
         if i != 0
     ]
@@ -1037,7 +1034,7 @@ def compile_models(
     for model_candidate in model_candidates_files:
         assert model_candidate is not None
         index = path_config.get_compiled_model_index(model_candidate)
-        candidate_trackers[index].model_path = model_candidate
+        candidate_trackers[index].compiled_model_path = model_candidate
         hash_val = calculate_md5(model_candidate)
         candidate_trackers[index].compiled_model_hash = hash_val
         model_candidates_hash_list.append((index, hash_val))
@@ -1060,22 +1057,6 @@ def compile_models(
     )
 
 
-def sort_candidates_by_first_benchmark_times(
-    candidate_indexes: list[int], candidate_trackers: list[CandidateTracker]
-) -> list[int]:
-    """Sorts candidate indexes based on their first benchmark times in ascending order"""
-    # Get the first benchmark times, defaulting to a large number if None
-    first_benchmark_times = [
-        candidate_trackers[index].first_benchmark_time or float("inf")
-        for index in candidate_indexes
-    ]
-    combined = list(zip(candidate_indexes, first_benchmark_times))
-    combined_sorted = sorted(combined, key=lambda x: x[1])
-    sorted_indexes, _ = zip(*combined_sorted)
-
-    return list(sorted_indexes)
-
-
 def group_benchmark_results_by_device_id(
     benchmark_results: list[TaskResult],
 ) -> list[list[TaskResult]]:
@@ -1087,7 +1068,7 @@ def group_benchmark_results_by_device_id(
     ----->
     [ [TaskResult(res1, device_1), TaskResult(res3, device_1)], [TaskResult(res2, device_2)] ]
     """
-    grouped_results: dict[int, list[TaskResult]] = {}
+    grouped_results: dict[str, list[TaskResult]] = {}
     for result in benchmark_results:
         assert result.device_id is not None
         if result.device_id not in grouped_results:
@@ -1101,63 +1082,95 @@ def group_benchmark_results_by_device_id(
     return grouped_benchmark_results
 
 
-def parse_grouped_benchmark_results(
-    path_config: PathConfig,
-    grouped_benchmark_results: list[list[TaskResult]],
+def parse_model_benchmark_results(
     candidate_trackers: list[CandidateTracker],
-) -> list[str]:
-    """Update candidate_trackers and collect strings"""
-    dump_list = []
-    incomplete_list: list[tuple[int, Optional[int]]] = (
-        []
-    )  # format: [(candidate_id, device_id)], baseline will have candidate_id=0
+    candidate_results: list[TaskResult],
+    baseline_results: list[TaskResult],
+):
+    """Update candidate_tracker and format a list of result strings to be saved later."""
+    candidate_results = sorted(candidate_results, key=lambda br: br.device_id)
+    baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
 
+    # Assign candidates to the same groups by device_id
+    grouped_candidate_results = group_benchmark_results_by_device_id(candidate_results)
+
+    # Insert baseline results to the head of each list
+    grouped_benchmark_results = [
+        [x] + y for x, y in zip(baseline_results, grouped_candidate_results)
+    ]
+
+    dump_list = []
+    incomplete_list: list[tuple[int, Optional[str]]] = (
+        []
+    )  # format: [(candidate_id, device_id)]
+
+    baseline_time = None
     for same_device_results in grouped_benchmark_results:
         dump_unsort_list: list[tuple[float, str]] = []
-        for model_candidate_result in same_device_results:
-            # Skip if benchmark failed.
-            result_str = model_candidate_result.result.stdout
+        for task_result in same_device_results:
+            result_str = task_result.result.stdout
+            candidate_id = task_result.candidate_id
+            device_id = task_result.device_id
+
+            # Check if benchmarking has completed
             if result_str is None:
+                incomplete_list.append((candidate_id, device_id))
+                if candidate_id == 0:
+                    baseline_time = None
                 continue
 
-            res = ModelBenchmarkResult(result_str)
-            device_id = res.get_device_id()
+            res = IREEBenchmarkResult(candidate_id, result_str)
+            benchmark_time = res.get_mean_time()
+            assert benchmark_time is not None
 
-            # Record baseline benchmarking result.
-            model_candidate_path = res.get_model_candidate_path()
-            if (
-                model_candidate_path is not None
-                and str(path_config.model_baseline_vmfb) in model_candidate_path
-            ):
-                baseline_time = res.get_benchmark_time()
-                if baseline_time is None:
-                    incomplete_list.append((0, device_id))
-                    continue
-                dump_list.append(result_str)
+            # Record baseline benchmarking result and skip rest processes
+            if candidate_id == 0:
+                baseline_time = benchmark_time
+                baseline_vmfb_path = candidate_trackers[
+                    candidate_id
+                ].compiled_model_path
+                assert baseline_vmfb_path is not None
+                dump_str = (
+                    generate_display_MBR(
+                        candidate_vmfb_path_str=baseline_vmfb_path.as_posix(),
+                        device_id=device_id,
+                        t1=benchmark_time,
+                    )
+                    + "\n\n"
+                )
+                dump_list.append(dump_str)
                 continue
 
-            # Record candidate benchmarking result.
-            c_id = res.get_candidate_id()
-            assert c_id is not None
-            candidate_time = res.get_benchmark_time()
-            if candidate_time is None:
-                incomplete_list.append((c_id, device_id))
-                continue
-            candidate_trackers[c_id].model_benchmark_time = candidate_time
-            candidate_trackers[c_id].model_benchmark_device_id = device_id
-            # Skip improvement calculation if no baseline data.
-            if baseline_time is None:
-                dump_unsort_list.append((candidate_time, result_str))
-                continue
-            # Calculate candidate improvement based baseline.
-            candidate_trackers[c_id].baseline_benchmark_time = baseline_time
-            calibrated_benchmark_diff = (candidate_time - baseline_time) / baseline_time
-            candidate_trackers[c_id].calibrated_benchmark_diff = (
-                calibrated_benchmark_diff
+            # Update candidate_tracker
+            candidate_trackers[candidate_id].model_benchmark_time = benchmark_time
+            candidate_trackers[candidate_id].model_benchmark_device_id = device_id
+
+            # Calculate candidate improvement based on baseline.
+            if baseline_time:
+                candidate_trackers[candidate_id].baseline_benchmark_time = baseline_time
+                calibrated_benchmark_diff = (
+                    benchmark_time - baseline_time
+                ) / baseline_time
+                candidate_trackers[candidate_id].calibrated_benchmark_diff = (
+                    calibrated_benchmark_diff
+                )
+            else:
+                calibrated_benchmark_diff = None
+
+            # Collect candidate dump str
+            candidate_vmfb_path = candidate_trackers[candidate_id].compiled_model_path
+            assert candidate_vmfb_path is not None
+            dump_str = (
+                generate_display_MBR(
+                    candidate_vmfb_path_str=candidate_vmfb_path.as_posix(),
+                    device_id=device_id,
+                    t1=benchmark_time,
+                    calibrated_diff=calibrated_benchmark_diff,
+                )
+                + "\n\n"
             )
-            dump_str = res.get_calibrated_result_str(calibrated_benchmark_diff)
-            assert dump_str is not None
-            dump_unsort_list.append((candidate_time, dump_str))
+
+            dump_unsort_list.append((benchmark_time, dump_str))
 
         # Sort model candidate benchmarking result str in ascending time order.
         dump_list = dump_list + [
@@ -1165,61 +1178,14 @@ def parse_grouped_benchmark_results(
         ]
 
     # Store incomplete .vmfb file at the end of dump_list.
-    for index, device_id in incomplete_list:
-        index_to_path = lambda index: (
-            f"{path_config.model_baseline_vmfb.as_posix()}"
-            if index == 0
-            else f"{candidate_trackers[index].model_path}"
-        )
-        error_msg = f"Benchmarking result of {index_to_path(index)} on deivce {device_id} is incomplete"
+    for index, device in incomplete_list:
+        file_path = candidate_trackers[index].compiled_model_path
+        assert file_path is not None
+        error_msg = f"Benchmarking result of {file_path.as_posix()} on device {device} is incomplete"
         handle_error(condition=True, msg=error_msg, level=logging.WARNING)
         dump_list.append(error_msg + "\n")
 
     return dump_list
-
-
-def generate_dryrun_unet_benchmark_results(
-    unet_vmfb_paths: list[Path],
-) -> list[TaskResult]:
-    logging.info("generate_dryrun_unet_benchmark_results")
-    task_results = []
-    start = random.uniform(100.0, 500.0)
-    device_id = 0
-    for candidate_vmfb_path in unet_vmfb_paths:
-        task_result = subprocess.CompletedProcess(
-            args=[""],
-            returncode=0,
-            stdout=ModelBenchmarkResult().generate_sample_result(
-                candidate_vmfb_path_str=candidate_vmfb_path.as_posix(),
-                device_id=device_id,
-                t1=start,
-            ),
-            stderr="",
-        )
-        start += random.uniform(-5.0, 8.0)
-        task_results.append(TaskResult(task_result, device_id))
-    return task_results
-
-
-def dryrun_benchmark_unet(
-    path_config: PathConfig,
-    unet_candidates: list[int],
-    candidate_trackers: list[CandidateTracker],
-):
-
-    unet_vmfb_paths = [path_config.model_baseline_vmfb] + [
-        Path(f"unet_candidate_{index}.vmfb") for index in unet_candidates
-    ]
-    benchmark_results = generate_dryrun_unet_benchmark_results(unet_vmfb_paths)
-    grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
-
-    # Update candidate_tracker and extract strings which will be stored in output.log.
-    dump_list = parse_grouped_benchmark_results(
-        path_config, grouped_benchmark_results, candidate_trackers
-    )
-    append_to_file(
-        dump_list, filepath=path_config.output_unilog, title="Unet Benchmark Results"
-    )
 
 
 def benchmark_models(
@@ -1233,61 +1199,57 @@ def benchmark_models(
     logging.info("benchmark_models()")
 
     if args.dry_run:
-        dryrun_benchmark_unet(path_config, model_candidates, candidate_trackers)
-        return
-
-    # Benchmarking model candidates
-    worker_context_queue = create_worker_context_queue(args.devices)
-    benchmark_task_list = [
-        TaskTuple(
-            args,
-            tuning_client.get_model_benchmark_command(candidate_trackers[i]),
-            check=False,
-            command_need_device_id=True,
-            cooling_time=10,
-            result_need_device_id=True,
+        candidate_results, baseline_results = generate_dryrun_model_benchmark_results(
+            model_candidates
         )
-        for i in model_candidates
-    ]
-    benchmark_results = multiprocess_progress_wrapper(
-        num_worker=len(args.devices),
-        task_list=benchmark_task_list,
-        function=run_command_wrapper,
-        initializer=init_worker_context,
-        initializer_inputs=(worker_context_queue,),
-    )
-    benchmark_results = sorted(benchmark_results, key=lambda br: br.device_id)
-    grouped_benchmark_results = group_benchmark_results_by_device_id(benchmark_results)
-
-    # Benchmarking baselines on each involved device
-    candidate_trackers[0].model_path = path_config.model_baseline_vmfb
-    worker_context_queue = create_worker_context_queue(args.devices)
-    baseline_task_list = [
-        TaskTuple(
-            args,
-            tuning_client.get_model_benchmark_command(candidate_trackers[0]),
-            check=False,
-            command_need_device_id=True,
-            result_need_device_id=True,
+    else:
+        # Benchmarking model candidates
+        worker_context_queue = create_worker_context_queue(args.devices)
+        benchmark_task_list = [
+            TaskPack(
+                args,
+                candidate_id=i,
+                command=tuning_client.get_model_benchmark_command(
+                    candidate_trackers[i]
+                ),
+                check=False,
+                command_need_device_id=True,
+                cooling_time=10,
+            )
+            for i in model_candidates
+        ]
+        candidate_results = multiprocess_progress_wrapper(
+            num_worker=len(args.devices),
+            task_list=benchmark_task_list,
+            function=run_command_wrapper,
+            initializer=init_worker_context,
+            initializer_inputs=(worker_context_queue,),
         )
-    ] * len(grouped_benchmark_results)
-    baseline_results = multiprocess_progress_wrapper(
-        num_worker=len(args.devices),
-        task_list=baseline_task_list,
-        function=run_command_wrapper,
-        initializer=init_worker_context,
-        initializer_inputs=(worker_context_queue,),
-    )
-    baseline_results = sorted(baseline_results, key=lambda tr: tr.device_id)
 
-    # Insert baseline results to the head of each list
-    grouped_benchmark_results = [
-        [x] + y for x, y in zip(baseline_results, grouped_benchmark_results)
-    ]
+        # Benchmarking baselines on each involved device
+        candidate_trackers[0].compiled_model_path = path_config.model_baseline_vmfb
+        worker_context_queue = create_worker_context_queue(args.devices)
+        baseline_task_list = [
+            TaskPack(
+                args,
+                candidate_id=0,
+                command=tuning_client.get_model_benchmark_command(
+                    candidate_trackers[0]
+                ),
+                check=False,
+                command_need_device_id=True,
+            )
+        ] * len(group_benchmark_results_by_device_id(candidate_results))
+        baseline_results = multiprocess_progress_wrapper(
+            num_worker=len(args.devices),
+            task_list=baseline_task_list,
+            function=run_command_wrapper,
+            initializer=init_worker_context,
+            initializer_inputs=(worker_context_queue,),
+        )
 
-    # Update candidate_tracker and extract strings which will be stored later
-    dump_list = parse_grouped_benchmark_results(
-        path_config, grouped_benchmark_results, candidate_trackers
+    dump_list = parse_model_benchmark_results(
+        candidate_trackers, candidate_results, baseline_results
     )
 
     append_to_file(
@@ -1322,3 +1284,9 @@ def summerize_top_candidates(
 
     with open(path_config.result_summary_log, "w") as file:
         file.writelines(dump_list)
+
+
+def sanitize_filename(filename: str) -> str:
+    # Replace invalid characters by an underscore
+    sanitized = re.sub(r"[^\w\.-]", "_", filename)
+    return sanitized

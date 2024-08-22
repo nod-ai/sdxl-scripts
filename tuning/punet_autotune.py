@@ -41,14 +41,24 @@ class PunetClient(libtuner.TuningClient):
         return command
 
     def get_dispatch_benchmark_command(
-        self, candidate_tracker: libtuner.CandidateTracker
+        self,
+        candidate_tracker: libtuner.CandidateTracker,
     ) -> list[str]:
         compiled_vmfb_path = candidate_tracker.compiled_dispatch_path
         assert compiled_vmfb_path is not None
+
         command = [
-            "./benchmark_dispatch.sh",
-            compiled_vmfb_path.as_posix(),
+            "timeout",
+            "16s",
+            "./tools/iree-benchmark-module",
+            f"--device={libtuner.DEVICE_ID_PLACEHOLDER}",
+            f"--module={compiled_vmfb_path.resolve()}",
+            "--hip_use_streams=true",
+            "--hip_allow_inline_execution=true",
+            "--batch_size=1000",
+            "--benchmark_repetitions=3",
         ]
+
         return command
 
     def get_model_compile_command(
@@ -56,21 +66,46 @@ class PunetClient(libtuner.TuningClient):
     ) -> list[str]:
         mlir_spec_path = candidate_tracker.spec_path
         assert mlir_spec_path is not None
+        script_dir = Path(__file__).resolve().parent
+        target_dir = mlir_spec_path.resolve().parent.parent.parent
+        output_name = f"unet_candidate_{candidate_tracker.candidate_id}.vmfb"
         command = [
-            "./compile_unet_candidate.sh",
-            "winograd",
-            mlir_spec_path.as_posix(),
+            "timeout",
+            "300s",
+            (script_dir / "../int8-model/compile-punet-base.sh").as_posix(),
+            "./tools/iree-compile",
+            "gfx942",
+            f"{mlir_spec_path.resolve()}",
+            "./punet.mlir",
+            "-o",
+            (target_dir / output_name).as_posix(),
         ]
         return command
 
     def get_model_benchmark_command(
         self, candidate_tracker: libtuner.CandidateTracker
     ) -> list[str]:
-        unet_candidate_path = candidate_tracker.model_path
+        unet_candidate_path = candidate_tracker.compiled_model_path
         assert unet_candidate_path is not None
+
         command = [
-            "./benchmark_unet_candidate.sh",
-            unet_candidate_path.as_posix(),
+            "timeout",
+            "180s",
+            "tools/iree-benchmark-module",
+            f"--device={libtuner.DEVICE_ID_PLACEHOLDER}",
+            "--hip_use_streams=true",
+            "--hip_allow_inline_execution=true",
+            "--device_allocator=caching",
+            f"--module={unet_candidate_path.resolve()}",
+            "--parameters=model=punet.irpa",
+            "--function=main",
+            "--input=1x4x128x128xf16",
+            "--input=1xsi32",
+            "--input=2x64x2048xf16",
+            "--input=2x1280xf16",
+            "--input=2x6xf16",
+            "--input=1xf16",
+            "--benchmark_repetitions=5",
         ]
         return command
 
@@ -93,10 +128,8 @@ def main():
     print("Validation successful!\n")
 
     print("Generating candidates...")
-    candidates = libtuner.generate_candidates(
-        args, path_config, candidate_trackers, punet_client
-    )
-    print(f"Generated [{len(candidates)}] candidates in {path_config.candidates_dir}\n")
+    candidates = libtuner.generate_candidates(args, path_config, candidate_trackers)
+    print(f"Stored candidates in {path_config.candidates_dir}\n")
     if stop_after_phase == libtuner.ExecutionPhases.generate_candidates:
         return
 
