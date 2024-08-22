@@ -128,9 +128,7 @@ def main():
     print("Validation successful!\n")
 
     print("Generating candidates...")
-    candidates = libtuner.generate_candidates(
-        args, path_config, candidate_trackers, punet_client
-    )
+    candidates = libtuner.generate_candidates(args, path_config, candidate_trackers)
     print(f"Stored candidates in {path_config.candidates_dir}\n")
     if stop_after_phase == libtuner.ExecutionPhases.generate_candidates:
         return

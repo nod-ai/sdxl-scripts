@@ -650,7 +650,6 @@ def generate_candidates(
     args: argparse.Namespace,
     path_config: PathConfig,
     candidate_trackers: list[CandidateTracker],
-    tuning_client: TuningClient,
 ) -> list[int]:
     """Generate candidate files for tuning. Returns the list of candidate indexes"""
     logging.info("generate_candidates()")
@@ -751,8 +750,7 @@ def compile_dispatches(
     candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
 ) -> list[int]:
-    """Compile candidate files for tuning and record in candidate_vmfbs.txt. Returns the list of compiled candidate indexes."""
-    logging.info("compile_candidates()")
+    logging.info("compile_dispatches()")
 
     if not candidates:
         logging.info("No candidates to compile.")
@@ -924,8 +922,7 @@ def benchmark_dispatches(
     candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
 ):
-    """Benchmark the candidate files and store the topN results in file (best.log)."""
-    logging.info("benchmark_top_candidates()")
+    logging.info("benchmark_dispatches()")
 
     if args.dry_run:
         benchmark_results = generate_dryrun_dispatch_benchmark_results(
@@ -1000,7 +997,6 @@ def compile_models(
     candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
 ) -> list[int]:
-    """Compile U-Net candidates stored in best.log. Return the list of U-Net candidate files."""
     logging.info("compile_models()")
 
     candidate_trackers[0].compiled_model_path = path_config.model_baseline_vmfb
