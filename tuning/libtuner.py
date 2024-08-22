@@ -307,18 +307,26 @@ class ExecutionPhases(str, Enum):
     benchmark_models = "benchmark-models"
 
 
+class CompilationMode(str, Enum):
+    default = "default"
+    winograd = "winograd"
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Autotune script")
 
     # Required arguments
     parser.add_argument(
-        "mode", choices=["default", "winograd"], help="Compilation mode"
-    )
-    parser.add_argument(
         "input_file", type=Path, help="Path to the input benchmark file (.mlir)"
     )
 
     # General options
+    parser.add_argument(
+        "--mode",
+        choices=[x.value for x in CompilationMode],
+        default=CompilationMode.default,
+        help="Compilation mode",
+    )
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose output to stdout"
     )
