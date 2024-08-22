@@ -312,9 +312,6 @@ def parse_arguments() -> argparse.Namespace:
 
     # Required arguments
     parser.add_argument(
-        "mode", choices=["default", "winograd"], help="Compilation mode"
-    )
-    parser.add_argument(
         "input_file", type=Path, help="Path to the input benchmark file (.mlir)"
     )
 
@@ -379,7 +376,7 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def setup_logging(args: argparse.Namespace, path_config: PathConfig):
-    log_file_name = f"autotune_{args.mode}_{args.input_file.stem}.log"
+    log_file_name = f"autotune_{args.input_file.stem}.log"
     run_log_path = path_config.base_dir / log_file_name
     path_config._set_run_log(run_log_path)
 
