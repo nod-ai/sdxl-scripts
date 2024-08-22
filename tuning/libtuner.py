@@ -307,11 +307,6 @@ class ExecutionPhases(str, Enum):
     benchmark_models = "benchmark-models"
 
 
-class CompilationMode(str, Enum):
-    default = "default"
-    winograd = "winograd"
-
-
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Autotune script")
 
@@ -321,12 +316,6 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     # General options
-    parser.add_argument(
-        "--mode",
-        choices=[x.value for x in CompilationMode],
-        default=CompilationMode.default,
-        help="Compilation mode",
-    )
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose output to stdout"
     )
@@ -387,7 +376,7 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def setup_logging(args: argparse.Namespace, path_config: PathConfig):
-    log_file_name = f"autotune_{args.mode}_{args.input_file.stem}.log"
+    log_file_name = f"autotune_{args.input_file.stem}.log"
     run_log_path = path_config.base_dir / log_file_name
     path_config._set_run_log(run_log_path)
 
