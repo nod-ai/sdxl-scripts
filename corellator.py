@@ -106,13 +106,14 @@ def load_json(path, plot, stretch_plot, skew):
     return reg_values, interval_list, stretch_values
 
 
-def load_rpd(path, plot, stretch_plot, skew):
+def load_rpd(path, plot, stretch_plot, freq, skew):
     print("Loading file", path)
     con = sqlite3.connect(path)
     cur = con.cursor()
 
     reg_values = {}
     stretch_values = {}
+    freq_values = {}
     interval_list = []
 
     print('Finding data points')
@@ -130,7 +131,13 @@ def load_rpd(path, plot, stretch_plot, skew):
         value = float(value)
         stretch_values[time + skew] = value
 
-    return reg_values, interval_list, stretch_values
+    plots = cur.execute(f"SELECT start, value FROM rocpd_monitor WHERE monitorType = '{freq}'").fetchall()
+    for time, value in plots:
+        value = float(value)
+        freq_values[time + skew] = value
+    print("freq", len(plots))
+
+    return reg_values, interval_list, stretch_values, freq_values
 
 def add_arguments(parser: argparse.ArgumentParser):
     parser.add_argument('--plots', default='/etc/corellator.json', help="The plot name that counts events")
@@ -155,18 +162,20 @@ def main(argv):
     else:
         print("Unknown input format")
         return 1
-    reg_values, interval_list, stretch_values = loader(args.input, event_plot, stretch_plot, args.skew)
+    reg_values, interval_list, stretch_values, freq_values = loader(args.input, event_plot, stretch_plot, plots['freq'], args.skew)
     
     reg_total = sum(reg_values.values())
 
     kernel_data = {}
     kernel_time = {}
     kernel_stretch = {}
+    freq_data = {}
 
     for interval in interval_list:
         name = interval.kernel
         if not name in kernel_data:
             kernel_data[name] = []
+            freq_data[name] = []
         kernel_time[name] = kernel_time.get(name, 0.0) + (interval.end - interval.start)
 
     print('Num data points', event_plot, len(reg_values))
@@ -204,6 +213,7 @@ def main(argv):
                 kernel_stretch[interval.kernel] = kernel_stretch.get(interval.kernel, 0.0) + growth
 
     print('Data points without kernel:', no_kern, "({} {:.3f}%)".format(no_kern_sum, no_kern_sum / reg_total * 100))
+    print('Data points with kernel:', len(reg_values) - no_kern, "({} {:.3f}%)".format(reg_total - no_kern_sum, (reg_total - no_kern_sum) / reg_total * 100))
 
     kernel_sums = {}
     for kern in kernel_data:
@@ -227,6 +237,26 @@ def main(argv):
     print('Top', top_n, 'stretch growth')
     for kernel, growth in sorted_growth[:top_n]:
         print(kernel, '{:.3f}'.format(growth))
+
+    for ts in freq_values:
+        interval = find_interval(ts, interval_btree)
+        if interval is None:
+            pass
+        else:
+            freq_data[interval.kernel].append(freq_values[ts])
+
+    freq_avg = {}
+    for kern in freq_data:
+        data = freq_data[kern]
+        if len(data) > 0:
+            avg = sum(data)/len(data)
+            freq_avg[kern] = avg
+
+
+    print('Bottom', top_n, 'average frequency')
+    sorted_freq = sorted(freq_avg.items(), key=lambda x: x[1])
+    for kernel, freq in sorted_freq[:top_n]:
+        print(kernel, '{:.0f}'.format(freq/1000.0))
 
     return 0
 
