@@ -79,32 +79,6 @@ def find_interval(ts: int, btree: Node):
     else:
         return find_interval(ts, btree.earlier)
 
-def load_json(path, plot, stretch_plot, skew):
-    print("Loading file", path)
-    with open(path, 'r') as fp:
-        data = json.load(fp)
-
-    reg_values = {}
-    stretch_values = {}
-    interval_list = []
-
-    print('Finding data points')
-
-    for row in data['traceEvents']:
-        if 'args' in row:
-            if plot in row['args']:
-                v = row['args'][plot]
-                reg_values[row['ts'] * 1000 + skew] = v
-            elif stretch_plot in row['args']:
-                stretch_values[row['ts'] * 1000 + skew] = row['args'][stretch_plot]
-            elif 'desc' in row['args'] and row['args']['desc'] == "KernelExecution":
-                name = row['name']
-                start = int(row['ts']) * 1000
-                dur = int(row['dur']) * 1000
-                interval_list.append(Interval(name, start, start + dur))
-    
-    return reg_values, interval_list, stretch_values
-
 def mean(items, _):
     return sum(items)/len(items)
 
@@ -207,14 +181,7 @@ def main(argv):
 
     metrics = [pcc_events, clock_stretch, gfx_frequency]
 
-    if args.input.endswith('json'):
-        loader = load_json
-    elif args.input.endswith('rpd'):
-        loader = load_rpd
-    else:
-        print("Unknown input format")
-        return 1
-    interval_list = loader(args.input, metrics, args.skew)
+    interval_list = load_rpd(args.input, metrics, args.skew)
 
     print('Assemble btree')
     interval_btree = Node(None)
