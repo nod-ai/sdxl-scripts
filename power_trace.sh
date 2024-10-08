@@ -31,7 +31,7 @@ cat << EOF > "$tmpdir/iree-benchmark-module"
 set -xe
 sudo bash "$tmpdir/doas-root" "\$@"
 ret=$?
-python3 "$script_dir/corellator.py" trace.rpd || echo "Returned $?"
+python3 "$script_dir/correlator.py" trace.rpd || echo "Returned $?"
 exit $ret
 EOF
 
