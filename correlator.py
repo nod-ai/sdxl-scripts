@@ -111,7 +111,7 @@ class Metric:
         result = f'{self.name} ({self.trace_name}): {len(self.values)} Samples, '
         if self.cumulative:
             result += f' Total: {self.total} Samples w/o kernel: {self.no_kern}'
-        else:
+        elif len(self.values) > 0:
             result += f' Average: {self.total/len(self.values)}'
         return result
 
