@@ -140,7 +140,7 @@ def load_rpd(path, plot, stretch_plot, freq, skew):
     return reg_values, interval_list, stretch_values, freq_values
 
 def add_arguments(parser: argparse.ArgumentParser):
-    parser.add_argument('--plots', default='/etc/corellator.json', help="The plot name that counts events")
+    parser.add_argument('--plots', default='/etc/correlator.json', help="The plot name that counts events")
     parser.add_argument('input', help="A perfetto trace file")
     parser.add_argument('--skew', default=0, type=int, help="A time offset applied to events (ns)")
     parser.add_argument('-n', default=10, type=int, help="Show the top N results")
