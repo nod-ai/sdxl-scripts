@@ -599,7 +599,7 @@ transform.named_sequence @match_attention(%attention: !transform.any_op {transfo
     transform.iree.match.cast_compatible_type %in0 = tensor<?x?x?x?xf16> : !transform.any_value
 
     %config = transform.param.constant #iree_codegen.compilation_info<
-            lowering_config = #iree_gpu.lowering_config<{workgroup = [1, 1, 128, 0, 0, 0], reduction=[0, 0, 0, 0, 0, 32]}>,
+            lowering_config = #iree_gpu.lowering_config<{workgroup = [1, 1, 128, 0, 0, 0], reduction=[0, 0, 0, 0, 0, 32], promote_operands = [1, 2]}>,
             translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
                                                               workgroup_size = [64, 4]
                                                               subgroup_size = 64 ,
@@ -608,8 +608,8 @@ transform.named_sequence @match_attention(%attention: !transform.any_op {transfo
     -> !transform.any_param
 
     %decomposition_config = transform.param.constant {
-      qk_attrs = {attention_qk_matmul},
-      pv_attrs = {attention_pv_matmul}
+      qk_attrs = {attention_qk_matmul, lowering_config = #iree_gpu.lowering_config<{ promote_operands = [1] }>},
+      pv_attrs = {attention_pv_matmul, lowering_config = #iree_gpu.lowering_config<{ promote_operands = [1] }>}
     } -> !transform.any_param
 
     transform.yield %attention, %config, %decomposition_config : !transform.any_op, !transform.any_param, !transform.any_param
