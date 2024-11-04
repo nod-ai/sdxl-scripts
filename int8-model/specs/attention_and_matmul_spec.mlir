@@ -603,13 +603,12 @@ transform.named_sequence @match_attention(%attention: !transform.any_op {transfo
             translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
                                                               workgroup_size = [64, 4]
                                                               subgroup_size = 64 ,
-              {mma_schedule = #iree_gpu.mma_schedule<intrinsic = #iree_gpu.mma_layout<MFMA_F32_32x32x8_F16>, subgroup_m_count = 4, subgroup_n_count = 1> ,
                llvm_func_attrs = { "amdgpu-waves-per-eu" = "2","denormal-fp-math-f32" = "preserve-sign" }}>>
     -> !transform.any_param
 
     %decomposition_config = transform.param.constant {
-      qk_attrs = {attention_qk_matmul, lowering_config = #iree_gpu.lowering_config<{ promote_operands = [1] }>},
-      pv_attrs = {attention_pv_matmul, lowering_config = #iree_gpu.lowering_config<{ promote_operands = [1] }>}
+      qk_attrs = {attention_qk_matmul, lowering_config = #iree_gpu.lowering_config<{ promote_operands = [1], intrinsic_kind = #iree_gpu.mma_layout<VMFMA_F32_32x32x16_F16>, subgroup_m_count = 4, subgroup_n_count = 1}>},
+      pv_attrs = {attention_pv_matmul, lowering_config = #iree_gpu.lowering_config<{ promote_operands = [1], intrinsic_kind = #iree_gpu.mma_layout<MFMA_F32_32x32x8_F16>, subgroup_m_count = 4, subgroup_n_count = 1}>}
     } -> !transform.any_param
 
     transform.yield %attention, %config, %decomposition_config : !transform.any_op, !transform.any_param, !transform.any_param
@@ -622,39 +621,39 @@ transform.named_sequence @match_attention(%attention: !transform.any_op {transfo
   transform.named_sequence @__kernel_config(%variant_op: !transform.any_op {transform.consumed}) {
     transform.foreach_match in %variant_op
         // Matmul.
-        @match_mmt_2048x10240x1280 -> @apply_op_config
-        , @match_mmt_2048x1280x5120 -> @apply_op_config
-        , @match_mmt_2048x1280x1280 -> @apply_op_config
-        , @match_mmt_8192x5120x640 -> @apply_op_config
-        , @match_mmt_8192x640x2560 -> @apply_op_config
-        , @match_mmt_8192x640x640 -> @apply_op_config
+        // @match_mmt_2048x10240x1280 -> @apply_op_config
+        // , @match_mmt_2048x1280x5120 -> @apply_op_config
+        // , @match_mmt_2048x1280x1280 -> @apply_op_config
+        // , @match_mmt_8192x5120x640 -> @apply_op_config
+        // , @match_mmt_8192x640x2560 -> @apply_op_config
+        // , @match_mmt_8192x640x640 -> @apply_op_config
 
-        // Convolution.
-        , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x640 -> @apply_op_config
-        , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x1280 -> @apply_op_config
-        , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x1920 -> @apply_op_config
-        , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x2560 -> @apply_op_config
-        , @match_conv_2d_nhwc_hwcf_2x64x64x640x3x3x640 -> @apply_op_config
-        , @match_conv_2d_nhwc_hwcf_2x128x128x320x3x3x320 -> @apply_op_config
+        // // Convolution.
+        // , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x640 -> @apply_op_config
+        // , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x1280 -> @apply_op_config
+        // , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x1920 -> @apply_op_config
+        // , @match_conv_2d_nhwc_hwcf_2x32x32x1280x3x3x2560 -> @apply_op_config
+        // , @match_conv_2d_nhwc_hwcf_2x64x64x640x3x3x640 -> @apply_op_config
+        // , @match_conv_2d_nhwc_hwcf_2x128x128x320x3x3x320 -> @apply_op_config
 
-        // Batch matmul.
-        , @match_batch_matmul_64x968x320x640 -> @apply_op_config
-        , @match_batch_matmul_64x968x640x640 -> @apply_op_config
-        , @match_batch_matmul_64x968x320x960 -> @apply_op_config
-        , @match_batch_matmul_64x242x1280x1280 -> @apply_op_config
-        , @match_batch_matmul_64x242x640x960 -> @apply_op_config
-        , @match_batch_matmul_64x242x640x1280 -> @apply_op_config
-        , @match_batch_matmul_64x242x640x1920 -> @apply_op_config
+        // // Batch matmul.
+        // , @match_batch_matmul_64x968x320x640 -> @apply_op_config
+        // , @match_batch_matmul_64x968x640x640 -> @apply_op_config
+        // , @match_batch_matmul_64x968x320x960 -> @apply_op_config
+        // , @match_batch_matmul_64x242x1280x1280 -> @apply_op_config
+        // , @match_batch_matmul_64x242x640x960 -> @apply_op_config
+        // , @match_batch_matmul_64x242x640x1280 -> @apply_op_config
+        // , @match_batch_matmul_64x242x640x1920 -> @apply_op_config
 
-        // Contration.
-        , @match_contract_3x2x20x1024x64x1280 -> @apply_op_config
-        , @match_contract_3x2x10x4096x64x640 -> @apply_op_config
-        , @match_contract_2x10x64x64x2048 -> @apply_op_config
-        , @match_contract_2x20x64x64x2048 -> @apply_op_config
-        , @match_contract_2x20x1024x64x1280 -> @apply_op_config
+        // // Contration.
+        // , @match_contract_3x2x20x1024x64x1280 -> @apply_op_config
+        // , @match_contract_3x2x10x4096x64x640 -> @apply_op_config
+        // , @match_contract_2x10x64x64x2048 -> @apply_op_config
+        // , @match_contract_2x20x64x64x2048 -> @apply_op_config
+        // , @match_contract_2x20x1024x64x1280 -> @apply_op_config
 
         // Attention.
-        , @match_attention -> @apply_attn_op_config
+        @match_attention -> @apply_attn_op_config
 
       : (!transform.any_op) -> (!transform.any_op)
     transform.yield
