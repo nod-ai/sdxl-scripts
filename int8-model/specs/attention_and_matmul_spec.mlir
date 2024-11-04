@@ -152,21 +152,39 @@ transform.named_sequence @match_attention(%attention: !transform.any_op {transfo
     %rhs = transform.get_operand %generic[1] : (!transform.any_op) -> !transform.any_value
     transform.iree.match.cast_compatible_type %lhs = tensor<?x4096x640xi8> : !transform.any_value
     transform.iree.match.cast_compatible_type %rhs = tensor<5120x640xi8> : !transform.any_value
-    // %config = transform.param.constant #iree_codegen.compilation_info<
-    //   lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 256, 128, 64]]>,
-    //   translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
-    //     workgroup_size = [256, 2, 1] subgroup_size = 64,
-    //     {mma_schedule = #iree_gpu.mma_schedule<
-    //        intrinsic = #iree_gpu.mma_layout<MFMA_I8_32x32x16_I32>,
-    //        subgroup_m_count = 2, subgroup_n_count = 4>
-    //      , prefetch_shared_memory}>
-    //   > -> !transform.any_param
     %config = transform.param.constant #iree_codegen.compilation_info<
       lowering_config = #iree_gpu.lowering_config<{promote_operands = [0, 1],
                                                    mma_kind = #iree_gpu.mma_layout<MFMA_I32_32x32x16_I8>,
                                                    subgroup_m_count = 2, subgroup_n_count = 4,
                                                    reduction = [0, 0, 0, 64],
                                                    workgroup = [1, 256, 128, 0]}>,
+      translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
+        workgroup_size = [512, 1, 1] subgroup_size = 64,
+        {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>
+    > -> !transform.any_param
+    transform.yield %generic, %config : !transform.any_op, !transform.any_param
+  }
+
+  transform.named_sequence @match_broadcast_rhs_mmt_Bx4096x640x640(%generic: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+    %mmt = transform.include @match_broadcast_rhs_mmt_i8_i8_i32 failures(propagate) (%generic) : (!transform.any_op) -> !transform.any_op
+    %lhs = transform.get_operand %generic[0] : (!transform.any_op) -> !transform.any_value
+    %rhs = transform.get_operand %generic[1] : (!transform.any_op) -> !transform.any_value
+    transform.iree.match.cast_compatible_type %lhs = tensor<?x4096x640xi8> : !transform.any_value
+    transform.iree.match.cast_compatible_type %rhs = tensor<640x640xi8> : !transform.any_value
+    // %config = transform.param.constant #iree_codegen.compilation_info<
+    //   lowering_config = #iree_codegen.lowering_config<tile_sizes = [[1, 64, 320, 128]]>,
+    //   translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
+    //     workgroup_size = [128, 4, 1] subgroup_size = 64,
+    //     {mma_schedule = #iree_gpu.mma_schedule<
+    //        intrinsic = #iree_gpu.mma_layout<MFMA_I8_16x16x32_I32>,
+    //        subgroup_m_count = 4, subgroup_n_count = 2>
+    //      , prefetch_shared_memory}>
+    %config = transform.param.constant #iree_codegen.compilation_info<
+      lowering_config = #iree_gpu.lowering_config<{promote_operands = [0, 1],
+                                                   mma_kind = #iree_gpu.mma_layout<MFMA_I32_16x16x32_I8>,
+                                                   subgroup_m_count = 4, subgroup_n_count = 2,
+                                                   reduction = [0, 0, 0, 128],
+                                                   workgroup = [1, 64, 320, 0]}>,
       translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
         workgroup_size = [512, 1, 1] subgroup_size = 64,
         {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>
@@ -248,6 +266,7 @@ transform.named_sequence @match_attention(%attention: !transform.any_op {transfo
 
         // This is a pessimization with CPX.
         // , @match_broadcast_rhs_mmt_Bx1024x1280x5120 -> @apply_op_config
+        // , @match_broadcast_rhs_mmt_Bx4096x640x640 -> @apply_op_config
 
         // Contration.
         , @match_matmul_like_Bx20x1024x64x1280_i8xi8xi32 -> @apply_op_config
