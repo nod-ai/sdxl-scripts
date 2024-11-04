@@ -196,8 +196,10 @@ transform.named_sequence @match_attention(%attention: !transform.any_op {transfo
 
         // Carried over from SPX.
         , @match_broadcast_rhs_mmt_Bx1024x10240x1280 -> @apply_op_config
-        , @match_broadcast_rhs_mmt_Bx1024x1280x5120 -> @apply_op_config
         // , @match_broadcast_rhs_mmt_Bx1024x1280x1280 -> @apply_op_config
+
+        // This is a pessimization with CPX.
+        // , @match_broadcast_rhs_mmt_Bx1024x1280x5120 -> @apply_op_config
 
         // Contration.
         , @match_matmul_like_Bx20x1024x64x1280_i8xi8xi32 -> @apply_op_config
