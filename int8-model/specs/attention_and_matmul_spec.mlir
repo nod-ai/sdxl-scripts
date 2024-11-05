@@ -279,8 +279,8 @@ transform.named_sequence @match_attention_f8(%attention: !transform.any_op {tran
   transform.named_sequence @__kernel_config(%variant_op: !transform.any_op {transform.consumed}) {
     transform.foreach_match in %variant_op
         // Attention.
-        @match_attention_f16 -> @apply_attn_op_config,
-        , @match_attention_f8 -> @apply_attn_op_config,
+        @match_attention_f16 -> @apply_attn_op_config
+        , @match_attention_f8 -> @apply_attn_op_config
 
         // TUNING_MATCH_BEGIN DO NOT REMOVE
 
