@@ -12,16 +12,16 @@ fi
 IRPA_PATH_PREFIX="${2:-/data/shark}"
 
 # used as a workaround for lengthy initialization
-export ROCR_VISIBLE_DEVICES=0
+# export ROCR_VISIBLE_DEVICES=0
 
 iree-benchmark-module \
   --device=hip://$1 \
   --device_allocator=caching \
   --module=$PWD/tmp/unet.vmfb \
   --parameters=model=${IRPA_PATH_PREFIX}/scheduled_unet.irpa \
-  --function=main \
-  --input=1x4x128x128xf16 \
-  --input=1xi64 \
+  --function=run_forward \
+  --input=1x4x120x128xf16 \
+  --input=1xf16 \
   --input=2x64x2048xf16 \
   --input=2x1280xf16 \
   --input=2x6xf16 \

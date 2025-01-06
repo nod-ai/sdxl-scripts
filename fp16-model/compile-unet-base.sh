@@ -89,11 +89,10 @@ set -x
     --iree-codegen-llvmgpu-use-vector-distribution \
     --iree-llvmgpu-enable-prefetch \
     --iree-codegen-gpu-native-math-precision=true \
-    --iree-dispatch-creation-enable-aggressive-fusion=true \
     --iree-dispatch-creation-enable-fuse-horizontal-contractions=true \
+    --iree-dispatch-creation-enable-aggressive-fusion=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-execution-model=async-external \
+    --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
     "${FLAGS[@]}" \
     "$@"
-
-    # --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
