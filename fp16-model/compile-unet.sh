@@ -20,7 +20,7 @@ set -x
 
 "${SCRIPT_DIR}/compile-unet-base.sh" "$IREE_COMPILE" "$CHIP" default \
   "${SCRIPT_DIR}/specs/${TRANSFORM_PREFIX}attention_and_matmul_spec.mlir" \
-  "${SCRIPT_DIR}/base_ir/stable_diffusion_xl_base_1_0_64_1024x1024_fp16_unet.mlir" \
+  "${SCRIPT_DIR}/base_ir/stable_diffusion_xl_base_1_0_bs1_64_960x1024_fp16_unet.mlir" \
   --iree-hal-dump-executable-configurations-to=configurations/unet \
   --iree-hal-dump-executable-sources-to=sources/unet \
   --iree-hal-dump-executable-binaries-to=binaries/unet \

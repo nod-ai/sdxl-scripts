@@ -93,6 +93,7 @@ set -x
     --iree-dispatch-creation-enable-fuse-horizontal-contractions=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-execution-model=async-external \
-    --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
     "${FLAGS[@]}" \
     "$@"
+
+    # --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
