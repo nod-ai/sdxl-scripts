@@ -3,49 +3,12 @@ module attributes { transform.with_named_sequence } {
 // Tuning infra
 //===----------------------------------------------------------------------===//
 
-  transform.named_sequence @apply_op_config(%op: !transform.any_op {transform.readonly},
-                                            %config: !transform.any_param {transform.readonly}) {
-    transform.annotate %op "compilation_info" = %config : !transform.any_op, !transform.any_param
-    // transform.print %op {name = "Applied"} : !transform.any_op
-    transform.yield
-  }
-
-  transform.named_sequence @apply_attn_op_config(%attention: !transform.any_op {transform.readonly},
-                                                 %config: !transform.any_param {transform.readonly},
-                                                 %decomposition_config: !transform.any_param {transform.readonly}) {
-    transform.annotate %attention "compilation_info" = %config : !transform.any_op, !transform.any_param
-    transform.annotate %attention "decomposition_config" = %decomposition_config : !transform.any_op, !transform.any_param
-    // transform.print %attention {name = "Applied attention config"} : !transform.any_op
-    transform.yield
-  }
-
-  transform.named_sequence @match_broadcast_rhs_mmt_i8_i8_i32(
-    %root: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
-    transform.match.operation_name %root ["linalg.generic"] : !transform.any_op
-    // transform.print %root {name = "Generic"} : !transform.any_op
-    %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %root {
-      ^bb0(%lhs: tensor<?x?x?xi8>, %rhs: tensor<?x?xi8>, %out: tensor<?x?x?xi32>):
-      %20 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>,
-                                             affine_map<(d0, d1, d2, d3) -> (d2, d3)>,
-                                             affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>],
-                            iterator_types = ["parallel", "parallel", "parallel", "reduction"]}
-          ins(%lhs, %rhs : tensor<?x?x?xi8>, tensor<?x?xi8>) outs(%out : tensor<?x?x?xi32>) {
-        ^bb0(%in: i8, %in_0: i8, %acc: i32):
-          %22 = arith.extsi %in : i8 to i32
-          %23 = arith.extsi %in_0 : i8 to i32
-          %24 = arith.muli %22, %23 : i32
-          %25 = arith.addi %acc, %24 : i32
-          linalg.yield %25 : i32
-        } -> tensor<?x?x?xi32>
-    } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
-    transform.yield %root : !transform.any_op
-  }
-
-// TUNING_SPEC_BEGIN DO NOT REMOVE
-
-//===----------------------------------------------------------------------===//
-// Matmul tuning
-//===----------------------------------------------------------------------===//
+transform.named_sequence @apply_op_config(%op: !transform.any_op {transform.readonly},
+                                          %config: !transform.any_param {transform.readonly}) {
+  transform.annotate %op "compilation_info" = %config : !transform.any_op, !transform.any_param
+  // transform.print %op {name = "Applied"} : !transform.any_op
+  transform.yield
+}
 
 transform.named_sequence @match_mmt_f16_f16_f32(%root: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
   transform.match.operation_name %root ["linalg.generic"] : !transform.any_op
@@ -68,20 +31,26 @@ transform.named_sequence @match_mmt_f16_f16_f32(%root: !transform.any_op {transf
   transform.yield %root : !transform.any_op
 }
 
-transform.named_sequence @match_mmt_2048x10240x1280(%matmul: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+// TUNING_SPEC_BEGIN DO NOT REMOVE
+
+//===----------------------------------------------------------------------===//
+// Matmul tuning
+//===----------------------------------------------------------------------===//
+
+transform.named_sequence @match_mmt_1920x10240x1280(%matmul: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
   %mmt = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%matmul) : (!transform.any_op) -> !transform.any_op
   %lhs = transform.get_operand %matmul[0] : (!transform.any_op) -> !transform.any_value
   %rhs = transform.get_operand %matmul[1] : (!transform.any_op) -> !transform.any_value
-  transform.iree.match.cast_compatible_type %lhs = tensor<2048x1280xf16> : !transform.any_value
+  transform.iree.match.cast_compatible_type %lhs = tensor<1920x1280xf16> : !transform.any_value
   transform.iree.match.cast_compatible_type %rhs = tensor<10240x1280xf16> : !transform.any_value
   %config = transform.param.constant #iree_codegen.compilation_info<
   lowering_config = #iree_gpu.lowering_config<{promote_operands = [0, 1],
                                                 mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>,
                                                 subgroup_m_count = 1, subgroup_n_count = 2,
                                                 reduction = [0, 0, 32],
-                                                workgroup = [128, 320, 0]}>,
+                                                workgroup = [128, 160, 0]}>,
   translation_info = #iree_codegen.translation_info<pipeline = LLVMGPUVectorDistribute
-    workgroup_size = [128, 4, 1] subgroup_size = 64,
+    workgroup_size = [128, 1, 1] subgroup_size = 64,
     {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>
     }>> -> !transform.any_param
   transform.yield %matmul, %config : !transform.any_op, !transform.any_param
@@ -109,11 +78,15 @@ transform.named_sequence @match_mmt_2048x10240x1280(%matmul: !transform.any_op {
 // Entry point
 //===----------------------------------------------------------------------===//
 
-  transform.named_sequence @__kernel_config(%variant_op: !transform.any_op {transform.readonly}) {
-    // transform.foreach_match in %variant_op
-    //     // TUNING_MATCH_BEGIN DO NOT REMOVE
-    //     // TUNING_MATCH_END DO NOT REMOVE
-    //   : (!transform.any_op) -> (!transform.any_op)
+  transform.named_sequence @__kernel_config(%variant_op: !transform.any_op {transform.consumed}) {
+    transform.foreach_match in %variant_op
+        // TUNING_MATCH_BEGIN DO NOT REMOVE
+
+        // MMT.
+        @match_mmt_1920x10240x1280 -> @apply_op_config
+
+        // TUNING_MATCH_END DO NOT REMOVE
+      : (!transform.any_op) -> (!transform.any_op)
     transform.yield
   }
 } ////  module
