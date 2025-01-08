@@ -75,17 +75,18 @@ transform.named_sequence @match_mmt_1920x10240x1280(%matmul: !transform.any_op {
   %mmt = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%matmul) : (!transform.any_op) -> !transform.any_op
   %lhs = transform.get_operand %matmul[0] : (!transform.any_op) -> !transform.any_value
   %rhs = transform.get_operand %matmul[1] : (!transform.any_op) -> !transform.any_value
-  transform.iree.match.cast_compatible_type %lhs = tensor<1920x1280000xf16> : !transform.any_value
+  transform.iree.match.cast_compatible_type %lhs = tensor<1920x1280xf16> : !transform.any_value
   transform.iree.match.cast_compatible_type %rhs = tensor<10240x1280xf16> : !transform.any_value
   %config = transform.param.constant #iree_codegen.compilation_info<
   lowering_config = #iree_gpu.lowering_config<{promote_operands = [0, 1],
                                                 mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>,
-                                                subgroup_m_count = 1, subgroup_n_count = 2,
+                                                subgroup_m_count = 4, subgroup_n_count = 2,
                                                 reduction = [0, 0, 32],
-                                                workgroup = [128, 160, 0]}>,
+                                                workgroup = [128, 128, 0]}>,
   translation_info = #iree_codegen.translation_info<pipeline = LLVMGPUVectorDistribute
-    workgroup_size = [128, 1, 1] subgroup_size = 64,
-    {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>
+    workgroup_size = [128, 4, 1] subgroup_size = 64,
+    {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>,
+     llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}
     }>> -> !transform.any_param
   transform.yield %matmul, %config : !transform.any_op, !transform.any_param
 }
