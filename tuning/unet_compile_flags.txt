@@ -1,0 +1,12 @@
+--iree-hal-target-backends=rocm
+--iree-hip-target=gfx942
+--iree-hal-indirect-command-buffers=true
+--iree-stream-resource-memory-model=discrete
+--iree-hip-legacy-sync=false
+--iree-hal-memoization=true
+--iree-opt-strip-assertions
+--iree-opt-outer-dim-concat=true
+--iree-hip-waves-per-eu=2
+--iree-llvmgpu-enable-prefetch
+--iree-codegen-gpu-native-math-precision=true
+--iree-dispatch-creation-enable-aggressive-fusion=true
