@@ -17,5 +17,5 @@ iree-benchmark-module \
   --module=$PWD/tmp/vae_decode.vmfb \
   --parameters=model=${IRPA_PATH_PREFIX}/vae_decode_fp16.irpa \
   --function=main \
-  --input=1x4x128x128xf16 \
+  --input=1x4x120x128xf16 \
   --benchmark_repetitions=3
