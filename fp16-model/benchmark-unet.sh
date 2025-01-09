@@ -20,12 +20,12 @@ iree-benchmark-module \
   --module=$PWD/tmp/unet.vmfb \
   --parameters=model=/home/nmeganat/SHARK-ModelDev/weights/stable_diffusion_xl_base_1_0_unet_fp16.safetensors \
   --function=run_forward \
-  --input=1x4x120x128xf16 \
-  --input=1xf16 \
-  --input=2x64x2048xf16 \
-  --input=2x1280xf16 \
-  --input=2x6xf16 \
-  --input=1xf16 \
+  --input=@sample_inputs/unet_npys/arg0_latent_model_input.npy \
+  --input=@sample_inputs/unet_npys/arg1_guidanc_scale.npy \
+  --input=@sample_inputs/unet_npys/arg2_prompt_embeds.npy \
+  --input=@sample_inputs/unet_npys/arg3_add_text_embeds.npy \
+  --input=@sample_inputs/unet_npys/arg4_add_time_ids.npy \
+  --input=@sample_inputs/unet_npys/arg5_t.npy \
   --benchmark_repetitions=3
 
   # --device=hip://$1 \
