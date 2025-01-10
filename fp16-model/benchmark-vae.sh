@@ -9,13 +9,19 @@ if (( $# != 1 && $# != 2 )); then
   exit 1
 fi
 
-IRPA_PATH_PREFIX="${2:-/data/shark}"
+readonly IREE_BENCHMARK_MODULE="$(which iree-benchmark-module)"
+readonly HIP_DEVICE_ID="$1"
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
+readonly IRPA_PATH_PREFIX="${2:-/data/shark}"
 
-iree-benchmark-module \
-  --device=hip://$1 \
+"$IREE_BENCHMARK_MODULE" \
+  --device=hip://$HIP_DEVICE_ID \
   --device_allocator=caching \
   --module=$PWD/tmp/vae_decode.vmfb \
   --parameters=model=${IRPA_PATH_PREFIX}/vae_decode_fp16.irpa \
-  --function=main \
-  --input=1x4x120x128xf16 \
+  --function=decode \
+  --input=@$SCRIPT_DIR/sample_inputs/vae_npys/random_vae_inputs.npy \
   --benchmark_repetitions=3
+
+  # --parameters=model=${IRPA_PATH_PREFIX}/stable_diffusion_xl_base_1_0_vae_fp16.safetensors \
+  # --input=1x4x120x128xf16 \
