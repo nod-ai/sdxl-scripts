@@ -191,6 +191,26 @@ transform.named_sequence @match_mmt_7680x640x640(%matmul: !transform.any_op {tra
   transform.yield %matmul, %config : !transform.any_op, !transform.any_param
 }
 
+transform.named_sequence @match_mmt_7680x640x2560(%matmul: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+  %mmt = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%matmul) : (!transform.any_op) -> !transform.any_op
+  %lhs = transform.get_operand %matmul[0] : (!transform.any_op) -> !transform.any_value
+  %rhs = transform.get_operand %matmul[1] : (!transform.any_op) -> !transform.any_value
+  transform.iree.match.cast_compatible_type %lhs = tensor<7680x2560xf16> : !transform.any_value
+  transform.iree.match.cast_compatible_type %rhs = tensor<640x2560xf16> : !transform.any_value
+  %config = transform.param.constant #iree_codegen.compilation_info<
+  lowering_config = #iree_gpu.lowering_config<{promote_operands = [0, 1],
+                                                mma_kind = #iree_gpu.mma_layout<MFMA_F32_32x32x8_F16>,
+                                                subgroup_m_count = 4, subgroup_n_count = 2,
+                                                reduction = [0, 0, 32],
+                                                workgroup = [256, 128, 0]}>,
+  translation_info = #iree_codegen.translation_info<pipeline = LLVMGPUVectorDistribute
+    workgroup_size = [128, 4, 1] subgroup_size = 64,
+    {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>,
+     llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}
+    }>> -> !transform.any_param
+  transform.yield %matmul, %config : !transform.any_op, !transform.any_param
+}
+
 //===----------------------------------------------------------------------===//
 // Convolution tuning
 //===----------------------------------------------------------------------===//
@@ -226,6 +246,7 @@ transform.named_sequence @match_mmt_7680x640x640(%matmul: !transform.any_op {tra
         , @match_mmt_7680x5120x640 -> @apply_op_config
         , @match_mmt_128x1280x2048 -> @apply_op_config
         , @match_mmt_7680x640x640 -> @apply_op_config
+        , @match_mmt_7680x640x2560 -> @apply_op_config
 
         // TUNING_MATCH_END DO NOT REMOVE
       : (!transform.any_op) -> (!transform.any_op)
