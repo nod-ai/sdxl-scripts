@@ -17,10 +17,10 @@ readonly IRPA_PATH_PREFIX="${2:-/data/shark}"
 "$IREE_BENCHMARK_MODULE" \
   --device=hip://$HIP_DEVICE_ID \
   --device_allocator=caching \
-  --module=$PWD/tmp/vae_decode.vmfb \
-  --parameters=model=${IRPA_PATH_PREFIX}/vae_decode_fp16.irpa \
+  --module="${SCRIPT_DIR}/tmp/vae_decode.vmfb" \
+  --parameters=model="${IRPA_PATH_PREFIX}/vae_decode_fp16.irpa" \
   --function=decode \
-  --input=@$SCRIPT_DIR/sample_inputs/vae_npys/random_vae_inputs.npy \
+  --input="@${SCRIPT_DIR}/sample_inputs/vae_npys/random_vae_inputs.npy" \
   --benchmark_repetitions=3
 
   # --parameters=model=${IRPA_PATH_PREFIX}/stable_diffusion_xl_base_1_0_vae_fp16.safetensors \

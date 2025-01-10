@@ -39,5 +39,5 @@ readonly PREPROCESSING=(
     --iree-codegen-gpu-native-math-precision=true \
     --iree-dispatch-creation-enable-aggressive-fusion=true \
     --iree-codegen-llvmgpu-test-tile-and-fuse-matmul=true \
-    -o=$SCRIPT_DIR/tmp/vae_decode.vmfb \
+    -o="${SCRIPT_DIR}/tmp/vae_decode.vmfb" \
     "${PREPROCESSING[@]}"
