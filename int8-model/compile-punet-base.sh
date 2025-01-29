@@ -2,7 +2,7 @@
 
 # Base unet compilation script. This is intended to be invoked by other scripts.
 # Usage:
-# ./compile-unet-base.sh <iree-compile-path> <gfxip> <default|winograd|misa> <attention_matmul_spec_file> <input mlir> -o <output vmfb> [extra flags]
+# ./compile-unet-base.sh <iree-compile-path> <gfxip> <attention_matmul_spec_file> <input mlir> -o <output vmfb> [extra flags]
 
 set -euo pipefail
 
@@ -32,15 +32,22 @@ fi
 shift 4
 
 readonly DEFAULT_FLAGS=(
-"--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics{pad-target-type=conv}, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))"
+"--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))"
 )
 declare -a FLAGS=("${DEFAULT_FLAGS[*]}")
 
 set -x
 
 "$IREE_COMPILE" "$INPUT" \
+    --iree-vm-bytecode-module-output-format=flatbuffer-binary \
+    --iree-dispatch-creation-enable-aggressive-fusion \
+    --iree-dispatch-creation-enable-fuse-horizontal-contractions=false \
     --iree-hal-target-backends=rocm \
-    --iree-rocm-target-chip="$CHIP" \
+    --iree-hal-indirect-command-buffers=true \
+    --iree-stream-resource-memory-model=discrete \
+    --iree-opt-strip-assertions \
+    --iree-hal-memoization=true \
+    --iree-hip-target="$CHIP" \
     --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
     --iree-opt-const-eval=false \
     --iree-opt-data-tiling=false \

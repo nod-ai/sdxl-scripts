@@ -1,0 +1,219 @@
+module @compiled_scheduler {
+  func.func @run_initialize(%arg0: !torch.vtensor<[1,4,128,128],f16>) -> (!torch.vtensor<[1,4,128,128],f16>, !torch.vtensor<[2,6],f16>, !torch.vtensor<[],si64>, !torch.vtensor<[20],f32>) attributes {iree.reflection = {input_dtypes = "['float16']", input_shapes = "[(1, 4, 128, 128)]", model_name = "stabilityai/stable-diffusion-xl-base-1.0_EulerDiscrete_scheduler_20"}, torch.assume_strict_symbolic_shapes} {
+    %0 = torch.vtensor.literal(dense_resource<torch_tensor_20_torch.float32> : tensor<20xf32>) : !torch.vtensor<[20],f32>
+    %1 = torch.vtensor.literal(dense_resource<torch_tensor_21_torch.float32> : tensor<21xf32>) : !torch.vtensor<[21],f32>
+    %2 = torch.vtensor.literal(dense_resource<torch_tensor_1_6_torch.float16> : tensor<1x6xf16>) : !torch.vtensor<[1,6],f16>
+    %3 = torch.vtensor.literal(dense<20> : tensor<si64>) : !torch.vtensor<[],si64>
+    %none = torch.constant.none
+    %4 = torch.aten.clone %2, %none : !torch.vtensor<[1,6],f16>, !torch.none -> !torch.vtensor<[1,6],f16>
+    %5 = torch.aten.detach %4 : !torch.vtensor<[1,6],f16> -> !torch.vtensor<[1,6],f16>
+    %6 = torch.aten.detach %5 : !torch.vtensor<[1,6],f16> -> !torch.vtensor<[1,6],f16>
+    %7 = torch.aten.detach %6 : !torch.vtensor<[1,6],f16> -> !torch.vtensor<[1,6],f16>
+    %8 = torch.prim.ListConstruct %7, %7 : (!torch.vtensor<[1,6],f16>, !torch.vtensor<[1,6],f16>) -> !torch.list<vtensor>
+    %int0 = torch.constant.int 0
+    %9 = torch.aten.cat %8, %int0 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[2,6],f16>
+    %int1 = torch.constant.int 1
+    %int1_0 = torch.constant.int 1
+    %10 = torch.prim.ListConstruct %int1, %int1_0 : (!torch.int, !torch.int) -> !torch.list<int>
+    %11 = torch.aten.repeat %9, %10 : !torch.vtensor<[2,6],f16>, !torch.list<int> -> !torch.vtensor<[2,6],f16>
+    %none_1 = torch.constant.none
+    %12 = torch.aten.clone %3, %none_1 : !torch.vtensor<[],si64>, !torch.none -> !torch.vtensor<[],si64>
+    %13 = torch.aten.detach %12 : !torch.vtensor<[],si64> -> !torch.vtensor<[],si64>
+    %14 = torch.aten.detach %13 : !torch.vtensor<[],si64> -> !torch.vtensor<[],si64>
+    %15 = torch.aten.detach %14 : !torch.vtensor<[],si64> -> !torch.vtensor<[],si64>
+    %16 = torch.aten.max %1 : !torch.vtensor<[21],f32> -> !torch.vtensor<[],f32>
+    %int2 = torch.constant.int 2
+    %17 = torch.aten.pow.Tensor_Scalar %16, %int2 : !torch.vtensor<[],f32>, !torch.int -> !torch.vtensor<[],f32>
+    %int1_2 = torch.constant.int 1
+    %int1_3 = torch.constant.int 1
+    %18 = torch.aten.add.Scalar %17, %int1_2, %int1_3 : !torch.vtensor<[],f32>, !torch.int, !torch.int -> !torch.vtensor<[],f32>
+    %float5.000000e-01 = torch.constant.float 5.000000e-01
+    %19 = torch.aten.pow.Tensor_Scalar %18, %float5.000000e-01 : !torch.vtensor<[],f32>, !torch.float -> !torch.vtensor<[],f32>
+    %20 = torch.aten.mul.Tensor %arg0, %19 : !torch.vtensor<[1,4,128,128],f16>, !torch.vtensor<[],f32> -> !torch.vtensor<[1,4,128,128],f16>
+    return %20, %11, %15, %0 : !torch.vtensor<[1,4,128,128],f16>, !torch.vtensor<[2,6],f16>, !torch.vtensor<[],si64>, !torch.vtensor<[20],f32>
+  }
+  func.func @run_scale(%arg0: !torch.vtensor<[1,4,128,128],f16>, %arg1: !torch.vtensor<[1],si64>, %arg2: !torch.vtensor<[?],f32>) -> (!torch.vtensor<[1,4,128,128],f16>, !torch.vtensor<[1],f16>) attributes {iree.reflection = {input_dtypes = "['float16', 'int64', 'float32']", input_shapes = "[(1, 4, 128, 128), (1,), ('?',)]", model_name = "stabilityai/stable-diffusion-xl-base-1.0_EulerDiscrete_scheduler_20"}, torch.assume_strict_symbolic_shapes} {
+    %0 = torch.vtensor.literal(dense_resource<torch_tensor_20_torch.float32> : tensor<20xf32>) : !torch.vtensor<[20],f32>
+    %1 = torch.vtensor.literal(dense_resource<torch_tensor_21_torch.float32> : tensor<21xf32>) : !torch.vtensor<[21],f32>
+    %2 = torch.prim.ListConstruct %arg1 : (!torch.vtensor<[1],si64>) -> !torch.list<optional<vtensor>>
+    %3 = torch.aten.index.Tensor %arg2, %2 : !torch.vtensor<[?],f32>, !torch.list<optional<vtensor>> -> !torch.vtensor<[1],f32>
+    %int6 = torch.constant.int 6
+    %4 = torch.prims.convert_element_type %3, %int6 : !torch.vtensor<[1],f32>, !torch.int -> !torch.vtensor<[1],f32>
+    %5 = torch.aten.eq.Tensor %0, %4 : !torch.vtensor<[20],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[20],i1>
+    %int3 = torch.constant.int 3
+    %6 = torch.prims.convert_element_type %5, %int3 : !torch.vtensor<[20],i1>, !torch.int -> !torch.vtensor<[20],si32>
+    %none = torch.constant.none
+    %false = torch.constant.bool false
+    %7 = torch.aten.argmax %6, %none, %false : !torch.vtensor<[20],si32>, !torch.none, !torch.bool -> !torch.vtensor<[],si64>
+    %int0 = torch.constant.int 0
+    %8 = torch.aten.unsqueeze %7, %int0 : !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[1],si64>
+    %int1 = torch.constant.int 1
+    %none_0 = torch.constant.none
+    %none_1 = torch.constant.none
+    %cpu = torch.constant.device "cpu"
+    %false_2 = torch.constant.bool false
+    %9 = torch.aten.scalar_tensor %int1, %none_0, %none_1, %cpu, %false_2 : !torch.int, !torch.none, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[],f32>
+    %int1_3 = torch.constant.int 1
+    %int4 = torch.constant.int 4
+    %none_4 = torch.constant.none
+    %cpu_5 = torch.constant.device "cpu"
+    %false_6 = torch.constant.bool false
+    %10 = torch.aten.scalar_tensor %int1_3, %int4, %none_4, %cpu_5, %false_6 : !torch.int, !torch.int, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[],si64>
+    %int0_7 = torch.constant.int 0
+    %int4_8 = torch.constant.int 4
+    %none_9 = torch.constant.none
+    %cpu_10 = torch.constant.device "cpu"
+    %false_11 = torch.constant.bool false
+    %11 = torch.aten.scalar_tensor %int0_7, %int4_8, %none_9, %cpu_10, %false_11 : !torch.int, !torch.int, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[],si64>
+    %int1_12 = torch.constant.int 1
+    %12 = torch.aten.gt.Scalar %9, %int1_12 : !torch.vtensor<[],f32>, !torch.int -> !torch.vtensor<[],i1>
+    %13 = torch.aten.where.self %12, %10, %11 : !torch.vtensor<[],i1>, !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],si64>
+    %int0_13 = torch.constant.int 0
+    %14 = torch.aten.unsqueeze %13, %int0_13 : !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[1],si64>
+    %int0_14 = torch.constant.int 0
+    %15 = torch.aten.index_select %8, %int0_14, %14 : !torch.vtensor<[1],si64>, !torch.int, !torch.vtensor<[1],si64> -> !torch.vtensor<[1],si64>
+    %16 = torch.prim.ListConstruct %15 : (!torch.vtensor<[1],si64>) -> !torch.list<optional<vtensor>>
+    %17 = torch.aten.index.Tensor %1, %16 : !torch.vtensor<[21],f32>, !torch.list<optional<vtensor>> -> !torch.vtensor<[1],f32>
+    %int2 = torch.constant.int 2
+    %18 = torch.aten.pow.Tensor_Scalar %17, %int2 : !torch.vtensor<[1],f32>, !torch.int -> !torch.vtensor<[1],f32>
+    %int1_15 = torch.constant.int 1
+    %int1_16 = torch.constant.int 1
+    %19 = torch.aten.add.Scalar %18, %int1_15, %int1_16 : !torch.vtensor<[1],f32>, !torch.int, !torch.int -> !torch.vtensor<[1],f32>
+    %float5.000000e-01 = torch.constant.float 5.000000e-01
+    %20 = torch.aten.pow.Tensor_Scalar %19, %float5.000000e-01 : !torch.vtensor<[1],f32>, !torch.float -> !torch.vtensor<[1],f32>
+    %21 = torch.aten.div.Tensor %arg0, %20 : !torch.vtensor<[1,4,128,128],f16>, !torch.vtensor<[1],f32> -> !torch.vtensor<[1,4,128,128],f32>
+    %int5 = torch.constant.int 5
+    %22 = torch.prims.convert_element_type %21, %int5 : !torch.vtensor<[1,4,128,128],f32>, !torch.int -> !torch.vtensor<[1,4,128,128],f16>
+    %int5_17 = torch.constant.int 5
+    %23 = torch.prims.convert_element_type %3, %int5_17 : !torch.vtensor<[1],f32>, !torch.int -> !torch.vtensor<[1],f16>
+    return %22, %23 : !torch.vtensor<[1,4,128,128],f16>, !torch.vtensor<[1],f16>
+  }
+  func.func @run_step(%arg0: !torch.vtensor<[1,4,128,128],f16>, %arg1: !torch.vtensor<[1],f16>, %arg2: !torch.vtensor<[1,4,128,128],f16>) -> !torch.vtensor<[1,4,128,128],f16> attributes {iree.reflection = {input_dtypes = "['float16', 'float16', 'float16']", input_shapes = "[(1, 4, 128, 128), (1,), (1, 4, 128, 128)]", model_name = "stabilityai/stable-diffusion-xl-base-1.0_EulerDiscrete_scheduler_20"}, torch.assume_strict_symbolic_shapes} {
+    %0 = torch.vtensor.literal(dense_resource<torch_tensor_20_torch.float32> : tensor<20xf32>) : !torch.vtensor<[20],f32>
+    %1 = torch.vtensor.literal(dense_resource<torch_tensor_21_torch.float32> : tensor<21xf32>) : !torch.vtensor<[21],f32>
+    %2 = torch.vtensor.literal(dense<0.000000e+00> : tensor<f32>) : !torch.vtensor<[],f32>
+    %3 = torch.vtensor.literal(dense<0.414213568> : tensor<f32>) : !torch.vtensor<[],f32>
+    %4 = torch.vtensor.literal(dense<0.000000e+00> : tensor<f32>) : !torch.vtensor<[],f32>
+    %5 = torch.aten.eq.Tensor %0, %arg1 : !torch.vtensor<[20],f32>, !torch.vtensor<[1],f16> -> !torch.vtensor<[20],i1>
+    %int3 = torch.constant.int 3
+    %6 = torch.prims.convert_element_type %5, %int3 : !torch.vtensor<[20],i1>, !torch.int -> !torch.vtensor<[20],si32>
+    %none = torch.constant.none
+    %false = torch.constant.bool false
+    %7 = torch.aten.argmax %6, %none, %false : !torch.vtensor<[20],si32>, !torch.none, !torch.bool -> !torch.vtensor<[],si64>
+    %int0 = torch.constant.int 0
+    %8 = torch.aten.unsqueeze %7, %int0 : !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[1],si64>
+    %int1 = torch.constant.int 1
+    %none_0 = torch.constant.none
+    %none_1 = torch.constant.none
+    %cpu = torch.constant.device "cpu"
+    %false_2 = torch.constant.bool false
+    %9 = torch.aten.scalar_tensor %int1, %none_0, %none_1, %cpu, %false_2 : !torch.int, !torch.none, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[],f32>
+    %int1_3 = torch.constant.int 1
+    %int4 = torch.constant.int 4
+    %none_4 = torch.constant.none
+    %cpu_5 = torch.constant.device "cpu"
+    %false_6 = torch.constant.bool false
+    %10 = torch.aten.scalar_tensor %int1_3, %int4, %none_4, %cpu_5, %false_6 : !torch.int, !torch.int, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[],si64>
+    %int0_7 = torch.constant.int 0
+    %int4_8 = torch.constant.int 4
+    %none_9 = torch.constant.none
+    %cpu_10 = torch.constant.device "cpu"
+    %false_11 = torch.constant.bool false
+    %11 = torch.aten.scalar_tensor %int0_7, %int4_8, %none_9, %cpu_10, %false_11 : !torch.int, !torch.int, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[],si64>
+    %int1_12 = torch.constant.int 1
+    %12 = torch.aten.gt.Scalar %9, %int1_12 : !torch.vtensor<[],f32>, !torch.int -> !torch.vtensor<[],i1>
+    %13 = torch.aten.where.self %12, %10, %11 : !torch.vtensor<[],i1>, !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],si64>
+    %int0_13 = torch.constant.int 0
+    %14 = torch.aten.unsqueeze %13, %int0_13 : !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[1],si64>
+    %int0_14 = torch.constant.int 0
+    %15 = torch.aten.index_select %8, %int0_14, %14 : !torch.vtensor<[1],si64>, !torch.int, !torch.vtensor<[1],si64> -> !torch.vtensor<[1],si64>
+    %int6 = torch.constant.int 6
+    %16 = torch.prims.convert_element_type %arg2, %int6 : !torch.vtensor<[1,4,128,128],f16>, !torch.int -> !torch.vtensor<[1,4,128,128],f32>
+    %int0_15 = torch.constant.int 0
+    %17 = torch.aten.index_select %1, %int0_15, %15 : !torch.vtensor<[21],f32>, !torch.int, !torch.vtensor<[1],si64> -> !torch.vtensor<[1],f32>
+    %float0.000000e00 = torch.constant.float 0.000000e+00
+    %18 = torch.aten.ge.Scalar %17, %float0.000000e00 : !torch.vtensor<[1],f32>, !torch.float -> !torch.vtensor<[1],i1>
+    %floatInf = torch.constant.float 0x7FF0000000000000
+    %19 = torch.aten.le.Scalar %17, %floatInf : !torch.vtensor<[1],f32>, !torch.float -> !torch.vtensor<[1],i1>
+    %20 = torch.aten.bitwise_and.Tensor %18, %19 : !torch.vtensor<[1],i1>, !torch.vtensor<[1],i1> -> !torch.vtensor<[1],i1>
+    %none_16 = torch.constant.none
+    %21 = torch.aten.clone %2, %none_16 : !torch.vtensor<[],f32>, !torch.none -> !torch.vtensor<[],f32>
+    %22 = torch.aten.detach %21 : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
+    %23 = torch.aten.detach %22 : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
+    %24 = torch.aten.detach %23 : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
+    %none_17 = torch.constant.none
+    %25 = torch.aten.clone %3, %none_17 : !torch.vtensor<[],f32>, !torch.none -> !torch.vtensor<[],f32>
+    %26 = torch.aten.detach %25 : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
+    %27 = torch.aten.detach %26 : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
+    %28 = torch.aten.detach %27 : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
+    %29 = torch.aten.minimum %24, %28 : !torch.vtensor<[],f32>, !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
+    %none_18 = torch.constant.none
+    %30 = torch.aten.clone %4, %none_18 : !torch.vtensor<[],f32>, !torch.none -> !torch.vtensor<[],f32>
+    %31 = torch.aten.detach %30 : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
+    %32 = torch.aten.detach %31 : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
+    %33 = torch.aten.detach %32 : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
+    %34 = torch.aten.where.self %20, %29, %33 : !torch.vtensor<[1],i1>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32> -> !torch.vtensor<[1],f32>
+    %int1_19 = torch.constant.int 1
+    %int4_20 = torch.constant.int 4
+    %int128 = torch.constant.int 128
+    %int128_21 = torch.constant.int 128
+    %35 = torch.prim.ListConstruct %int1_19, %int4_20, %int128, %int128_21 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %none_22 = torch.constant.none
+    %int5 = torch.constant.int 5
+    %int0_23 = torch.constant.int 0
+    %cpu_24 = torch.constant.device "cpu"
+    %false_25 = torch.constant.bool false
+    %36 = torch.aten.randn.generator %35, %none_22, %int5, %int0_23, %cpu_24, %false_25 : !torch.list<int>, !torch.none, !torch.int, !torch.int, !torch.Device, !torch.bool -> !torch.vtensor<[1,4,128,128],f16>
+    %int5_26 = torch.constant.int 5
+    %37 = torch.prims.convert_element_type %36, %int5_26 : !torch.vtensor<[1,4,128,128],f16>, !torch.int -> !torch.vtensor<[1,4,128,128],f16>
+    %float1.000000e00 = torch.constant.float 1.000000e+00
+    %38 = torch.aten.mul.Scalar %37, %float1.000000e00 : !torch.vtensor<[1,4,128,128],f16>, !torch.float -> !torch.vtensor<[1,4,128,128],f16>
+    %int1_27 = torch.constant.int 1
+    %int1_28 = torch.constant.int 1
+    %39 = torch.aten.add.Scalar %34, %int1_27, %int1_28 : !torch.vtensor<[1],f32>, !torch.int, !torch.int -> !torch.vtensor<[1],f32>
+    %40 = torch.aten.mul.Tensor %17, %39 : !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[1],f32>
+    %int0_29 = torch.constant.int 0
+    %41 = torch.aten.gt.Scalar %34, %int0_29 : !torch.vtensor<[1],f32>, !torch.int -> !torch.vtensor<[1],i1>
+    %int2 = torch.constant.int 2
+    %42 = torch.aten.pow.Tensor_Scalar %40, %int2 : !torch.vtensor<[1],f32>, !torch.int -> !torch.vtensor<[1],f32>
+    %int2_30 = torch.constant.int 2
+    %43 = torch.aten.pow.Tensor_Scalar %17, %int2_30 : !torch.vtensor<[1],f32>, !torch.int -> !torch.vtensor<[1],f32>
+    %int1_31 = torch.constant.int 1
+    %44 = torch.aten.sub.Tensor %42, %43, %int1_31 : !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>, !torch.int -> !torch.vtensor<[1],f32>
+    %float5.000000e-01 = torch.constant.float 5.000000e-01
+    %45 = torch.aten.pow.Tensor_Scalar %44, %float5.000000e-01 : !torch.vtensor<[1],f32>, !torch.float -> !torch.vtensor<[1],f32>
+    %46 = torch.aten.mul.Tensor %38, %45 : !torch.vtensor<[1,4,128,128],f16>, !torch.vtensor<[1],f32> -> !torch.vtensor<[1,4,128,128],f32>
+    %int1_32 = torch.constant.int 1
+    %47 = torch.aten.add.Tensor %16, %46, %int1_32 : !torch.vtensor<[1,4,128,128],f32>, !torch.vtensor<[1,4,128,128],f32>, !torch.int -> !torch.vtensor<[1,4,128,128],f32>
+    %48 = torch.aten.where.self %41, %47, %16 : !torch.vtensor<[1],i1>, !torch.vtensor<[1,4,128,128],f32>, !torch.vtensor<[1,4,128,128],f32> -> !torch.vtensor<[1,4,128,128],f32>
+    %49 = torch.aten.mul.Tensor %40, %arg0 : !torch.vtensor<[1],f32>, !torch.vtensor<[1,4,128,128],f16> -> !torch.vtensor<[1,4,128,128],f32>
+    %int1_33 = torch.constant.int 1
+    %50 = torch.aten.sub.Tensor %48, %49, %int1_33 : !torch.vtensor<[1,4,128,128],f32>, !torch.vtensor<[1,4,128,128],f32>, !torch.int -> !torch.vtensor<[1,4,128,128],f32>
+    %int1_34 = torch.constant.int 1
+    %51 = torch.aten.sub.Tensor %48, %50, %int1_34 : !torch.vtensor<[1,4,128,128],f32>, !torch.vtensor<[1,4,128,128],f32>, !torch.int -> !torch.vtensor<[1,4,128,128],f32>
+    %52 = torch.aten.div.Tensor %51, %40 : !torch.vtensor<[1,4,128,128],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[1,4,128,128],f32>
+    %int1_35 = torch.constant.int 1
+    %int1_36 = torch.constant.int 1
+    %53 = torch.aten.add.Scalar %15, %int1_35, %int1_36 : !torch.vtensor<[1],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+    %54 = torch.prim.ListConstruct %53 : (!torch.vtensor<[1],si64>) -> !torch.list<optional<vtensor>>
+    %55 = torch.aten.index.Tensor %1, %54 : !torch.vtensor<[21],f32>, !torch.list<optional<vtensor>> -> !torch.vtensor<[1],f32>
+    %int1_37 = torch.constant.int 1
+    %56 = torch.aten.sub.Tensor %55, %40, %int1_37 : !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>, !torch.int -> !torch.vtensor<[1],f32>
+    %57 = torch.aten.mul.Tensor %52, %56 : !torch.vtensor<[1,4,128,128],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[1,4,128,128],f32>
+    %int1_38 = torch.constant.int 1
+    %58 = torch.aten.add.Tensor %48, %57, %int1_38 : !torch.vtensor<[1,4,128,128],f32>, !torch.vtensor<[1,4,128,128],f32>, !torch.int -> !torch.vtensor<[1,4,128,128],f32>
+    %int5_39 = torch.constant.int 5
+    %59 = torch.prims.convert_element_type %58, %int5_39 : !torch.vtensor<[1,4,128,128],f32>, !torch.int -> !torch.vtensor<[1,4,128,128],f16>
+    return %59 : !torch.vtensor<[1,4,128,128],f16>
+  }
+}
+
+{-#
+  dialect_resources: {
+    builtin: {
+      torch_tensor_20_torch.float32: "0x0400000000C06D440040614400C054440040484400C03B4400402F4400C022440040164400C009440080FA430080E1430080C8430080AF430080964300007B4300004943000017430000CA4200004C420000803F",
+      torch_tensor_21_torch.float32: "0x0400000010743041414006416E34D040474DA440FEBB8340C84156408865304022BE12406C33F63F2CD5CF3FA726B03F1E88953F788B7D3F5FED553F40CA323FFEF4123FA4AAEA3E763FB13E719F693E5F39293D00000000",
+      torch_tensor_1_6_torch.float16: "0x02000000006400640000000000640064"
+    }
+  }
+#-}

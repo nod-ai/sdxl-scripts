@@ -19,16 +19,17 @@ readonly PREPROCESSING_FLAGS=(
 )
 declare -a FLAGS=("${PREPROCESSING_FLAGS[*]}")
 
-iree-compile ${SCRIPT_DIR}/base_ir/vae_decomp_attn_bs${BATCH_SIZE}.mlir \
+iree-compile ${SCRIPT_DIR}/base_ir/stable_diffusion_xl_base_1_0_bs1_1024x1024_fp16_vae_decomp_attn.mlir \
     --iree-hal-target-backends=rocm \
-    --iree-rocm-target-chip=${CHIP} \
+    --iree-hip-target=${CHIP} \
     --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
+    --iree-vm-bytecode-module-output-format=flatbuffer-binary \
     --iree-opt-const-eval=false \
     --iree-opt-data-tiling=false \
     --iree-global-opt-propagate-transposes=true \
     --iree-opt-aggressively-propagate-transposes=true \
-    --iree-flow-enable-fuse-horizontal-contractions \
-    --iree-flow-enable-aggressive-fusion \
+    --iree-dispatch-creation-enable-fuse-horizontal-contractions=false \
+    --iree-dispatch-creation-enable-aggressive-fusion \
     --iree-vm-target-truncate-unsupported-floats \
     --iree-codegen-llvmgpu-use-vector-distribution \
     --iree-llvmgpu-enable-prefetch \
