@@ -21,8 +21,6 @@ fi
 
 iree-benchmark-module \
   --device=hip://${DEVICE} \
-  --hip_use_streams=true \
-  --hip_allow_inline_execution=true \
   --device_allocator=caching \
   --module=$PWD/tmp/vae_decode.vmfb \
   --parameters=model=${IRPA_PATH_PREFIX}/vae_decode_fp16.irpa \
