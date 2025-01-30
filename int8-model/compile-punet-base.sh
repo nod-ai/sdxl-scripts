@@ -32,34 +32,25 @@ fi
 shift 4
 
 readonly DEFAULT_FLAGS=(
-"--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))"
+"--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental), iree-preprocessing-convert-conv-filter-to-channels-last{filter-layout=fhwc})"
 )
 declare -a FLAGS=("${DEFAULT_FLAGS[*]}")
 
 set -x
 
 "$IREE_COMPILE" "$INPUT" \
-    --iree-vm-bytecode-module-output-format=flatbuffer-binary \
-    --iree-dispatch-creation-enable-aggressive-fusion \
-    --iree-dispatch-creation-enable-fuse-horizontal-contractions=false \
     --iree-hal-target-backends=rocm \
-    --iree-hal-indirect-command-buffers=true \
-    --iree-stream-resource-memory-model=discrete \
-    --iree-opt-strip-assertions \
-    --iree-hal-memoization=true \
     --iree-hip-target="$CHIP" \
-    --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
-    --iree-opt-const-eval=false \
-    --iree-opt-data-tiling=false \
-    --iree-global-opt-propagate-transposes=true \
-    --iree-opt-aggressively-propagate-transposes=true \
+    --iree-hip-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
+    --iree-hal-indirect-command-buffers=true \
+    --iree-hal-memoization=true \
+    --iree-stream-resource-memory-model=discrete \
     --iree-opt-outer-dim-concat=true \
-    --iree-flow-enable-aggressive-fusion \
-    --iree-vm-target-truncate-unsupported-floats \
-    --iree-codegen-llvmgpu-use-vector-distribution \
+    --iree-opt-strip-assertions \
+    --iree-dispatch-creation-enable-aggressive-fusion \
     --iree-llvmgpu-enable-prefetch \
+    --iree-codegen-llvmgpu-test-tile-and-fuse-matmul=true \
     --iree-codegen-gpu-native-math-precision=true \
-    --iree-execution-model=async-external \
     --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
     "${FLAGS[@]}" \
     "$@"
