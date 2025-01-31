@@ -4,18 +4,23 @@
 
 set -euo pipefail
 
-readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
+if (( $# < 2 )); then
+  echo "usage: $0 <hip-target-chip> <chip-configuration-mode>"
+  exit 1
+fi
 
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
 readonly IREE_COMPILE="$(which iree-compile)"
 readonly CHIP="$1"
+readonly CHIP_CONFIGURATION="$2"
+EXTRA_FLAGS="${@:3}"
+if ! [[ "${CHIP_CONFIGURATION}" =~ ^(cpx|qpx)$ ]]; then
+  echo "Allowed chip-configuration-modes: cpx, qpx"
+  exit 1
+fi
+
 WORKING_DIR=${WORKING_DIR:-${SCRIPT_DIR}}
 shift
-
-TRANSFORM_PREFIX=""
-if [[ "${1:-}" =~ ^(splat|SPLAT)$ ]] ; then
-  TRANSFORM_PREFIX="splat_"
-  shift
-fi
 
 set -x
 
@@ -25,8 +30,8 @@ rm -rf "${WORKING_DIR}/binaries/punet"
 rm -rf "${WORKING_DIR}/benchmarks/punet"
 
 "${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
-  "${SCRIPT_DIR}/specs/${TRANSFORM_PREFIX}attention_and_matmul_spec.mlir" \
-  "${SCRIPT_DIR}/base_ir/punet_07_18.mlir" \
+  "${SCRIPT_DIR}/specs/attention_and_matmul_spec_punet_mi300_${CHIP_CONFIGURATION}.mlir" \
+  "${SCRIPT_DIR}/base_ir/stable_diffusion_xl_base_1_0_bs1_64_1024x1024_i8_punet.mlir" \
   --iree-hal-dump-executable-configurations-to="${WORKING_DIR}/configurations/punet" \
   --iree-hal-dump-executable-intermediates-to="${WORKING_DIR}/intermediates/punet" \
   --iree-hal-dump-executable-sources-to="${WORKING_DIR}/sources/punet" \
@@ -35,7 +40,7 @@ rm -rf "${WORKING_DIR}/benchmarks/punet"
   --iree-scheduling-dump-statistics-file="${WORKING_DIR}/tmp/punet_scheduling_stats.txt" \
   --iree-scheduling-dump-statistics-format=csv \
   -o "${WORKING_DIR}/tmp/punet.vmfb" \
-  "$@"
+  $EXTRA_FLAGS
 
   #--iree-hal-benchmark-dispatch-repeat-count=20 \
   #--iree-hal-executable-debug-level=3 \
