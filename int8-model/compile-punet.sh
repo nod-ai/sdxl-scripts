@@ -4,8 +4,8 @@
 
 set -euo pipefail
 
-if (( $# < 2 )); then
-  echo "usage: $0 <hip-target-chip> <chip-configuration-mode>"
+if (( $# < 3 )); then
+  echo "usage: $0 <hip-target-chip> <chip-configuration-mode> <batch-size>"
   exit 1
 fi
 
@@ -13,9 +13,14 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null &
 readonly IREE_COMPILE="$(which iree-compile)"
 readonly CHIP="$1"
 readonly CHIP_CONFIGURATION="$2"
-EXTRA_FLAGS="${@:3}"
+readonly BATCH_SIZE="$3"
+EXTRA_FLAGS="${@:4}"
 if ! [[ "${CHIP_CONFIGURATION}" =~ ^(cpx|qpx)$ ]]; then
   echo "Allowed chip-configuration-modes: cpx, qpx"
+  exit 1
+fi
+if ! [[ "${BATCH_SIZE}" =~ ^(1|4|8|14)$ ]]; then
+  echo "Allowed batch-sizes: 1, 4, 8, 14"
   exit 1
 fi
 
@@ -31,7 +36,7 @@ rm -rf "${WORKING_DIR}/benchmarks/punet"
 
 "${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
   "${SCRIPT_DIR}/specs/attention_and_matmul_spec_punet_mi300_${CHIP_CONFIGURATION}.mlir" \
-  "${SCRIPT_DIR}/base_ir/stable_diffusion_xl_base_1_0_bs1_64_1024x1024_i8_punet.mlir" \
+  "${SCRIPT_DIR}/base_ir/stable_diffusion_xl_base_1_0_bs${BATCH_SIZE}_64_1024x1024_i8_punet.mlir" \
   --iree-hal-dump-executable-configurations-to="${WORKING_DIR}/configurations/punet" \
   --iree-hal-dump-executable-intermediates-to="${WORKING_DIR}/intermediates/punet" \
   --iree-hal-dump-executable-sources-to="${WORKING_DIR}/sources/punet" \
@@ -39,7 +44,7 @@ rm -rf "${WORKING_DIR}/benchmarks/punet"
   --iree-hal-dump-executable-benchmarks-to="${WORKING_DIR}/benchmarks/punet" \
   --iree-scheduling-dump-statistics-file="${WORKING_DIR}/tmp/punet_scheduling_stats.txt" \
   --iree-scheduling-dump-statistics-format=csv \
-  -o "${WORKING_DIR}/tmp/punet.vmfb" \
+  -o "${WORKING_DIR}/tmp/punet_bs${BATCH_SIZE}.vmfb" \
   $EXTRA_FLAGS
 
   #--iree-hal-benchmark-dispatch-repeat-count=20 \

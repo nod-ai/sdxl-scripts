@@ -39,6 +39,7 @@ declare -a FLAGS=("${DEFAULT_FLAGS[*]}")
 set -x
 
 "$IREE_COMPILE" "$INPUT" \
+    --iree-config-add-tuner-attributes \
     --iree-hal-target-backends=rocm \
     --iree-hip-target="$CHIP" \
     --iree-hip-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
