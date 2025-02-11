@@ -50,7 +50,7 @@ set -x
     --iree-opt-strip-assertions \
     --iree-dispatch-creation-enable-aggressive-fusion \
     --iree-llvmgpu-enable-prefetch \
-    --iree-codegen-llvmgpu-test-tile-and-fuse-matmul=true \
+    --iree-codegen-llvmgpu-early-tile-and-fuse-matmul=true \
     --iree-codegen-gpu-native-math-precision=true \
     --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
     "${FLAGS[@]}" \
