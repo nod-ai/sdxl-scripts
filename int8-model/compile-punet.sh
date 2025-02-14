@@ -5,7 +5,7 @@
 set -euo pipefail
 
 if (( $# < 3 )); then
-  echo "usage: $0 <hip-target-chip> <chip-configuration-mode> <batch-size>"
+  echo "usage: $0 <hip-target-chip> <tuning-chip-configuration-mode> <batch-size>"
   exit 1
 fi
 
@@ -15,8 +15,8 @@ readonly CHIP="$1"
 readonly CHIP_CONFIGURATION="$2"
 readonly BATCH_SIZE="$3"
 EXTRA_FLAGS="${@:4}"
-if ! [[ "${CHIP_CONFIGURATION}" =~ ^(cpx|qpx)$ ]]; then
-  echo "Allowed chip-configuration-modes: cpx, qpx"
+if ! [[ "${CHIP_CONFIGURATION}" =~ ^(none|cpx|qpx)$ ]]; then
+  echo "Allowed tuning-chip-configuration-modes: none, cpx, qpx"
   exit 1
 fi
 if ! [[ "${BATCH_SIZE}" =~ ^(1|4|8|14)$ ]]; then
