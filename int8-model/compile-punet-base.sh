@@ -31,8 +31,11 @@ fi
 
 shift 4
 
+# readonly DEFAULT_FLAGS=(
+# "--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental), iree-preprocessing-convert-conv-filter-to-channels-last{filter-layout=fhwc})"
+# )
 readonly DEFAULT_FLAGS=(
-"--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental), iree-preprocessing-convert-conv-filter-to-channels-last{filter-layout=fhwc})"
+"--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))"
 )
 declare -a FLAGS=("${DEFAULT_FLAGS[*]}")
 
@@ -52,6 +55,7 @@ set -x
     --iree-llvmgpu-enable-prefetch \
     --iree-codegen-llvmgpu-early-tile-and-fuse-matmul=true \
     --iree-codegen-gpu-native-math-precision=true \
+    --iree-dispatch-creation-enable-fuse-horizontal-contractions=false \
     --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
     "${FLAGS[@]}" \
     "$@"
