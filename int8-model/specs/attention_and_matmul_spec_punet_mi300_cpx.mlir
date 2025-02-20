@@ -70,6 +70,56 @@ transform.named_sequence @match_attention_f8(%attention: !transform.any_op {tran
     transform.yield %attention, %config, %decomposition_config : !transform.any_op, !transform.any_param, !transform.any_param
   }
 
+transform.named_sequence @match_attention_f8_m_1024(%attention: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param, !transform.any_param) {
+    transform.match.operation_name %attention ["iree_linalg_ext.attention"] : !transform.any_op
+    %in0 = transform.get_operand %attention[0] : (!transform.any_op) -> !transform.any_value
+    transform.iree.match.cast_compatible_type %in0 = tensor<?x?x1024x?xf8E4M3FNUZ> : !transform.any_value
+
+    %config = transform.param.constant #iree_codegen.compilation_info<
+            lowering_config = #iree_gpu.lowering_config<{workgroup = [1, 1, 128, 0, 0, 0], reduction=[0, 0, 0, 0, 0, 64], promote_operands = [1, 2]}>,
+            translation_info = #iree_codegen.translation_info<pipeline = LLVMGPUVectorDistribute
+                                                              workgroup_size = [64, 4]
+                                                              subgroup_size = 64 ,
+              {llvm_func_attrs = { "amdgpu-waves-per-eu" = "2", "denormal-fp-math-f32" = "preserve-sign" }}>>
+    -> !transform.any_param
+
+    %decomposition_config = transform.param.constant {
+      qk_attrs = {attention_qk_matmul,
+                  lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x32_F8E4M3FNUZ>,
+                                                               subgroup_m_count = 4, subgroup_n_count = 1, promote_operands = [1] }>},
+      pv_attrs = {attention_pv_matmul,
+                  lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.virtual_mma_layout<intrinsic = VMFMA_F32_16x16x32_F8E4M3FNUZ>,
+                                                               subgroup_m_count = 4, subgroup_n_count = 1, promote_operands = [1] }>}
+    } -> !transform.any_param
+
+    transform.yield %attention, %config, %decomposition_config : !transform.any_op, !transform.any_param, !transform.any_param
+  }
+
+transform.named_sequence @match_attention_f8_m_4096(%attention: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param, !transform.any_param) {
+    transform.match.operation_name %attention ["iree_linalg_ext.attention"] : !transform.any_op
+    %in0 = transform.get_operand %attention[0] : (!transform.any_op) -> !transform.any_value
+    transform.iree.match.cast_compatible_type %in0 = tensor<?x?x4096x?xf8E4M3FNUZ> : !transform.any_value
+
+    %config = transform.param.constant #iree_codegen.compilation_info<
+            lowering_config = #iree_gpu.lowering_config<{workgroup = [1, 1, 128, 0, 0, 0], reduction=[0, 0, 0, 0, 0, 64], promote_operands = [1, 2]}>,
+            translation_info = #iree_codegen.translation_info<pipeline = LLVMGPUVectorDistribute
+                                                              workgroup_size = [64, 4]
+                                                              subgroup_size = 64 ,
+              {llvm_func_attrs = { "amdgpu-waves-per-eu" = "2", "denormal-fp-math-f32" = "preserve-sign" }}>>
+    -> !transform.any_param
+
+    %decomposition_config = transform.param.constant {
+      qk_attrs = {attention_qk_matmul,
+                  lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_32x32x16_F8E4M3FNUZ>,
+                                                               subgroup_m_count = 4, subgroup_n_count = 1, promote_operands = [1] }>},
+      pv_attrs = {attention_pv_matmul,
+                  lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.virtual_mma_layout<intrinsic = VMFMA_F32_32x32x16_F8E4M3FNUZ>,
+                                                               subgroup_m_count = 4, subgroup_n_count = 1, promote_operands = [1] }>}
+    } -> !transform.any_param
+
+    transform.yield %attention, %config, %decomposition_config : !transform.any_op, !transform.any_param, !transform.any_param
+  }
+
 // TUNING_SPEC_BEGIN DO NOT REMOVE
 
 //===----------------------------------------------------------------------===//
@@ -670,6 +720,8 @@ transform.named_sequence @match_horizontal_multi_contraction_2x4096x10x64x640_i8
     transform.foreach_match in %variant_op
         // Attention.
         @match_attention_f16 -> @apply_attn_op_config
+        , @match_attention_f8_m_1024 -> @apply_attn_op_config
+        , @match_attention_f8_m_4096 -> @apply_attn_op_config
         , @match_attention_f8 -> @apply_attn_op_config
 
         // UNET Batch Size 1 Contractions.
