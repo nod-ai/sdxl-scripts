@@ -30,7 +30,7 @@ shift
 set -x
 
 "${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
-  "${SCRIPT_DIR}/specs/attention_and_matmul_spec_punet_mi300_${CHIP_CONFIGURATION}.mlir" \
+  "${SCRIPT_DIR}/../int8-model/specs/attention_and_matmul_spec_punet_mi300_${CHIP_CONFIGURATION}.mlir" \
   "${SCRIPT_DIR}/base_ir/stable_diffusion_xl_base_1_0_scheduled_unet_bs${BATCH_SIZE}_64_1024x1024_fp8.mlir" \
   -o "${WORKING_DIR}/tmp/punet_bs${BATCH_SIZE}.vmfb" \
   $EXTRA_FLAGS
