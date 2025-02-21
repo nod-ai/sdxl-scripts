@@ -15,12 +15,12 @@ readonly CHIP="$1"
 readonly CHIP_CONFIGURATION="$2"
 readonly BATCH_SIZE="$3"
 EXTRA_FLAGS="${@:4}"
-if ! [[ "${CHIP_CONFIGURATION}" =~ ^(none|cpx|qpx)$ ]]; then
-  echo "Allowed tuning-chip-configuration-modes: none, cpx, qpx"
+if ! [[ "${CHIP_CONFIGURATION}" =~ ^(none|qpx)$ ]]; then
+  echo "Allowed tuning-chip-configuration-modes: none, qpx"
   exit 1
 fi
-if ! [[ "${BATCH_SIZE}" =~ ^(1|4|8|14)$ ]]; then
-  echo "Allowed batch-sizes: 1, 4, 8, 14"
+if ! [[ "${BATCH_SIZE}" =~ ^(4|8|16|18)$ ]]; then
+  echo "Allowed batch-sizes: 4, 8, 16, 18"
   exit 1
 fi
 
@@ -30,7 +30,7 @@ shift
 set -x
 
 "${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
-  "${SCRIPT_DIR}/../int8-model/specs/attention_and_matmul_spec_punet_mi300_${CHIP_CONFIGURATION}.mlir" \
+  "${SCRIPT_DIR}/specs/attention_and_matmul_spec_punet_mi325_${CHIP_CONFIGURATION}.mlir" \
   "${SCRIPT_DIR}/base_ir/stable_diffusion_xl_base_1_0_scheduled_unet_bs${BATCH_SIZE}_64_1024x1024_fp8.mlir" \
   -o "${WORKING_DIR}/tmp/punet_bs${BATCH_SIZE}.vmfb" \
   $EXTRA_FLAGS
