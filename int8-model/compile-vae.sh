@@ -22,8 +22,8 @@ CHIP=$1;       shift
 CHIP_CONFIGURATION=$1; shift
 BATCH_SIZE=$1; shift
 
-if ! [[ "${CHIP_CONFIGURATION}" =~ ^(none|cpx|qpx)$ ]]; then
-  echo "Allowed tuning-chip-configuration-modes: none, cpx, qpx"
+if ! [[ "${CHIP_CONFIGURATION}" =~ ^(none|qpx)$ ]]; then
+  echo "Allowed tuning-chip-configuration-modes: none, qpx"
   exit 1
 fi
 
