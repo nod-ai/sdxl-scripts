@@ -33,7 +33,12 @@ shift 4
 
 set -x
 
+rm -rf "${SCRIPT_DIR}/configurations/punet"
+rm -rf "${SCRIPT_DIR}/benchmarks/punet"
+
 "$IREE_COMPILE" "$INPUT" \
+    --iree-hal-dump-executable-configurations-to="${SCRIPT_DIR}/configurations/punet" \
+    --iree-hal-dump-executable-benchmarks-to="${SCRIPT_DIR}/benchmarks/punet" \
     --iree-hal-target-backends=rocm \
     --iree-hip-target=$CHIP \
     --iree-execution-model=async-external \

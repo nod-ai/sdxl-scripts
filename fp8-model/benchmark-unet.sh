@@ -13,20 +13,20 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null &
 readonly IREE_BENCHMARK="$(which iree-benchmark-module)"
 readonly HIP_DEVICE="$1"
 readonly BATCH_SIZE="$2"
-if ! [[ "${BATCH_SIZE}" =~ ^(1|4|8|14)$ ]]; then
-  echo "Allowed batch-sizes: 1, 4, 8, 14"
+if ! [[ "${BATCH_SIZE}" =~ ^(4|8|16|18)$ ]]; then
+  echo "Allowed batch-sizes: 4, 8, 16, 18"
   exit 1
 fi
 INPUT_PATH="${SCRIPT_DIR}/unet_npys/unet_inputs_bs${BATCH_SIZE}"
 
-INPUTS="--input=@${INPUT_PATH}/arg0.npy \
---input=@${INPUT_PATH}/arg1.npy \
---input=@${INPUT_PATH}/arg2.npy \
---input=@${INPUT_PATH}/arg3.npy \
---input=@${INPUT_PATH}/arg4.npy \
---input=@${INPUT_PATH}/arg5.npy \
---input=@${INPUT_PATH}/arg6.npy \
---input=@${INPUT_PATH}/arg7.npy"
+INPUTS="--input=@${INPUT_PATH}/run_forward_input_0.npy \
+--input=@${INPUT_PATH}/run_forward_input_1.npy \
+--input=@${INPUT_PATH}/run_forward_input_2.npy \
+--input=@${INPUT_PATH}/run_forward_input_3.npy \
+--input=@${INPUT_PATH}/run_forward_input_4.npy \
+--input=@${INPUT_PATH}/run_forward_input_5.npy \
+--input=@${INPUT_PATH}/run_forward_input_6.npy \
+--input=@${INPUT_PATH}/run_forward_input_7.npy"
 
 IRPA_PATH_PREFIX="${3:-/data/shark}"
 
