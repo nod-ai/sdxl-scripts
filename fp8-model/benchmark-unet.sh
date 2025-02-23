@@ -13,8 +13,8 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null &
 readonly IREE_BENCHMARK="$(which iree-benchmark-module)"
 readonly HIP_DEVICE="$1"
 readonly BATCH_SIZE="$2"
-if ! [[ "${BATCH_SIZE}" =~ ^(4|8|16|18)$ ]]; then
-  echo "Allowed batch-sizes: 4, 8, 16, 18"
+if ! [[ "${BATCH_SIZE}" =~ ^(2|4|8|16|18)$ ]]; then
+  echo "Allowed batch-sizes: 2, 4, 8, 16, 18"
   exit 1
 fi
 INPUT_PATH="${SCRIPT_DIR}/unet_npys/unet_inputs_bs${BATCH_SIZE}"

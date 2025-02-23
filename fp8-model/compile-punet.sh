@@ -19,8 +19,8 @@ if ! [[ "${CHIP_CONFIGURATION}" =~ ^(none|qpx)$ ]]; then
   echo "Allowed tuning-chip-configuration-modes: none, qpx"
   exit 1
 fi
-if ! [[ "${BATCH_SIZE}" =~ ^(4|8|16|18)$ ]]; then
-  echo "Allowed batch-sizes: 4, 8, 16, 18"
+if ! [[ "${BATCH_SIZE}" =~ ^(2|4|8|16|18)$ ]]; then
+  echo "Allowed batch-sizes: 2, 4, 8, 16, 18"
   exit 1
 fi
 
