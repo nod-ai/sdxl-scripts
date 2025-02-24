@@ -1,0 +1,1 @@
+../../int8-model/specs/attention_and_matmul_spec_vae_mi300_qpx.mlir
