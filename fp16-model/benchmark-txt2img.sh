@@ -13,7 +13,7 @@ IRPA_PATH_PREFIX="${2:-/data/shark}"
 
 echo "Benchmarking SDXL pipeline..."
 iree-benchmark-module \
- --device=rocm://$1 \
+ --device=hip://$1 \
  --device_allocator=caching \
  --module=$PWD/tmp/prompt_encoder.vmfb \
  --parameters=model=${IRPA_PATH_PREFIX}/prompt_encoder.irpa \

@@ -11,14 +11,14 @@ fi
 
 iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_1024x1024_fp16_vae_decode_cfg_b.mlir \
     --iree-hal-target-backends=rocm \
-    --iree-rocm-target-chip=$1 \
-    --iree-rocm-bc-dir=$PWD/../bitcode-2024-03-07 \
+    --iree-hip-target=$1 \
+    --iree-hip-bc-dir=$PWD/../bitcode-2024-03-07 \
     --iree-global-opt-propagate-transposes=true \
     --iree-opt-outer-dim-concat=true \
     --iree-opt-const-eval=false \
     --iree-llvmgpu-enable-prefetch=true \
-    --iree-rocm-waves-per-eu=2 \
-    --iree-flow-enable-aggressive-fusion \
+    --iree-hip-waves-per-eu=2 \
+    --iree-dispatch-creation-enable-aggressive-fusion \
     --iree-codegen-llvmgpu-use-vector-distribution=true \
     --iree-hal-dump-executable-configurations-to=configurations/vae \
     --iree-hal-dump-executable-sources-to=sources/vae \
