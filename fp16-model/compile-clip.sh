@@ -12,15 +12,15 @@ fi
 iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_fp16_prompt_encoder.mlir \
     --iree-hal-target-backends=rocm \
     --iree-input-type=torch \
-    --iree-rocm-target-chip=$1 \
-    --iree-rocm-bc-dir=$PWD/../bitcode-2024-03-07 \
+    --iree-hip-target=$1 \
+    --iree-hip-bc-dir=$PWD/../bitcode-2024-03-07 \
     --iree-global-opt-propagate-transposes=true \
     --iree-opt-outer-dim-concat=true \
     --iree-opt-const-eval=false \
-    --iree-rocm-waves-per-eu=2 \
+    --iree-hip-waves-per-eu=2 \
     --iree-llvmgpu-enable-prefetch \
-    --iree-flow-enable-aggressive-fusion \
-    --iree-flow-enable-fuse-horizontal-contractions=true \
+    --iree-dispatch-creation-enable-aggressive-fusion \
+    --iree-dispatch-creation-enable-fuse-horizontal-contractions=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-codegen-llvmgpu-use-vector-distribution=true \
     --iree-execution-model=async-external \
@@ -28,7 +28,7 @@ iree-compile $PWD/base_ir/stable_diffusion_xl_base_1_0_64_fp16_prompt_encoder.ml
     --iree-hal-dump-executable-sources-to=sources/clip \
     --iree-hal-dump-executable-binaries-to=binaries/clip \
     --iree-hal-dump-executable-benchmarks-to=benchmarks/clip \
-    --iree-preprocessing-pass-pipeline="builtin.module(iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics{pad-target-type=conv}))" \
+    --iree-preprocessing-pass-pipeline="builtin.module(iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics{pad-target-type=conv})" \
     -o $PWD/tmp/prompt_encoder.vmfb
     #--iree-codegen-transform-dialect-library=$PWD/specs/attention_and_matmul_spec.mlir \
     #--iree-hal-benchmark-dispatch-repeat-count=20 \
