@@ -16,20 +16,14 @@ fi
 
 readonly CHIP="$2"
 
-readonly ATTENTION_SPEC="$(realpath "$3")"
-if [ ! -f "$ATTENTION_SPEC" ] ; then
-  echo "Specified attention spec file not found: ${ATTENTION_SPEC}"
-  exit 1
-fi
-
-readonly INPUT="$(realpath "$4")"
+readonly INPUT="$(realpath "$3")"
 if [ ! -f "$INPUT" ] ; then
   echo "Input mlir file not found: ${INPUT}"
   exit 1
 fi
 
 
-shift 4
+shift 3
 
 set -x
 
@@ -57,7 +51,6 @@ rm -rf "${SCRIPT_DIR}/benchmarks/punet"
     --iree-stream-resource-memory-model=discrete \
     --iree-vm-target-truncate-unsupported-floats \
     --iree-config-add-tuner-attributes \
-    --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
     --iree-dispatch-creation-enable-fuse-horizontal-contractions=0 \
     --iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental),iree-preprocessing-convert-conv-filter-to-channels-last{filter-layout=fhwc})' \
     "$@"
