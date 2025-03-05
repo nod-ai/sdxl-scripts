@@ -18,7 +18,7 @@ iree-benchmark-module \
   --device=hip://$1 \
   --device_allocator=caching \
   --module=$PWD/tmp/unet.vmfb \
-  --parameters=model=${IRPA_PATH_PREFIX}/scheduled_unet.irpa \
+  --parameters=model=${IRPA_PATH_PREFIX}/scheduled_unet_fp16.irpa \
   --function=main \
   --input=1x4x128x128xf16 \
   --input=1xi64 \

@@ -20,7 +20,7 @@ fi
 iree-compile "$PWD"/base_ir/sdxl_pipeline_bench_f16.mlir \
     --iree-hal-target-backends=rocm \
     --iree-hip-target="$TARGET" \
-    --iree-hip-bc-dir="$PWD"/../bitcode-2024-03-07 \
+    --iree-hip-bc-dir="$(hipconfig --rocmpath)/amdgcn/bitcode" \
     --iree-global-opt-propagate-transposes=true \
     --iree-codegen-llvmgpu-use-vector-distribution \
     --iree-codegen-gpu-native-math-precision=true \

@@ -25,13 +25,7 @@ elif [[ $MODE =~ "misa" ]] ; then
   USE_MISA=1
 fi
 
-readonly ATTENTION_SPEC="$(realpath "$4")"
-if [ ! -f "$ATTENTION_SPEC" ] ; then
-  echo "Specified attention spec file not found: ${ATTENTION_SPEC}"
-  exit 1
-fi
-
-readonly INPUT="$(realpath "$5")"
+readonly INPUT="$(realpath "$4")"
 if [ ! -f "$INPUT" ] ; then
   echo "Input mlir file not found: ${INPUT}"
   exit 1
@@ -43,7 +37,7 @@ if [ ! -d "$SPEC_DIR" ] ; then
   exit 1
 fi
 
-shift 5
+shift 4
 
 readonly DEFAULT_FLAGS=(
   "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics)"
@@ -79,7 +73,7 @@ set -x
 "$IREE_COMPILE" "$INPUT" \
     --iree-hal-target-backends=rocm \
     --iree-hip-target="$CHIP" \
-    --iree-hip-bc-dir="${SCRIPT_DIR}/../bitcode-2024-03-07" \
+    --iree-hip-bc-dir="$(hipconfig --rocmpath)/amdgcn/bitcode" \
     --iree-global-opt-propagate-transposes=true \
     --iree-opt-outer-dim-concat=true \
     --iree-opt-const-eval=false \
@@ -93,6 +87,5 @@ set -x
     --iree-dispatch-creation-enable-fuse-horizontal-contractions=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-execution-model=async-external \
-    --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
     "${FLAGS[@]}" \
     "$@"

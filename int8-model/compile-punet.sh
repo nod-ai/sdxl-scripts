@@ -4,21 +4,17 @@
 
 set -euo pipefail
 
-if (( $# < 3 )); then
-  echo "usage: $0 <hip-target-chip> <tuning-chip-configuration-mode> <batch-size>"
+if (( $# < 2 )); then
+  echo "usage: $0 <hip-target-chip> <batch-size>"
   exit 1
 fi
 
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
 readonly IREE_COMPILE="$(which iree-compile)"
 readonly CHIP="$1"
-readonly CHIP_CONFIGURATION="$2"
-readonly BATCH_SIZE="$3"
+readonly BATCH_SIZE="$2"
 EXTRA_FLAGS="${@:4}"
-if ! [[ "${CHIP_CONFIGURATION}" =~ ^(none|cpx|qpx)$ ]]; then
-  echo "Allowed tuning-chip-configuration-modes: none, cpx, qpx"
-  exit 1
-fi
+
 if ! [[ "${BATCH_SIZE}" =~ ^(1|4|8|14)$ ]]; then
   echo "Allowed batch-sizes: 1, 4, 8, 14"
   exit 1
@@ -35,7 +31,6 @@ rm -rf "${WORKING_DIR}/binaries/punet"
 rm -rf "${WORKING_DIR}/benchmarks/punet"
 
 "${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
-  "${SCRIPT_DIR}/specs/attention_and_matmul_spec_punet_mi300_${CHIP_CONFIGURATION}.mlir" \
   "${SCRIPT_DIR}/base_ir/stable_diffusion_xl_base_1_0_bs${BATCH_SIZE}_64_1024x1024_i8_punet.mlir" \
   --iree-hal-dump-executable-configurations-to="${WORKING_DIR}/configurations/punet" \
   --iree-hal-dump-executable-intermediates-to="${WORKING_DIR}/intermediates/punet" \

@@ -42,7 +42,7 @@ iree-compile ${SCRIPT_DIR}/base_ir/20250220/stable_diffusion_xl_base_1_0_vae_bs1
     --iree-config-add-tuner-attributes \
     --iree-hal-target-backends=rocm \
     --iree-hip-target=${CHIP} \
-    --iree-hip-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
+    --iree-hip-bc-dir="$(hipconfig --rocmpath)/amdgcn/bitcode" \
     --iree-vm-bytecode-module-output-format=flatbuffer-binary \
     --iree-codegen-gpu-native-math-precision=true \
     --iree-codegen-llvmgpu-early-tile-and-fuse-matmul=true \
