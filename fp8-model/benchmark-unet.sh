@@ -30,7 +30,7 @@ IRPA_PATH_PREFIX="${2:-/data/shark}"
   --device="hip://${HIP_DEVICE}" \
   --device_allocator=caching \
   --module="${SCRIPT_DIR}/tmp/punet_bs${BATCH_SIZE}.vmfb" \
-  --parameters=model=${IRPA_PATH_PREFIX}/sdxl_unet_fp8_ocp_dataset.irpa \
+  --parameters=model=${IRPA_PATH_PREFIX}/stable_diffusion_xl_base_1_0_punet_dataset_fp8_ocp.irpa \
   --function=run_forward \
   $INPUTS \
   --benchmark_repetitions=3
