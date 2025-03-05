@@ -35,7 +35,6 @@ set -x
 "$IREE_COMPILE" "$INPUT" \
     --iree-hal-target-backends=rocm \
     --iree-hip-target="$CHIP" \
-    --iree-hip-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
     --iree-opt-const-eval=false \
     --iree-opt-data-tiling=false \
     --iree-global-opt-propagate-transposes=true \
@@ -49,4 +48,5 @@ set -x
     --iree-execution-model=async-external \
     "${FLAGS[@]}" \
     "$@"
+#    --iree-hip-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
 #    --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
