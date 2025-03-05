@@ -16,14 +16,20 @@ fi
 
 readonly CHIP="$2"
 
-readonly INPUT="$(realpath "$3")"
+readonly ATTENTION_SPEC="$(realpath "$3")"
+if [ ! -f "$ATTENTION_SPEC" ] ; then
+  echo "Specified attention spec file not found: ${ATTENTION_SPEC}"
+  exit 1
+fi
+
+readonly INPUT="$(realpath "$4")"
 if [ ! -f "$INPUT" ] ; then
   echo "Input mlir file not found: ${INPUT}"
   exit 1
 fi
 
 
-shift 3
+shift 4
 
 readonly DEFAULT_FLAGS=(
 "--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental), iree-preprocessing-convert-conv-filter-to-channels-last{filter-layout=fhwc})"
@@ -39,7 +45,7 @@ set -x
     --iree-config-add-tuner-attributes \
     --iree-hal-target-backends=rocm \
     --iree-hip-target="$CHIP" \
-    --iree-hip-bc-dir="$(hipconfig --rocmpath)/amdgcn/bitcode" \
+    --iree-hip-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
     --iree-hal-indirect-command-buffers=true \
     --iree-hal-memoization=true \
     --iree-stream-resource-memory-model=discrete \
@@ -50,5 +56,6 @@ set -x
     --iree-codegen-llvmgpu-early-tile-and-fuse-matmul=true \
     --iree-codegen-gpu-native-math-precision=true \
     --iree-dispatch-creation-enable-fuse-horizontal-contractions=false \
+    --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
     "${FLAGS[@]}" \
     "$@"
