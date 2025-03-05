@@ -43,6 +43,10 @@ readonly DEFAULT_FLAGS=(
   "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics)"
 )
 
+readonly GFX11_FLAGS=(
+    "--iree-dispatch-creation-enable-aggressive-fusion=false"
+)
+
 readonly WINOGRAD_PIPELINE=("builtin.module("
   "iree-preprocessing-transform-interpreter{transform-spec-path=${SPEC_DIR}/winograd_conv_spec.mlir},"
   "util.func(iree-linalg-ext-convert-conv2d-to-winograd),"
@@ -62,7 +66,9 @@ readonly MISA_FLAGS=(
 )
 
 declare -a FLAGS=("${DEFAULT_FLAGS[*]}")
-if [ "$USE_WINOGRAD" = 1 ] ; then
+if [[ "$CHIP" =~ gfx11 ]] ; then
+  FLAGS=("${GFX11_FLAGS[@]}")
+elif [ "$USE_WINOGRAD" = 1 ] ; then
   FLAGS=("${WINOGRAD_FLAGS[@]}")
 elif [ "$USE_MISA" = 1 ] ; then
   FLAGS=("${MISA_FLAGS[@]}")
