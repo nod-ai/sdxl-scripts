@@ -39,42 +39,15 @@ fi
 
 shift 4
 
-readonly DEFAULT_FLAGS=(
-  "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics)"
-)
-
-readonly GFX11_FLAGS=(
-    "--iree-dispatch-creation-enable-aggressive-fusion=false"
-)
-
-readonly WINOGRAD_PIPELINE=("builtin.module("
-  "iree-preprocessing-transform-interpreter{transform-spec-path=${SPEC_DIR}/winograd_conv_spec.mlir},"
-  "util.func(iree-linalg-ext-convert-conv2d-to-winograd),"
-  "iree-preprocessing-transpose-convolution-pipeline,"
-  "util.func(iree-preprocessing-pad-to-intrinsics{pad-target-type=conv}))"
-)
-
-readonly WINOGRAD_FLAGS=(
-  "--iree-opt-const-expr-max-size-increase-threshold=1000000000000000"
-  "--iree-preprocessing-pass-pipeline=${WINOGRAD_PIPELINE[*]}"
-)
-
-readonly MISA_FLAGS=(
-  "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-pad-to-intrinsics))"
-  "--iree-hal-executable-object-search-path=${SPEC_DIR}"
-  "--iree-preprocessing-transform-spec-filename=${SPEC_DIR}/misa_unet_spec.mlir"
-)
-
-declare -a FLAGS=("${DEFAULT_FLAGS[*]}")
-if [[ "$CHIP" =~ gfx11 ]] ; then
-  FLAGS=("${GFX11_FLAGS[@]}")
-elif [ "$USE_WINOGRAD" = 1 ] ; then
-  FLAGS=("${WINOGRAD_FLAGS[@]}")
-elif [ "$USE_MISA" = 1 ] ; then
-  FLAGS=("${MISA_FLAGS[@]}")
-fi
+# Removed since having this in causes issues on gfx11 as of last week
+#readonly DEFAULT_FLAGS=(
+#  "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics)"
+#)
 
 set -x
+
+# Note: --iree-dispatch-creation-enable-aggressive-fusion should be true
+# but that was breaking gfx11 so it's temporarily removed
 
 "$IREE_COMPILE" "$INPUT" \
     --iree-hal-target-backends=rocm \
@@ -89,9 +62,8 @@ set -x
     --iree-codegen-llvmgpu-use-vector-distribution \
     --iree-llvmgpu-enable-prefetch \
     --iree-codegen-gpu-native-math-precision=true \
-    --iree-dispatch-creation-enable-aggressive-fusion=true \
+    --iree-dispatch-creation-enable-aggressive-fusion=false \
     --iree-dispatch-creation-enable-fuse-horizontal-contractions=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-execution-model=async-external \
-    "${FLAGS[@]}" \
     "$@"
