@@ -25,7 +25,6 @@ rm -rf "${WORKING_DIR}/binaries/punet"
 rm -rf "${WORKING_DIR}/benchmarks/punet"
 
 "${SCRIPT_DIR}/compile-punet-base.sh" "$IREE_COMPILE" "$CHIP" \
-  "${SCRIPT_DIR}/specs/${TRANSFORM_PREFIX}attention_and_matmul_spec.mlir" \
   "${SCRIPT_DIR}/base_ir/punet_07_18.mlir" \
   --iree-hal-dump-executable-configurations-to="${WORKING_DIR}/configurations/punet" \
   --iree-hal-dump-executable-intermediates-to="${WORKING_DIR}/intermediates/punet" \

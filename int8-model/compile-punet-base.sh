@@ -2,7 +2,7 @@
 
 # Base unet compilation script. This is intended to be invoked by other scripts.
 # Usage:
-# ./compile-unet-base.sh <iree-compile-path> <gfxip> <default|winograd|misa> <attention_matmul_spec_file> <input mlir> -o <output vmfb> [extra flags]
+# ./compile-unet-base.sh <iree-compile-path> <gfxip> <input mlir> -o <output vmfb> [extra flags]
 
 set -euo pipefail
 
@@ -16,20 +16,14 @@ fi
 
 readonly CHIP="$2"
 
-readonly ATTENTION_SPEC="$(realpath "$3")"
-if [ ! -f "$ATTENTION_SPEC" ] ; then
-  echo "Specified attention spec file not found: ${ATTENTION_SPEC}"
-  exit 1
-fi
-
-readonly INPUT="$(realpath "$4")"
+readonly INPUT="$(realpath "$3")"
 if [ ! -f "$INPUT" ] ; then
   echo "Input mlir file not found: ${INPUT}"
   exit 1
 fi
 
 
-shift 4
+shift 3
 
 readonly DEFAULT_FLAGS=(
 "--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics{pad-target-type=conv}, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))"
@@ -40,19 +34,19 @@ set -x
 
 "$IREE_COMPILE" "$INPUT" \
     --iree-hal-target-backends=rocm \
-    --iree-rocm-target-chip="$CHIP" \
-    --iree-rocm-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
+    --iree-hip-target="$CHIP" \
+    --iree-hip-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
     --iree-opt-const-eval=false \
     --iree-opt-data-tiling=false \
     --iree-global-opt-propagate-transposes=true \
     --iree-opt-aggressively-propagate-transposes=true \
     --iree-opt-outer-dim-concat=true \
-    --iree-flow-enable-aggressive-fusion \
+    --iree-dispatch-creation-enable-aggressive-fusion \
     --iree-vm-target-truncate-unsupported-floats \
     --iree-codegen-llvmgpu-use-vector-distribution \
     --iree-llvmgpu-enable-prefetch \
     --iree-codegen-gpu-native-math-precision=true \
     --iree-execution-model=async-external \
-    --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
     "${FLAGS[@]}" \
     "$@"
+#    --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
