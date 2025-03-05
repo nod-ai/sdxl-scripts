@@ -12,7 +12,7 @@ fi
 IRPA_PATH_PREFIX="${2:-/data/shark}"
 
 # used as a workaround for lengthy initialization
-export ROCR_VISIBLE_DEVICES=0
+# export ROCR_VISIBLE_DEVICES=0
 
 iree-benchmark-module \
   --device=hip://$1 \
