@@ -9,6 +9,9 @@ if (( $# != 1 && $# != 2 )); then
   exit 1
 fi
 
+# IRPA file: https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl-scripts-weights/sdxl_unet_int8_dataset.irpa
+# Size: 2614669312
+# md5sum: b9b2971e18d1dbcbbd0645263d8a8ac5
 IRPA_PATH_PREFIX="${2:-/data/shark}"
 
 iree-benchmark-module \
@@ -17,7 +20,7 @@ iree-benchmark-module \
   --hip_allow_inline_execution=true \
   --device_allocator=caching \
   --module=$PWD/tmp/punet.vmfb \
-  --parameters=model=${IRPA_PATH_PREFIX}/sdxl_unet_int8_dataset.irpa \
+  --parameters=model="${IRPA_PATH_PREFIX}/sdxl_unet_int8_dataset.irpa" \
   --function=main \
   --input=1x4x128x128xf16 \
   --input=1xsi32 \

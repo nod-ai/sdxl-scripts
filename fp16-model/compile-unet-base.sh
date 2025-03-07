@@ -2,7 +2,7 @@
 
 # Base unet compilation script. This is intended to be invoked by other scripts.
 # Usage:
-# ./compile-unet-base.sh <iree-compile-path> <gfxip> <default|winograd|misa> <attention_matmul_spec_file> <input mlir> -o <output vmfb> [extra flags]
+# ./compile-unet-base.sh <iree-compile-path> <gfxip> <input mlir> -o <output vmfb> [extra flags]
 
 set -euo pipefail
 
@@ -16,28 +16,13 @@ fi
 
 readonly CHIP="$2"
 
-readonly MODE="$3"
-USE_WINOGRAD=0
-USE_MISA=0
-if [[ $MODE =~ "winograd" ]] ; then
-  USE_WINOGRAD=1
-elif [[ $MODE =~ "misa" ]] ; then
-  USE_MISA=1
-fi
-
-readonly INPUT="$(realpath "$4")"
+readonly INPUT="$(realpath "$3")"
 if [ ! -f "$INPUT" ] ; then
   echo "Input mlir file not found: ${INPUT}"
   exit 1
 fi
 
-readonly SPEC_DIR="$(realpath "$SCRIPT_DIR"/specs)"
-if [ ! -d "$SPEC_DIR" ] ; then
-  echo "Spec directory not found: ${SPEC_DIR}"
-  exit 1
-fi
-
-shift 4
+shift 3
 
 # Removed since having this in causes issues on gfx11 as of last week
 #readonly DEFAULT_FLAGS=(

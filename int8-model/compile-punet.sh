@@ -35,10 +35,3 @@ rm -rf "${WORKING_DIR}/benchmarks/punet"
   --iree-scheduling-dump-statistics-format=csv \
   -o "${WORKING_DIR}/tmp/punet.vmfb" \
   "$@"
-
-  #--iree-hal-benchmark-dispatch-repeat-count=20 \
-  #--iree-hal-executable-debug-level=3 \
-  #--iree-vulkan-target-triple=rdna3-unknown-linux \
-  #--iree-llvmcpu-target-triple=x86_64-unknown-linux \
-  #--iree-hal-cuda-llvm-target-arch=sm_80 \
-  #--mlir-disable-threading \

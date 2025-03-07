@@ -24,13 +24,16 @@ INPUTS="--input=@${INPUT_PATH}/run_forward_input_0.npy \
 --input=@${INPUT_PATH}/run_forward_input_6.npy \
 --input=@${INPUT_PATH}/run_forward_input_7.npy"
 
+# IRPA file: https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl-scripts-weights/stable_diffusion_xl_base_1_0_punet_dataset_fp8_ocp.irpa
+# Size: 2615300096
+# md5sum: 42df7496dc012548e5fc1a198cb1161d
 IRPA_PATH_PREFIX="${2:-/data/shark}"
 
 "$IREE_BENCHMARK" \
   --device="hip://${HIP_DEVICE}" \
   --device_allocator=caching \
   --module="${SCRIPT_DIR}/tmp/punet_bs${BATCH_SIZE}.vmfb" \
-  --parameters=model=${IRPA_PATH_PREFIX}/stable_diffusion_xl_base_1_0_punet_dataset_fp8_ocp.irpa \
+  --parameters=model="${IRPA_PATH_PREFIX}/stable_diffusion_xl_base_1_0_punet_dataset_fp8_ocp.irpa" \
   --function=run_forward \
   $INPUTS \
   --benchmark_repetitions=3

@@ -22,7 +22,6 @@ if [ ! -f "$INPUT" ] ; then
   exit 1
 fi
 
-
 shift 3
 
 readonly DEFAULT_FLAGS=(
@@ -48,5 +47,3 @@ set -x
     --iree-execution-model=async-external \
     "${FLAGS[@]}" \
     "$@"
-#    --iree-hip-bc-dir="${SCRIPT_DIR}/../bitcode-6.1.2" \
-#    --iree-codegen-transform-dialect-library="$ATTENTION_SPEC" \
