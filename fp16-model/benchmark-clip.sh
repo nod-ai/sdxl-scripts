@@ -9,7 +9,7 @@ if (( $# != 1 && $# != 2 )); then
   exit 1
 fi
 
-IRPA_PATH_PREFIX="${2:-/data/shark}"
+IRPA_PATH_PREFIX="${2:-/data/amd-shark}"
 
 iree-benchmark-module \
   --device=rocm://$1 \

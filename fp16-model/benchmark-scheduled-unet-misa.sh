@@ -4,7 +4,7 @@
 
 set -xeu
 
-IRPA_PATH_PREFIX="${2:-/data/shark}"
+IRPA_PATH_PREFIX="${2:-/data/amd-shark}"
 
 iree-benchmark-module \
   --device=rocm://$1 \
