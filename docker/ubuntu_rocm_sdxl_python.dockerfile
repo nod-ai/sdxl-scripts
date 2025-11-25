@@ -44,8 +44,8 @@ RUN git clone https://github.com/iree-org/iree-turbine && \
   cd iree-turbine && \
   pip install -r requirements.txt .
   
-RUN git clone https://github.com/nod-ai/SHARK-Turbine -b ean-unify-sd && \
-  cd SHARK-Turbine && \
+RUN git clone https://github.com/nod-ai/AMD-SHARK-ModelDev -b ean-unify-sd && \
+  cd AMD-SHARK-ModelDev && \
   pip install --pre --upgrade -e models -r models/requirements.txt && \
   pip uninstall iree-compiler iree-runtime -y
 

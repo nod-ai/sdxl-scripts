@@ -11,7 +11,7 @@ fi
 
 DEVICE=$1;     shift
 BATCH_SIZE=$1; shift
-IRPA_PATH_PREFIX="${1:-/data/shark}"
+IRPA_PATH_PREFIX="${1:-/data/amd-shark}"
 
 re='^[0-9]+$'
 if ! [[ $BATCH_SIZE =~ $re ]] ; then

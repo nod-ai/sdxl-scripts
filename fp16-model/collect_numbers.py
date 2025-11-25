@@ -165,7 +165,7 @@ def parse_arguments(argv):
     parser.add_argument(
         "--real-weights-path",
         help="Path to real weights to use",
-        default="/data/shark"
+        default="/data/amd-shark"
     )
     parser.add_argument(
         "--splat-weights-path",

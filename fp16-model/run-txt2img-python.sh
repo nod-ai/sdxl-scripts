@@ -11,7 +11,7 @@ batch_count="--batch_count=$1"
 device="hip://$2"
 weights_path="--external_weights_dir=$3"
 
-python3 ../SHARK-Turbine/models/turbine_models/custom_models/sdxl_inference/sdxl_compiled_pipeline.py \
+python3 ../AMD-SHARK-ModelDev/models/turbine_models/custom_models/sdxl_inference/sdxl_compiled_pipeline.py \
   --precision=fp16 \
   --external_weights=irpa \
   --device=hip \
